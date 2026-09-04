@@ -4,7 +4,12 @@ import { type FormEvent } from 'react';
 import { Plus, RefreshCw, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
-import { clubAccentValueStyle, type Club, type ClubFormState } from './club-management-model';
+import {
+  clubAccentValueStyle,
+  type Club,
+  type ClubFormState,
+  type ClubYearGroupBand,
+} from './club-management-model';
 import { CLUB_ACCENTS, CLUB_ICON_OPTIONS, clubVisual, randomClubAccent } from './club-visuals';
 
 export function ClubFormModal({
@@ -15,6 +20,7 @@ export function ClubFormModal({
   onFormChange,
   onSubmit,
   pending,
+  yearGroupBands,
 }: {
   club: Club | null;
   error: string | null;
@@ -23,6 +29,7 @@ export function ClubFormModal({
   onFormChange: (form: ClubFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   pending: boolean;
+  yearGroupBands: readonly ClubYearGroupBand[];
 }) {
   const visual = clubVisual({
     accentColor: form.accentColor,
@@ -89,6 +96,33 @@ export function ClubFormModal({
               rows={3}
               value={form.description}
             />
+          </Field>
+          <Field label="Year groups" hint="Only selected groups can newly join this club" required>
+            <div className="admin-club-year-group-list">
+              {yearGroupBands.map((band) => {
+                const checked = form.yearGroupBandIds.includes(band.id);
+                return (
+                  <label key={band.id}>
+                    <input
+                      checked={checked}
+                      onChange={() => {
+                        onFormChange({
+                          ...form,
+                          yearGroupBandIds: checked
+                            ? form.yearGroupBandIds.filter((id) => id !== band.id)
+                            : [...form.yearGroupBandIds, band.id],
+                        });
+                      }}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>{band.name}</strong>
+                      <small>{band.standardYears.join(', ')}</small>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </Field>
           <div className="admin-club-visual-picker">
             <div className="admin-club-visual-picker__header">

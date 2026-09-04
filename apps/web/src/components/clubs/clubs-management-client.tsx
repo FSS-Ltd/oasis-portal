@@ -36,6 +36,7 @@ export function ClubsManagementClient() {
   const [notificationError, setNotificationError] = useState<string | null>(null);
 
   const clubsQuery = api.club.managementList.useQuery(undefined, { retry: false });
+  const yearGroupBandsQuery = api.club.yearGroupBands.useQuery(undefined, { retry: false });
   const clubs = useMemo(() => clubsQuery.data ?? [], [clubsQuery.data]);
   const selectedClub = clubs.find((club) => club.id === selectedClubId) ?? null;
   const rosterQuery = api.club.roster.useQuery(
@@ -63,6 +64,7 @@ export function ClubsManagementClient() {
   async function refreshClubs() {
     await Promise.all([
       utils.club.managementList.invalidate(),
+      utils.club.yearGroupBands.invalidate(),
       utils.club.list.invalidate(),
       utils.club.roster.invalidate(),
       utils.club.notifications.invalidate(),
@@ -171,6 +173,7 @@ export function ClubsManagementClient() {
         void submitClub(event);
       }}
       pending={formPending}
+      yearGroupBands={yearGroupBandsQuery.data ?? []}
     />
   ) : null;
 

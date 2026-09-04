@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, Club, UsersRound } from 'lucide-react';
-import { displaySchoolYearLabel } from '@oasis/domain';
-import { Avatar } from '@/components/ui/avatar';
+import { Bell } from 'lucide-react';
+import { clubMatchesYearGroupBands, displaySchoolYearLabel } from '@oasis/domain';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
+import { ParentChildSelector } from '@/components/parent/parent-child-selector';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -13,7 +14,7 @@ import { ParentClubCard, type ParentClub, type ParentClubCardHref } from './pare
 type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupChild = SignupContext['children'][number];
 type ClubNotice = RouterOutputs['club']['myClubNotices'][number];
-type ParentClubsTab = 'overview' | 'signups' | 'notices';
+type ParentClubsTab = 'all-clubs' | 'my-clubs' | 'notices';
 type MyClubsPortalVariant = 'admin' | 'parent' | 'supervisor';
 
 interface ParentMyClubsClientProps {
@@ -21,18 +22,9 @@ interface ParentMyClubsClientProps {
 }
 
 const VARIANT_COPY = {
-  admin: {
-    eyebrow: 'Linked child clubs',
-    title: 'My Clubs',
-  },
-  parent: {
-    eyebrow: 'Parent portal',
-    title: 'My Clubs',
-  },
-  supervisor: {
-    eyebrow: 'Linked child clubs',
-    title: 'My Clubs',
-  },
+  admin: { eyebrow: 'Linked child clubs', title: 'Clubs' },
+  parent: { eyebrow: 'Parent portal', title: 'Clubs' },
+  supervisor: { eyebrow: 'Linked child clubs', title: 'Clubs' },
 } as const satisfies Record<MyClubsPortalVariant, { eyebrow: string; title: string }>;
 
 const DETAIL_BASE_HREF = {
@@ -41,16 +33,9 @@ const DETAIL_BASE_HREF = {
   supervisor: '/supervisor/clubs',
 } as const satisfies Record<MyClubsPortalVariant, `/${string}`>;
 
-type ClubDetailBaseHref = (typeof DETAIL_BASE_HREF)[MyClubsPortalVariant];
-type ClubDetailHref = ParentClubCardHref;
-
-function clubDetailHref(baseHref: ClubDetailBaseHref, clubId: string): ClubDetailHref {
-  return `${baseHref}/${encodeURIComponent(clubId)}`;
-}
-
-const BASE_TABS = [
-  ['overview', 'Overview'],
-  ['signups', 'Signups'],
+const TABS = [
+  ['all-clubs', 'All Clubs'],
+  ['my-clubs', 'My Clubs'],
   ['notices', 'Notices'],
 ] as const satisfies readonly [ParentClubsTab, string][];
 
@@ -61,12 +46,12 @@ const noticeDateFormatter = new Intl.DateTimeFormat('en-GB', {
   month: 'short',
 });
 
-function formatNoticeDate(value: Date | string): string {
-  return noticeDateFormatter.format(new Date(value));
-}
-
-function signedUpClubCount(clubs: readonly ParentClub[]): number {
-  return clubs.filter((club) => club.signedUpStudentIds.length > 0).length;
+function detailHref(
+  variant: MyClubsPortalVariant,
+  clubId: string,
+  studentId: string,
+): ParentClubCardHref {
+  return `${DETAIL_BASE_HREF[variant]}/${encodeURIComponent(clubId)}?studentId=${encodeURIComponent(studentId)}`;
 }
 
 function ParentClubsTabs({
@@ -77,8 +62,8 @@ function ParentClubsTabs({
   onTabChange: (tab: ParentClubsTab) => void;
 }) {
   return (
-    <div className="parent-clubs-tabs" role="tablist" aria-label="My Clubs sections">
-      {BASE_TABS.map(([tab, label]) => (
+    <div className="parent-clubs-tabs" role="tablist" aria-label="Club sections">
+      {TABS.map(([tab, label]) => (
         <button
           aria-selected={activeTab === tab}
           className={activeTab === tab ? 'is-selected' : ''}
@@ -96,192 +81,47 @@ function ParentClubsTabs({
   );
 }
 
-function ChildPicker({
-  children,
-  onSelect,
-  selectedChildId,
-}: {
-  children: readonly SignupChild[];
-  onSelect: (studentId: string) => void;
-  selectedChildId: string | null;
-}) {
-  return (
-    <section
-      className="panel panel__body linked-clubs-child-panel"
-      aria-labelledby="parent-clubs-child-title"
-    >
-      <div className="section-title">
-        <div>
-          <p className="muted">Linked children</p>
-          <h2 id="parent-clubs-child-title">Select Child</h2>
-        </div>
-        <Badge tone="blue">{String(children.length)}</Badge>
-      </div>
-      <div className="linked-clubs-child-list" aria-label="Select child for club signup">
-        {children.map((child) => {
-          const selected = child.id === selectedChildId;
-
-          return (
-            <button
-              aria-pressed={selected}
-              className={selected ? 'linked-clubs-child is-selected' : 'linked-clubs-child'}
-              key={child.id}
-              onClick={() => {
-                onSelect(child.id);
-              }}
-              type="button"
-            >
-              <Avatar name={child.fullName} />
-              <span>
-                <strong>{child.fullName}</strong>
-                <small>{displaySchoolYearLabel(child.yearGroup)}</small>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function OverviewTab({
-  childCount,
+function ClubList({
   clubs,
-  detailBaseHref,
-}: {
-  childCount: number;
-  clubs: readonly ParentClub[];
-  detailBaseHref: ClubDetailBaseHref;
-}) {
-  return (
-    <div className="parent-clubs-tab-panel" role="tabpanel">
-      <section className="parent-clubs-summary-grid" aria-label="My Clubs summary">
-        <article>
-          <Club aria-hidden="true" size={18} />
-          <span>Active clubs</span>
-          <strong>{String(clubs.length)}</strong>
-          <small>Available for linked children</small>
-        </article>
-        <article>
-          <UsersRound aria-hidden="true" size={18} />
-          <span>Family signups</span>
-          <strong>{String(signedUpClubCount(clubs))}</strong>
-          <small>Clubs with linked children signed up</small>
-        </article>
-        <article>
-          <UsersRound aria-hidden="true" size={18} />
-          <span>Linked children</span>
-          <strong>{String(childCount)}</strong>
-          <small>{childCount === 0 ? 'Signup controls hidden' : 'Can manage signups'}</small>
-        </article>
-      </section>
-
-      {clubs.length === 0 ? (
-        <EmptyState detail="Active clubs will appear here." title="No active clubs" />
-      ) : (
-        <section className="parent-clubs-card-grid" aria-label="Active clubs">
-          {clubs.map((club) => (
-            <ParentClubCard
-              club={club}
-              href={clubDetailHref(detailBaseHref, club.id)}
-              key={club.id}
-            />
-          ))}
-        </section>
-      )}
-    </div>
-  );
-}
-
-function SignupsTab({
-  children,
-  clubs,
+  detailHrefForClub,
   disabled,
-  onSelectChild,
+  emptyDetail,
+  emptyTitle,
+  hideWithdraw = false,
   onSignUp,
   onWithdraw,
-  operationError,
   pendingClubId,
-  selectedChild,
+  selectedChildId,
 }: {
-  children: readonly SignupChild[];
   clubs: readonly ParentClub[];
+  detailHrefForClub?: (clubId: string) => ParentClubCardHref;
   disabled: boolean;
-  onSelectChild: (studentId: string) => void;
+  emptyDetail: string;
+  emptyTitle: string;
+  hideWithdraw?: boolean;
   onSignUp: (club: ParentClub) => void;
   onWithdraw: (club: ParentClub) => void;
-  operationError: string | null;
   pendingClubId: string | null;
-  selectedChild: SignupChild | null;
+  selectedChildId: string | null;
 }) {
-  if (children.length === 0) {
-    return (
-      <div className="parent-clubs-tab-panel" role="tabpanel">
-        <EmptyState
-          detail="Club signups need linked child records."
-          title="No linked children found"
-        />
-      </div>
-    );
-  }
-
+  if (clubs.length === 0) return <EmptyState detail={emptyDetail} title={emptyTitle} />;
   return (
-    <div className="parent-clubs-tab-panel linked-clubs-layout" role="tabpanel">
-      <ChildPicker
-        children={children}
-        onSelect={onSelectChild}
-        selectedChildId={selectedChild?.id ?? null}
-      />
-
-      <section
-        className="panel panel__body linked-clubs-list-panel"
-        aria-labelledby="parent-clubs-signups-title"
-      >
-        <div className="section-title">
-          <div>
-            <p className="muted">Available clubs</p>
-            <h2 id="parent-clubs-signups-title">Signups</h2>
-          </div>
-          <Badge tone="blue">
-            <Club aria-hidden="true" size={14} />
-            {String(clubs.length)}
-          </Badge>
-        </div>
-
-        {clubs.length === 0 ? (
-          <EmptyState detail="Active clubs will appear here." title="No active clubs" />
-        ) : (
-          <div className="parent-clubs-card-grid parent-clubs-card-grid--compact linked-clubs-list">
-            {clubs.map((club) => (
-              <ParentClubCard
-                actionMode
-                club={club}
-                disabled={disabled}
-                key={club.id}
-                onSignUp={onSignUp}
-                onWithdraw={onWithdraw}
-                pending={pendingClubId === club.id}
-                selectedChildId={selectedChild?.id ?? null}
-              />
-            ))}
-          </div>
-        )}
-
-        <div className="club-roster-summary">
-          <UsersRound aria-hidden="true" size={18} />
-          <span>
-            <strong>{selectedChild?.fullName ?? 'No child selected'}</strong>
-            <small>
-              {selectedChild
-                ? displaySchoolYearLabel(selectedChild.yearGroup)
-                : 'Select a linked child'}
-            </small>
-          </span>
-        </div>
-
-        {operationError ? <p className="status--error">{operationError}</p> : null}
-      </section>
-    </div>
+    <section className="parent-clubs-card-grid" aria-label="Clubs">
+      {clubs.map((club) => (
+        <ParentClubCard
+          actionMode
+          club={club}
+          {...(detailHrefForClub ? { detailHref: detailHrefForClub(club.id) } : {})}
+          disabled={disabled}
+          hideWithdraw={hideWithdraw}
+          key={club.id}
+          onSignUp={onSignUp}
+          onWithdraw={onWithdraw}
+          pending={pendingClubId === club.id}
+          selectedChildId={selectedChildId}
+        />
+      ))}
+    </section>
   );
 }
 
@@ -289,37 +129,35 @@ function NoticesTab({
   error,
   loading,
   notices,
+  selectedChild,
 }: {
   error: string | null;
   loading: boolean;
   notices: readonly ClubNotice[];
+  selectedChild: SignupChild | null;
 }) {
   return (
-    <section
-      className="parent-clubs-tab-panel panel panel__body linked-child-club-notices"
-      role="tabpanel"
-      aria-labelledby="parent-clubs-notices-title"
-    >
+    <section className="panel panel__body linked-child-club-notices" role="tabpanel">
       <div className="section-title">
         <div>
-          <p className="muted">Linked child club notices</p>
-          <h2 id="parent-clubs-notices-title">Latest Club Updates</h2>
+          <p className="muted">
+            {selectedChild ? `${selectedChild.fullName}'s club notices` : 'Club notices'}
+          </p>
+          <h2>Latest updates</h2>
         </div>
         <Badge tone="green">
           <Bell aria-hidden="true" size={14} />
           {String(notices.length)}
         </Badge>
       </div>
-
       {loading ? <div className="empty-state">Loading club notices...</div> : null}
       {error ? <p className="status--error">{error}</p> : null}
       {!loading && !error && notices.length === 0 ? (
         <EmptyState
-          detail="Club updates for linked children will appear here."
+          detail="Updates for this child’s clubs will appear here."
           title="No notices yet"
         />
       ) : null}
-
       {notices.length > 0 ? (
         <div className="linked-child-club-notice-list">
           {notices.map((notice) => (
@@ -328,7 +166,7 @@ function NoticesTab({
                 <span>
                   <strong>{notice.title}</strong>
                   <small>
-                    {notice.clubName} - {notice.studentName} - {formatNoticeDate(notice.sentAt)}
+                    {notice.clubName} · {noticeDateFormatter.format(new Date(notice.sentAt))}
                   </small>
                 </span>
                 <Badge tone="green">Club</Badge>
@@ -346,31 +184,50 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
   const copy = VARIANT_COPY[variant];
   const utils = api.useUtils();
   const contextQuery = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
-  const noticesQuery = api.club.myClubNotices.useQuery(undefined, { retry: false });
   const signUp = api.club.signUp.useMutation();
   const withdraw = api.club.withdraw.useMutation();
-  const [activeTab, setActiveTab] = useState<ParentClubsTab>('overview');
+  const [activeTab, setActiveTab] = useState<ParentClubsTab>('all-clubs');
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [pendingClubId, setPendingClubId] = useState<string | null>(null);
+  const [withdrawalClub, setWithdrawalClub] = useState<ParentClub | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
 
-  const children = useMemo(() => contextQuery.data?.children ?? [], [contextQuery.data?.children]);
-  const clubs = useMemo(() => contextQuery.data?.clubs ?? [], [contextQuery.data?.clubs]);
+  const children = contextQuery.data?.children ?? [];
+  const clubs = contextQuery.data?.clubs ?? [];
   const selectedChild =
     children.find((child) => child.id === selectedChildId) ?? children[0] ?? null;
+  const noticesQuery = api.club.myClubNotices.useQuery(
+    { studentId: selectedChild?.id },
+    { enabled: selectedChild !== null, retry: false },
+  );
+  const eligibleClubs = useMemo(
+    () =>
+      selectedChild
+        ? clubs.filter((club) =>
+            clubMatchesYearGroupBands(selectedChild.yearGroup, club.yearGroupBands),
+          )
+        : [],
+    [clubs, selectedChild],
+  );
+  const myClubs = useMemo(
+    () =>
+      selectedChild
+        ? clubs.filter((club) => club.signedUpStudentIds.includes(selectedChild.id))
+        : [],
+    [clubs, selectedChild],
+  );
 
   useEffect(() => {
-    if (!selectedChildId && children[0]) {
-      setSelectedChildId(children[0].id);
-      return;
-    }
-    if (selectedChildId && !children.some((child) => child.id === selectedChildId)) {
+    if (!selectedChildId && children[0]) setSelectedChildId(children[0].id);
+    else if (selectedChildId && !children.some((child) => child.id === selectedChildId))
       setSelectedChildId(children[0]?.id ?? null);
-    }
   }, [children, selectedChildId]);
 
-  async function refreshSignupContext() {
-    await utils.club.linkedChildSignupContext.invalidate();
+  async function refresh() {
+    await Promise.all([
+      utils.club.linkedChildSignupContext.invalidate(),
+      utils.club.myClubNotices.invalidate(),
+    ]);
   }
 
   async function signChildUp(club: ParentClub) {
@@ -380,7 +237,7 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
     try {
       await signUp.mutateAsync({ clubId: club.id, studentId: selectedChild.id });
       showSuccessToast(`${selectedChild.fullName} signed up for ${club.name}.`);
-      await refreshSignupContext();
+      await refresh();
     } catch (error) {
       setOperationError(friendlyErrorMessage(error, 'Club signup failed.'));
       showErrorToast(error, 'Club signup failed.');
@@ -389,14 +246,15 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
     }
   }
 
-  async function withdrawChild(club: ParentClub) {
-    if (!selectedChild) return;
+  async function withdrawChild() {
+    if (!selectedChild || !withdrawalClub) return;
     setOperationError(null);
-    setPendingClubId(club.id);
+    setPendingClubId(withdrawalClub.id);
     try {
-      await withdraw.mutateAsync({ clubId: club.id, studentId: selectedChild.id });
-      showSuccessToast(`${selectedChild.fullName} withdrawn from ${club.name}.`);
-      await refreshSignupContext();
+      await withdraw.mutateAsync({ clubId: withdrawalClub.id, studentId: selectedChild.id });
+      showSuccessToast(`${selectedChild.fullName} withdrawn from ${withdrawalClub.name}.`);
+      setWithdrawalClub(null);
+      await refresh();
     } catch (error) {
       setOperationError(friendlyErrorMessage(error, 'Club withdrawal failed.'));
       showErrorToast(error, 'Club withdrawal failed.');
@@ -405,60 +263,88 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
     }
   }
 
-  if (contextQuery.isLoading) {
-    return <div className="empty-state">Loading clubs...</div>;
-  }
-
-  if (contextQuery.error) {
+  if (contextQuery.isLoading) return <div className="empty-state">Loading clubs...</div>;
+  if (contextQuery.error)
     return (
-      <EmptyState
-        detail={friendlyErrorMessage(contextQuery.error)}
-        title="Club signups unavailable"
-      />
+      <EmptyState detail={friendlyErrorMessage(contextQuery.error)} title="Clubs unavailable" />
     );
-  }
 
   return (
     <div className={`clubs-page parent-my-clubs-page parent-my-clubs-page--${variant}`}>
       <div className="dashboard-hero parent-clubs-hero">
         <p>{copy.eyebrow}</p>
         <h1>{copy.title}</h1>
-        <span>{clubs.length === 1 ? '1 active club' : `${String(clubs.length)} active clubs`}</span>
+        <span>{selectedChild ? `For ${selectedChild.fullName}` : 'Choose a linked child'}</span>
       </div>
-
-      <ParentClubsTabs activeTab={activeTab} onTabChange={setActiveTab} />
-
-      {activeTab === 'overview' ? (
-        <OverviewTab
-          childCount={children.length}
-          clubs={clubs}
-          detailBaseHref={DETAIL_BASE_HREF[variant]}
-        />
-      ) : null}
-      {activeTab === 'signups' ? (
-        <SignupsTab
+      {children.length > 0 ? (
+        <ParentChildSelector
           children={children}
-          clubs={clubs}
-          disabled={!selectedChild}
-          onSelectChild={setSelectedChildId}
-          onSignUp={(club) => {
-            void signChildUp(club);
-          }}
-          onWithdraw={(club) => {
-            void withdrawChild(club);
-          }}
-          operationError={operationError}
-          pendingClubId={pendingClubId}
-          selectedChild={selectedChild}
+          onSelect={setSelectedChildId}
+          selectedChildId={selectedChild?.id ?? ''}
         />
       ) : null}
-      {activeTab === 'notices' ? (
-        <NoticesTab
-          error={noticesQuery.error ? friendlyErrorMessage(noticesQuery.error) : null}
-          loading={noticesQuery.isLoading}
-          notices={noticesQuery.data ?? []}
-        />
-      ) : null}
+      <ParentClubsTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <section className="parent-clubs-tab-panel" role="tabpanel">
+        {selectedChild ? (
+          <p className="muted">
+            {displaySchoolYearLabel(selectedChild.yearGroup)} · {eligibleClubs.length} clubs
+            available
+          </p>
+        ) : null}
+        {activeTab === 'all-clubs' ? (
+          <ClubList
+            clubs={eligibleClubs}
+            disabled={!selectedChild}
+            emptyDetail="No clubs are currently available for this child’s year group."
+            emptyTitle="No eligible clubs"
+            hideWithdraw
+            onSignUp={(club) => void signChildUp(club)}
+            onWithdraw={() => {}}
+            pendingClubId={pendingClubId}
+            selectedChildId={selectedChild?.id ?? null}
+          />
+        ) : null}
+        {activeTab === 'my-clubs' && selectedChild ? (
+          <ClubList
+            clubs={myClubs}
+            detailHrefForClub={(clubId) => detailHref(variant, clubId, selectedChild.id)}
+            disabled={false}
+            emptyDetail="This child has not joined a club yet."
+            emptyTitle="No clubs yet"
+            onSignUp={() => {}}
+            onWithdraw={setWithdrawalClub}
+            pendingClubId={pendingClubId}
+            selectedChildId={selectedChild.id}
+          />
+        ) : null}
+        {activeTab === 'notices' ? (
+          <NoticesTab
+            error={noticesQuery.error ? friendlyErrorMessage(noticesQuery.error) : null}
+            loading={noticesQuery.isLoading}
+            notices={noticesQuery.data ?? []}
+            selectedChild={selectedChild}
+          />
+        ) : null}
+        {operationError ? <p className="status--error">{operationError}</p> : null}
+      </section>
+      <ConfirmationDialog
+        cancelLabel="Keep membership"
+        confirmLabel="Withdraw"
+        errorMessage={operationError}
+        onCancel={() => {
+          setWithdrawalClub(null);
+        }}
+        onConfirm={() => {
+          void withdrawChild();
+        }}
+        open={withdrawalClub !== null}
+        pending={pendingClubId === withdrawalClub?.id}
+        title={`Withdraw ${selectedChild?.fullName ?? 'child'}?`}
+      >
+        {withdrawalClub
+          ? `This will remove ${selectedChild?.fullName ?? 'this child'} from ${withdrawalClub.name}.`
+          : null}
+      </ConfirmationDialog>
     </div>
   );
 }

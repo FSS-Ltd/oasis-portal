@@ -23,6 +23,7 @@ describe('staff club manager mobile wiring', () => {
       'staff-club-manager-attendance.tsx',
       'staff-club-manager-notices.tsx',
       'staff-club-manager-rota.tsx',
+      'staff-club-manager-form-modal.tsx',
       'staff-club-manager-utils.ts',
     ];
 
@@ -49,7 +50,7 @@ describe('staff club manager mobile wiring', () => {
     expect(apiSummary).toMatch(/canManageClubs/);
   });
 
-  it('uses scoped manager APIs and keeps policy-heavy admin operations web-first', () => {
+  it('uses scoped manager APIs, including club creation and editing', () => {
     const screen = readMobile('src/components/staff/staff-club-manager-screen.tsx');
     const attendance = readMobile('src/components/staff/staff-club-manager-attendance.tsx');
     const notices = readMobile('src/components/staff/staff-club-manager-notices.tsx');
@@ -64,13 +65,14 @@ describe('staff club manager mobile wiring', () => {
     expect(screen).toMatch(/api\.club\.notifications\.useQuery/);
     expect(screen).toMatch(/api\.club\.notify\.useMutation/);
     expect(screen).toMatch(/api\.club\.clubRotaSchedule\.useQuery/);
+    expect(screen).toMatch(/api\.club\.yearGroupBands\.useQuery/);
+    expect(screen).toMatch(/api\.club\.create\.useMutation/);
+    expect(screen).toMatch(/api\.club\.update\.useMutation/);
     expect(screen).toMatch(/utils\.club\.managementList\.invalidate/);
     expect(screen).toMatch(/utils\.club\.attendanceForSession\.invalidate/);
     expect(screen).toMatch(/utils\.club\.notifications\.invalidate/);
 
-    for (const source of [screen, attendance, notices, rota]) {
-      expect(source).not.toMatch(/api\.club\.create\b/);
-      expect(source).not.toMatch(/api\.club\.update\b/);
+    for (const source of [attendance, notices, rota]) {
       expect(source).not.toMatch(/api\.club\.studentCandidates/);
       expect(source).not.toMatch(/api\.club\.signUp/);
       expect(source).not.toMatch(/api\.club\.withdraw/);
@@ -86,6 +88,14 @@ describe('staff club manager mobile wiring', () => {
     expect(leadScreen).not.toMatch(/api\.club\.managementList/);
     expect(leadScreen).not.toMatch(/api\.club\.clubRotaSchedule/);
     expect(leadScreen).not.toMatch(/api\.club\.resetAttendanceForSession/);
+  });
+
+  it('collects a required year-group selection in the manager editor', () => {
+    const editor = readMobile('src/components/staff/staff-club-manager-form-modal.tsx');
+
+    expect(editor).toMatch(/Select at least one year group/);
+    expect(editor).toMatch(/yearGroupBandIds/);
+    expect(editor).toMatch(/Only these groups can join newly/);
   });
 
   it('keeps club manager states and copy distinct from club lead', () => {

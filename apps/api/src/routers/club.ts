@@ -8,6 +8,7 @@ import {
   canSignUpForClub,
   canUseClubLeadAccess,
   canUseLinkedChildClubSignup,
+  clubMatchesYearGroupBands,
   formatClubSchedule,
   type ClubScheduleDraft,
   type SessionUser,
@@ -54,6 +55,13 @@ interface ClubRow {
   createdAt: Date;
   updatedAt: Date;
   signups: ClubSignupSummary[];
+  yearGroupBands: Array<{
+    yearGroupBand: {
+      id: string;
+      name: string;
+      standardYears: string[];
+    };
+  }>;
 }
 
 interface LinkedStudentRow {
@@ -121,6 +129,7 @@ const clubCreateInput = z.object({
   capacity: z.number().int().positive().nullable().optional(),
   iconKey: clubIconKeyInput.nullable().optional(),
   accentColor: clubAccentColorInput.nullable().optional(),
+  yearGroupBandIds: z.array(stringIdInput).min(1).max(50),
 });
 
 const clubUpdateInput = z.object({
@@ -132,6 +141,7 @@ const clubUpdateInput = z.object({
   iconKey: clubIconKeyInput.nullable().optional(),
   accentColor: clubAccentColorInput.nullable().optional(),
   active: z.boolean().optional(),
+  yearGroupBandIds: z.array(stringIdInput).min(1).max(50).optional(),
 });
 
 const clubStudentInput = z.object({
@@ -144,6 +154,8 @@ const clubInterestInput = z.object({
 });
 
 const clubIdInput = z.object({ clubId: stringIdInput });
+const linkedChildClubDetailInput = clubIdInput.extend({ studentId: stringIdInput });
+const myClubNoticesInput = z.object({ studentId: stringIdInput.optional() });
 
 const dateRangeFields = z.object({
   from: z.coerce.date(),
@@ -249,6 +261,14 @@ const clubListInclude = Prisma.validator<Prisma.ClubInclude>()({
     where: { status: 'Active', student: { active: true } },
     select: { studentId: true },
   },
+  yearGroupBands: {
+    orderBy: { yearGroupBand: { sortOrder: 'asc' } },
+    select: {
+      yearGroupBand: {
+        select: { id: true, name: true, standardYears: true },
+      },
+    },
+  },
 });
 
 const clubManagementInclude = Prisma.validator<Prisma.ClubInclude>()({
@@ -266,6 +286,14 @@ const clubManagementInclude = Prisma.validator<Prisma.ClubInclude>()({
           fullNameEnc: true,
           emailEnc: true,
         },
+      },
+    },
+  },
+  yearGroupBands: {
+    orderBy: { yearGroupBand: { sortOrder: 'asc' } },
+    select: {
+      yearGroupBand: {
+        select: { id: true, name: true, standardYears: true },
       },
     },
   },
@@ -555,7 +583,22 @@ function mapClub(
     updatedAt: club.updatedAt,
     activeSignupCount: club.signups.length,
     signedUpStudentIds,
+    yearGroupBands: club.yearGroupBands.map(({ yearGroupBand }) => ({
+      id: yearGroupBand.id,
+      name: yearGroupBand.name,
+      standardYears: yearGroupBand.standardYears,
+    })),
   };
+}
+
+function clubIsAvailableToYearGroup(
+  club: Pick<ClubRow, 'yearGroupBands'>,
+  yearGroup: string,
+): boolean {
+  return clubMatchesYearGroupBands(
+    yearGroup,
+    club.yearGroupBands.map(({ yearGroupBand }) => yearGroupBand),
+  );
 }
 
 function mapClubManagementRow(
@@ -827,15 +870,61 @@ async function assertFullAdminActiveStudent(
   }
 }
 
-async function loadOwnActiveStudent(ctx: AuthedContext): Promise<{ id: string; active: boolean }> {
+async function loadOwnActiveStudent(
+  ctx: AuthedContext,
+): Promise<{ id: string; active: boolean; yearGroup: string }> {
   const student = await ctx.db.student.findUnique({
     where: { userId: ctx.user.id },
-    select: { id: true, active: true },
+    select: { id: true, active: true, yearGroup: true },
   });
   if (!student?.active) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
   }
   return student;
+}
+
+async function assertActiveClubYearGroupBands(
+  ctx: AuthedContext,
+  yearGroupBandIds: readonly string[],
+): Promise<string[]> {
+  const uniqueIds = [...new Set(yearGroupBandIds)];
+  const bands = await ctx.db.yearGroupBand.findMany({
+    where: { id: { in: uniqueIds }, active: true },
+    select: { id: true },
+  });
+  if (bands.length !== uniqueIds.length) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'select at least one active year group',
+    });
+  }
+  return uniqueIds;
+}
+
+async function loadActiveStudentYearGroup(
+  db: Pick<AuthedContext['db'], 'student'>,
+  studentId: string,
+): Promise<string> {
+  const student = await db.student.findUnique({
+    where: { id: studentId },
+    select: { active: true, yearGroup: true },
+  });
+  if (!student) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+  }
+  if (!student.active) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+  }
+  return student.yearGroup;
+}
+
+function assertClubEligibilityForYearGroup(club: ClubRow, yearGroup: string): void {
+  if (!clubIsAvailableToYearGroup(club, yearGroup)) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'club is not available to this student year group',
+    });
+  }
 }
 
 function handleSignupCreateError(error: unknown): never {
@@ -1083,6 +1172,16 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       return clubs.map((club) => mapClubManagementRow(ctx.db.$enc.decrypt, ctx.user, club));
     }),
 
+    yearGroupBands: authedProcedure.query(async ({ ctx }) => {
+      requireClubManager(ctx.user);
+
+      return ctx.db.yearGroupBand.findMany({
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, standardYears: true, colour: true },
+      });
+    }),
+
     linkedChildSignupContext: authedProcedure.query(async ({ ctx }) => {
       requireLinkedChildSignupAccess(ctx.user);
 
@@ -1102,85 +1201,91 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       };
     }),
 
-    linkedChildClubDetail: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
-      requireLinkedChildSignupAccess(ctx.user);
+    linkedChildClubDetail: authedProcedure
+      .input(linkedChildClubDetailInput)
+      .query(async ({ ctx, input }) => {
+        requireLinkedChildSignupAccess(ctx.user);
 
-      const children = await loadLinkedActiveStudents(ctx, 'club.linkedChildClubDetail');
-      const linkedStudentIds = new Set(children.map((child) => child.id));
-      const club = await ctx.db.club.findUnique({
-        where: { id: input.clubId },
-        include: clubListInclude,
-      });
-      if (!club || !club.active) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
-      }
-
-      const mappedClub = mapClub(ctx.user, club, linkedStudentIds);
-      const signedUpStudentIds = new Set(mappedClub.signedUpStudentIds);
-      const signedUpChildren = children.filter((child) => signedUpStudentIds.has(child.id));
-      const childrenById = new Map(children.map((child) => [child.id, child] as const));
-
-      let attendanceRows: LinkedClubAttendanceRow[] = [];
-      let notifications: LinkedClubNotificationRow[] = [];
-      if (signedUpStudentIds.size > 0) {
-        [attendanceRows, notifications] = await Promise.all([
-          ctx.db.clubAttendance.findMany({
-            where: {
-              clubId: input.clubId,
-              studentId: { in: [...signedUpStudentIds] },
-            },
-            select: linkedClubAttendanceSelect,
-            orderBy: [{ sessionDate: 'desc' }, { updatedAt: 'desc' }],
-            take: 30,
-          }),
-          ctx.db.clubNotification.findMany({
-            where: { clubId: input.clubId },
-            select: linkedClubNotificationSelect,
-            orderBy: { sentAt: 'desc' },
-            take: 20,
-          }),
-        ]);
-      }
-
-      if (notifications.length > 0) {
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'DecryptPii',
-            entity: 'ClubNotification',
-            meta: {
-              source: 'club.linkedChildClubDetail.notices',
-              clubId: club.id,
-              count: notifications.length,
-            },
-          },
+        const children = await loadLinkedActiveStudents(ctx, 'club.linkedChildClubDetail');
+        const selectedChild = children.find((child) => child.id === input.studentId);
+        if (!selectedChild) {
+          throw toForbidden(new AccessDeniedError('user is not linked to this student'));
+        }
+        const linkedStudentIds = new Set([selectedChild.id]);
+        const club = await ctx.db.club.findUnique({
+          where: { id: input.clubId },
+          include: clubListInclude,
         });
-      }
+        if (!club || !club.active) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+        }
 
-      return {
-        club: mappedClub,
-        signedUpChildren,
-        attendance: attendanceRows
-          .map((row) => {
-            const child = childrenById.get(row.studentId);
-            if (!child) return null;
+        const mappedClub = mapClub(ctx.user, club, linkedStudentIds);
+        const signedUpStudentIds = new Set(mappedClub.signedUpStudentIds);
+        const signedUpChildren = signedUpStudentIds.has(selectedChild.id) ? [selectedChild] : [];
+        const childrenById = new Map([[selectedChild.id, selectedChild] as const]);
 
-            return {
-              id: row.id,
-              studentId: row.studentId,
-              studentName: child.fullName,
-              yearGroup: child.yearGroup,
-              sessionDate: dateKey(row.sessionDate),
-              status: row.status,
-              recordedAt: row.updatedAt,
-            };
-          })
-          .filter((row): row is NonNullable<typeof row> => row !== null),
-        notices: notifications.map((notification) =>
-          mapLinkedClubNoticeRow(ctx.db.$enc.decrypt, club.name, notification),
-        ),
-      };
-    }),
+        let attendanceRows: LinkedClubAttendanceRow[] = [];
+        let notifications: LinkedClubNotificationRow[] = [];
+        if (signedUpStudentIds.size > 0) {
+          [attendanceRows, notifications] = await Promise.all([
+            ctx.db.clubAttendance.findMany({
+              where: {
+                clubId: input.clubId,
+                studentId: { in: [...signedUpStudentIds] },
+              },
+              select: linkedClubAttendanceSelect,
+              orderBy: [{ sessionDate: 'desc' }, { updatedAt: 'desc' }],
+              take: 30,
+            }),
+            ctx.db.clubNotification.findMany({
+              where: { clubId: input.clubId },
+              select: linkedClubNotificationSelect,
+              orderBy: { sentAt: 'desc' },
+              take: 20,
+            }),
+          ]);
+        }
+
+        if (notifications.length > 0) {
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'DecryptPii',
+              entity: 'ClubNotification',
+              meta: {
+                source: 'club.linkedChildClubDetail.notices',
+                clubId: club.id,
+                count: notifications.length,
+              },
+            },
+          });
+        }
+
+        return {
+          club: mappedClub,
+          signedUpChildren,
+          attendance: attendanceRows
+            .map((row) => {
+              const child = childrenById.get(row.studentId);
+              if (!child) return null;
+
+              return {
+                id: row.id,
+                studentId: row.studentId,
+                studentName: child.fullName,
+                yearGroup: child.yearGroup,
+                sessionDate: dateKey(row.sessionDate),
+                status: row.status,
+                recordedAt: row.updatedAt,
+              };
+            })
+            .filter((row): row is NonNullable<typeof row> => row !== null),
+          notices: notifications.map((notification) =>
+            mapLinkedClubNoticeRow(ctx.db.$enc.decrypt, club.name, notification),
+          ),
+        };
+      }),
 
     studentClubs: roleProcedure('Student').query(async ({ ctx }) => {
       const student = await loadOwnActiveStudent(ctx);
@@ -1206,10 +1311,23 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
               },
             },
           },
+          yearGroupBands: clubListInclude.yearGroupBands,
         },
         orderBy: clubListOrderBy,
       });
-      const leadCount = clubs.reduce((total, club) => total + club.leadAssignments.length, 0);
+      const visibleClubs = clubs.filter(
+        (club) =>
+          clubIsAvailableToYearGroup(club, student.yearGroup) ||
+          club.signups.some(
+            (signup) =>
+              signup.studentId === student.id &&
+              (signup.status === 'Active' || signup.status === 'Pending'),
+          ),
+      );
+      const leadCount = visibleClubs.reduce(
+        (total, club) => total + club.leadAssignments.length,
+        0,
+      );
       if (leadCount > 0) {
         await ctx.db.auditLog.create({
           data: {
@@ -1221,7 +1339,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         });
       }
 
-      return clubs.map((club) => {
+      return visibleClubs.map((club) => {
         const structuredSchedule = scheduleFromRow(club);
         const activeSignupCount = club.signups.filter(
           (signup) => signup.status === 'Active',
@@ -1297,9 +1415,19 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
                 },
               },
             },
+            yearGroupBands: clubListInclude.yearGroupBands,
           },
         });
         if (!club || !club.active) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+        }
+
+        const ownSignup = club.signups.find(
+          (signup) =>
+            signup.studentId === student.id &&
+            (signup.status === 'Active' || signup.status === 'Pending'),
+        );
+        if (!clubIsAvailableToYearGroup(club, student.yearGroup) && !ownSignup) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
         }
 
@@ -1310,11 +1438,6 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         const activeSignupCount = club.signups.filter(
           (signup) => signup.status === 'Active',
         ).length;
-        const ownSignup = club.signups.find(
-          (signup) =>
-            signup.studentId === student.id &&
-            (signup.status === 'Active' || signup.status === 'Pending'),
-        );
         const member = ownSignup?.status === 'Active';
         const notices = member
           ? await ctx.db.clubNotification.findMany({
@@ -1424,6 +1547,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
                 where: { status: 'Active', student: { active: true } },
                 select: { studentId: true },
               },
+              yearGroupBands: clubListInclude.yearGroupBands,
             },
           },
         },
@@ -1434,6 +1558,8 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
 
     create: authedProcedure.input(clubCreateInput).mutation(async ({ ctx, input }) => {
       requireClubManager(ctx.user);
+
+      const yearGroupBandIds = await assertActiveClubYearGroupBands(ctx, input.yearGroupBandIds);
 
       const draft = validateClubDraft({
         name: input.name,
@@ -1451,6 +1577,9 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
           capacity: input.capacity ?? null,
           iconKey: input.iconKey ?? null,
           accentColor: input.accentColor ?? null,
+          yearGroupBands: {
+            create: yearGroupBandIds.map((yearGroupBandId) => ({ yearGroupBandId })),
+          },
           active: true,
           createdById: ctx.user.id,
         },
@@ -1459,6 +1588,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             where: { status: 'Active', student: { active: true } },
             select: { studentId: true },
           },
+          yearGroupBands: clubListInclude.yearGroupBands,
         },
       });
 
@@ -1472,7 +1602,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         },
       });
 
-      return mapClub(ctx.user, { ...club, signups: [] });
+      return mapClub(ctx.user, club);
     }),
 
     update: authedProcedure.input(clubUpdateInput).mutation(async ({ ctx, input }) => {
@@ -1490,6 +1620,10 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       if (!existing) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
       }
+      const yearGroupBandIds =
+        input.yearGroupBandIds === undefined
+          ? undefined
+          : await assertActiveClubYearGroupBands(ctx, input.yearGroupBandIds);
       if (input.capacity !== undefined && input.capacity !== null) {
         validateClubDraft({ name: input.name ?? existing.name, capacity: input.capacity });
         if (input.capacity < existing.signups.length) {
@@ -1522,6 +1656,12 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       if (input.active !== undefined) {
         data.active = input.active;
       }
+      if (yearGroupBandIds !== undefined) {
+        data.yearGroupBands = {
+          deleteMany: {},
+          create: yearGroupBandIds.map((yearGroupBandId) => ({ yearGroupBandId })),
+        };
+      }
 
       const club = await ctx.db.club.update({
         where: { id: input.id },
@@ -1531,6 +1671,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             where: { status: 'Active', student: { active: true } },
             select: { studentId: true },
           },
+          yearGroupBands: clubListInclude.yearGroupBands,
         },
       });
 
@@ -2371,11 +2512,18 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       );
     }),
 
-    myClubNotices: authedProcedure.query(async ({ ctx }) => {
+    myClubNotices: authedProcedure.input(myClubNoticesInput).query(async ({ ctx, input }) => {
       requireLinkedChildSignupAccess(ctx.user);
 
       const linkedStudentIds = await loadLinkedActiveStudentIds(ctx);
       if (linkedStudentIds.size === 0) return [];
+      if (input.studentId !== undefined) {
+        if (!linkedStudentIds.has(input.studentId)) {
+          throw toForbidden(new AccessDeniedError('user is not linked to this student'));
+        }
+        linkedStudentIds.clear();
+        linkedStudentIds.add(input.studentId);
+      }
 
       const notifications = await ctx.db.clubNotification.findMany({
         where: {
@@ -2459,6 +2607,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
                   },
                   select: { id: true, studentId: true, status: true },
                 },
+                yearGroupBands: clubListInclude.yearGroupBands,
               },
             });
             if (!club) {
@@ -2467,6 +2616,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             if (!club.active) {
               throw new TRPCError({ code: 'BAD_REQUEST', message: 'club is inactive' });
             }
+            assertClubEligibilityForYearGroup(club, student.yearGroup);
             const activeSignupCount = club.signups.filter(
               (signup) => signup.status === 'Active',
             ).length;
@@ -2544,6 +2694,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
                   where: { status: 'Active', student: { active: true } },
                   select: { studentId: true },
                 },
+                yearGroupBands: clubListInclude.yearGroupBands,
               },
             });
             if (!club) {
@@ -2560,6 +2711,8 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             } else {
               await assertFullAdminActiveStudent(tx, input.studentId);
             }
+            const studentYearGroup = await loadActiveStudentYearGroup(tx, input.studentId);
+            assertClubEligibilityForYearGroup(club, studentYearGroup);
 
             const signupCheckInput = {
               currentActiveSignups: club.signups.length,

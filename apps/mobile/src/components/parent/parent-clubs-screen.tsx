@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { clubMatchesYearGroupBands, displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -7,16 +8,18 @@ import {
   Card,
   ErrorText,
   InlineSpinner,
+  MobileButton,
   MutedText,
   SectionTitle,
-  MobileButton,
 } from '../core/mobile-ui';
-import { displaySchoolYearLabel, formatParentDateTime } from './parent-home-utils';
+import { formatParentDateTime } from './parent-home-utils';
+import { ParentChildSwitcher } from './parent-child-switcher';
 
 type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupChild = SignupContext['children'][number];
 type SignupClub = SignupContext['clubs'][number];
 type ClubNotice = RouterOutputs['club']['myClubNotices'][number];
+type ClubTab = 'all' | 'mine' | 'notices';
 
 interface ParentClubsScreenProps {
   childrenRows: readonly SignupChild[];
@@ -30,126 +33,30 @@ interface ParentClubsScreenProps {
 }
 
 function capacityLabel(club: SignupClub): string {
-  if (club.capacity === null) return `${String(club.activeSignupCount)} signed up`;
-  return `${String(club.activeSignupCount)}/${String(club.capacity)} places`;
+  return club.capacity === null
+    ? `${String(club.activeSignupCount)} signed up`
+    : `${String(club.activeSignupCount)}/${String(club.capacity)} places`;
 }
 
-function isClubFull(club: SignupClub): boolean {
-  return club.capacity !== null && club.activeSignupCount >= club.capacity;
-}
-
-function selectedSignupChild(
-  rows: readonly SignupChild[],
-  selectedChildId: string,
-): SignupChild | null {
-  return rows.find((child) => child.id === selectedChildId) ?? rows[0] ?? null;
-}
-
-function ParentClubChildSelector({
-  rows,
-  selectedChildId,
-  onSelect,
-}: {
-  rows: readonly SignupChild[];
-  selectedChildId: string;
-  onSelect: (studentId: string) => void;
-}) {
-  if (rows.length === 0) {
-    return (
-      <Card style={styles.compactCard}>
-        <SectionTitle>No linked children</SectionTitle>
-        <MutedText>Club signups need an active linked child record.</MutedText>
-      </Card>
-    );
-  }
-
-  return (
-    <Card style={styles.compactCard}>
-      <SectionTitle>Child</SectionTitle>
-      <View style={styles.buttonColumn}>
-        {rows.map((child) => (
-          <MobileButton
-            compact
-            key={child.id}
-            label={`${child.fullName} · ${displaySchoolYearLabel(child.yearGroup)}`}
-            onPress={() => {
-              onSelect(child.id);
-            }}
-            variant={child.id === selectedChildId ? 'primary' : 'secondary'}
-          />
-        ))}
-      </View>
-    </Card>
-  );
-}
-
-function ParentClubNoticeList({
-  error,
-  loading,
-  notices,
-}: {
-  error: string | null;
-  loading: boolean;
-  notices: readonly ClubNotice[];
-}) {
-  return (
-    <Card style={styles.noticeSection}>
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionTitleGroup}>
-          <SectionTitle>Linked child club notices</SectionTitle>
-          <MutedText>Latest Club Updates</MutedText>
-        </View>
-        <Badge variant="success">{String(notices.length)}</Badge>
-      </View>
-
-      {loading ? <InlineSpinner label="Loading club notices" /> : null}
-      {error ? <ErrorText>{error}</ErrorText> : null}
-      {!loading && !error && notices.length === 0 ? (
-        <View style={styles.emptyNotice}>
-          <Text style={styles.emptyTitle}>No club notices yet</Text>
-          <MutedText>Club updates for linked children will appear here.</MutedText>
-        </View>
-      ) : null}
-
-      {notices.map((notice) => (
-        <View key={notice.id} style={styles.clubNoticeCard}>
-          <View style={styles.noticeMetaRow}>
-            <View style={styles.clubNoticeTitleGroup}>
-              <Text style={styles.noticeTitle}>{notice.title}</Text>
-              <Text style={styles.noticeMeta}>
-                {notice.clubName} · {notice.studentName} · {formatParentDateTime(notice.sentAt)}
-              </Text>
-            </View>
-            <Badge variant="success">Club</Badge>
-          </View>
-          <Text style={styles.clubDescription}>{notice.body}</Text>
-        </View>
-      ))}
-    </Card>
-  );
-}
-
-function ParentClubSignupCard({
+function ClubCard({
   club,
-  disabled,
-  pending,
-  selectedChild,
+  child,
+  mode,
+  onOpen,
   onSignUp,
   onWithdraw,
+  pending,
 }: {
   club: SignupClub;
-  disabled: boolean;
+  child: SignupChild;
+  mode: 'all' | 'mine';
+  onOpen: (club: SignupClub) => void;
+  onSignUp: (club: SignupClub) => void;
+  onWithdraw: (club: SignupClub) => void;
   pending: boolean;
-  selectedChild: SignupChild | null;
-  onSignUp: (club: SignupClub, child: SignupChild) => void;
-  onWithdraw: (club: SignupClub, child: SignupChild) => void;
 }) {
-  const signedUp = selectedChild ? club.signedUpStudentIds.includes(selectedChild.id) : false;
-  const full = isClubFull(club);
-  const buttonLabel = pending ? 'Saving...' : signedUp ? 'Withdraw' : full ? 'Full' : 'Sign up';
-  const buttonVariant = signedUp ? 'danger' : full ? 'secondary' : 'primary';
-  const buttonDisabled = disabled || pending || (!signedUp && full) || !selectedChild;
-
+  const signedUp = club.signedUpStudentIds.includes(child.id);
+  const full = club.capacity !== null && club.activeSignupCount >= club.capacity;
   return (
     <Card style={styles.clubCard}>
       <View style={styles.clubHeader}>
@@ -158,28 +65,101 @@ function ParentClubSignupCard({
           <MutedText>{club.scheduleLabel ?? 'No schedule set'}</MutedText>
         </View>
         <Badge variant={signedUp ? 'success' : full ? 'warning' : 'blue'}>
-          {signedUp ? 'Signed up' : full ? 'Full' : 'Open'}
+          {signedUp ? 'Joined' : full ? 'Full' : 'Open'}
         </Badge>
       </View>
       {club.description ? <Text style={styles.clubDescription}>{club.description}</Text> : null}
-      <View style={styles.clubFooter}>
-        <Text style={styles.capacityText}>{capacityLabel(club)}</Text>
-        <MobileButton
-          compact
-          disabled={buttonDisabled}
-          label={buttonLabel}
-          onPress={() => {
-            if (!selectedChild) return;
-            if (signedUp) {
-              onWithdraw(club, selectedChild);
-              return;
-            }
-            onSignUp(club, selectedChild);
-          }}
-          variant={buttonVariant}
-        />
+      <Text style={styles.capacityText}>{capacityLabel(club)}</Text>
+      <View style={styles.actions}>
+        {mode === 'mine' ? (
+          <MobileButton
+            compact
+            label="View details"
+            onPress={() => {
+              onOpen(club);
+            }}
+            variant="secondary"
+          />
+        ) : null}
+        {mode === 'mine' ? (
+          <MobileButton
+            compact
+            disabled={pending}
+            label={pending ? 'Saving…' : 'Withdraw'}
+            onPress={() => {
+              onWithdraw(club);
+            }}
+            variant="danger"
+          />
+        ) : !signedUp ? (
+          <MobileButton
+            compact
+            disabled={pending || full}
+            label={pending ? 'Saving…' : full ? 'Full' : 'Sign up'}
+            onPress={() => {
+              onSignUp(club);
+            }}
+            variant={full ? 'secondary' : 'primary'}
+          />
+        ) : null}
       </View>
     </Card>
+  );
+}
+
+function ClubDetails({
+  club,
+  child,
+  onBack,
+}: {
+  club: SignupClub;
+  child: SignupChild;
+  onBack: () => void;
+}) {
+  const detail = api.club.linkedChildClubDetail.useQuery(
+    { clubId: club.id, studentId: child.id },
+    { retry: false },
+  );
+  return (
+    <View style={styles.detail}>
+      <MobileButton compact label="Back to My Clubs" onPress={onBack} variant="secondary" />
+      <Card style={styles.clubCard}>
+        <SectionTitle>{club.name}</SectionTitle>
+        <MutedText>{club.scheduleLabel ?? 'No schedule set'}</MutedText>
+        {club.description ? <Text style={styles.clubDescription}>{club.description}</Text> : null}
+      </Card>
+      {detail.isLoading ? <InlineSpinner label="Loading club details" /> : null}
+      {detail.error ? <ErrorText>{detail.error.message}</ErrorText> : null}
+      {detail.data ? (
+        <>
+          <Card style={styles.clubCard}>
+            <SectionTitle>Attendance</SectionTitle>
+            {detail.data.attendance.length === 0 ? (
+              <MutedText>No attendance recorded yet.</MutedText>
+            ) : (
+              detail.data.attendance.map((row) => (
+                <Text key={row.id} style={styles.detailRow}>
+                  {row.sessionDate} · {row.status}
+                </Text>
+              ))
+            )}
+          </Card>
+          <Card style={styles.clubCard}>
+            <SectionTitle>Notices</SectionTitle>
+            {detail.data.notices.length === 0 ? (
+              <MutedText>No notices yet.</MutedText>
+            ) : (
+              detail.data.notices.map((notice) => (
+                <View key={notice.id} style={styles.notice}>
+                  <Text style={styles.noticeTitle}>{notice.title}</Text>
+                  <Text style={styles.clubDescription}>{notice.body}</Text>
+                </View>
+              ))
+            )}
+          </Card>
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -194,270 +174,230 @@ export function ParentClubsScreen({
   onSelectChild,
 }: ParentClubsScreenProps) {
   const utils = api.useUtils();
-  const signUpForClub = api.club.signUp.useMutation();
-  const withdrawFromClub = api.club.withdraw.useMutation();
+  const signUp = api.club.signUp.useMutation();
+  const withdraw = api.club.withdraw.useMutation();
+  const [tab, setTab] = useState<ClubTab>('all');
   const [pendingClubId, setPendingClubId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [operationError, setOperationError] = useState<string | null>(null);
-  const selectedChild = selectedSignupChild(childrenRows, selectedChildId);
-  const activeSelectedChildId = selectedChild?.id ?? '';
-  const familySignupCount = useMemo(
+  const [selectedClub, setSelectedClub] = useState<SignupClub | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const child = childrenRows.find((row) => row.id === selectedChildId) ?? childrenRows[0] ?? null;
+  const eligibleClubs = useMemo(
     () =>
-      clubs.reduce(
-        (count, club) =>
-          count +
-          childrenRows.filter((child) => club.signedUpStudentIds.includes(child.id)).length,
-        0,
-      ),
-    [childrenRows, clubs],
+      child
+        ? clubs.filter((club) => clubMatchesYearGroupBands(child.yearGroup, club.yearGroupBands))
+        : [],
+    [child, clubs],
+  );
+  const myClubs = useMemo(
+    () => (child ? clubs.filter((club) => club.signedUpStudentIds.includes(child.id)) : []),
+    [child, clubs],
   );
 
-  async function invalidateClubData() {
+  async function refresh() {
     await Promise.all([
       utils.club.linkedChildSignupContext.invalidate(),
       utils.club.myClubNotices.invalidate(),
     ]);
   }
-
-  async function signChildUp(club: SignupClub, child: SignupChild) {
-    setStatus(null);
-    setOperationError(null);
+  async function join(club: SignupClub) {
+    if (!child) return;
+    setError(null);
     setPendingClubId(club.id);
     try {
-      await signUpForClub.mutateAsync({ clubId: club.id, studentId: child.id });
-      setStatus(`${child.fullName} signed up for ${club.name}.`);
-      await invalidateClubData();
-    } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Club signup failed.');
+      await signUp.mutateAsync({ clubId: club.id, studentId: child.id });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Club signup failed.');
+    } finally {
+      setPendingClubId(null);
+    }
+  }
+  function confirmWithdraw(club: SignupClub) {
+    if (!child) return;
+    Alert.alert('Withdraw from club?', `Remove ${child.fullName} from ${club.name}?`, [
+      { text: 'Keep membership', style: 'cancel' },
+      {
+        text: 'Withdraw',
+        style: 'destructive',
+        onPress: () => {
+          void leave(club);
+        },
+      },
+    ]);
+  }
+  async function leave(club: SignupClub) {
+    if (!child) return;
+    setError(null);
+    setPendingClubId(club.id);
+    try {
+      await withdraw.mutateAsync({ clubId: club.id, studentId: child.id });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Club withdrawal failed.');
     } finally {
       setPendingClubId(null);
     }
   }
 
-  async function withdrawChild(club: SignupClub, child: SignupChild) {
-    setStatus(null);
-    setOperationError(null);
-    setPendingClubId(club.id);
-    try {
-      await withdrawFromClub.mutateAsync({ clubId: club.id, studentId: child.id });
-      setStatus(`${child.fullName} withdrawn from ${club.name}.`);
-      await invalidateClubData();
-    } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Club withdrawal failed.');
-    } finally {
-      setPendingClubId(null);
-    }
-  }
-
+  if (selectedClub && child)
+    return (
+      <ClubDetails
+        child={child}
+        club={selectedClub}
+        onBack={() => {
+          setSelectedClub(null);
+        }}
+      />
+    );
   return (
     <>
       <View style={styles.screenIntro}>
         <Text style={styles.title}>Clubs</Text>
-        <Text style={styles.subtitle}>Sign up linked children and check current places.</Text>
+        <Text style={styles.subtitle}>
+          {child ? `For ${child.fullName}` : 'Choose a linked child'}
+        </Text>
       </View>
-
-      <ParentClubChildSelector
-        rows={childrenRows}
-        selectedChildId={activeSelectedChildId}
-        onSelect={onSelectChild}
-      />
-
-      <Card style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <View>
-            <Text style={styles.summaryValue}>{String(clubs.length)}</Text>
-            <MutedText>active clubs</MutedText>
-          </View>
-          <View>
-            <Text style={styles.summaryValue}>{String(familySignupCount)}</Text>
-            <MutedText>family signups</MutedText>
-          </View>
-          <Badge variant={selectedChild ? 'blue' : 'neutral'}>
-            {selectedChild?.fullName ?? 'No child selected'}
-          </Badge>
-        </View>
-      </Card>
-
-      <ParentClubNoticeList
-        error={clubNoticesError}
-        loading={loadingClubNotices}
-        notices={clubNotices}
-      />
-
-      {loading ? <InlineSpinner label="Loading clubs" /> : null}
-      {clubs.length === 0 && !loading ? (
-        <Card style={styles.compactCard}>
-          <SectionTitle>No active clubs</SectionTitle>
-          <MutedText>Active club signups will appear here.</MutedText>
+      {childrenRows.length > 0 ? (
+        <ParentChildSwitcher
+          children={childrenRows}
+          onSelect={onSelectChild}
+          selectedChildId={child?.id ?? ''}
+        />
+      ) : (
+        <Card style={styles.clubCard}>
+          <SectionTitle>No linked children</SectionTitle>
+          <MutedText>Club signups need an active linked child record.</MutedText>
         </Card>
-      ) : null}
-
-      <View style={styles.clubList}>
-        {clubs.map((club) => (
-          <ParentClubSignupCard
-            club={club}
-            disabled={!selectedChild}
-            key={club.id}
-            pending={pendingClubId === club.id}
-            selectedChild={selectedChild}
-            onSignUp={(nextClub, child) => {
-              void signChildUp(nextClub, child);
+      )}
+      <View style={styles.tabs} accessibilityRole="tablist">
+        {(
+          [
+            ['all', 'All Clubs'],
+            ['mine', 'My Clubs'],
+            ['notices', 'Notices'],
+          ] as const
+        ).map(([id, label]) => (
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === id }}
+            key={id}
+            onPress={() => {
+              setTab(id);
             }}
-            onWithdraw={(nextClub, child) => {
-              void withdrawChild(nextClub, child);
-            }}
-          />
+            style={[styles.tab, tab === id ? styles.tabActive : null]}
+          >
+            <Text style={[styles.tabText, tab === id ? styles.tabTextActive : null]}>{label}</Text>
+          </Pressable>
         ))}
       </View>
-
-      {status ? <Text style={styles.successText}>{status}</Text> : null}
-      {operationError ? <Text style={styles.errorText}>{operationError}</Text> : null}
+      {child ? (
+        <MutedText>
+          {displaySchoolYearLabel(child.yearGroup)} · {String(eligibleClubs.length)} clubs available
+        </MutedText>
+      ) : null}
+      {loading ? <InlineSpinner label="Loading clubs" /> : null}
+      {tab === 'all' && child ? (
+        <View style={styles.list}>
+          {eligibleClubs.length === 0 ? (
+            <Card style={styles.clubCard}>
+              <SectionTitle>No eligible clubs</SectionTitle>
+              <MutedText>No clubs are currently available for this child’s year group.</MutedText>
+            </Card>
+          ) : (
+            eligibleClubs.map((club) => (
+              <ClubCard
+                child={child}
+                club={club}
+                key={club.id}
+                mode="all"
+                onOpen={setSelectedClub}
+                onSignUp={(nextClub) => void join(nextClub)}
+                onWithdraw={confirmWithdraw}
+                pending={pendingClubId === club.id}
+              />
+            ))
+          )}
+        </View>
+      ) : null}
+      {tab === 'mine' && child ? (
+        <View style={styles.list}>
+          {myClubs.length === 0 ? (
+            <Card style={styles.clubCard}>
+              <SectionTitle>No clubs yet</SectionTitle>
+              <MutedText>This child has not joined a club yet.</MutedText>
+            </Card>
+          ) : (
+            myClubs.map((club) => (
+              <ClubCard
+                child={child}
+                club={club}
+                key={club.id}
+                mode="mine"
+                onOpen={setSelectedClub}
+                onSignUp={() => undefined}
+                onWithdraw={confirmWithdraw}
+                pending={pendingClubId === club.id}
+              />
+            ))
+          )}
+        </View>
+      ) : null}
+      {tab === 'notices' ? (
+        <Card style={styles.clubCard}>
+          <SectionTitle>Latest updates</SectionTitle>
+          {loadingClubNotices ? <InlineSpinner label="Loading club notices" /> : null}
+          {clubNoticesError ? <ErrorText>{clubNoticesError}</ErrorText> : null}
+          {!loadingClubNotices && !clubNoticesError && clubNotices.length === 0 ? (
+            <MutedText>No notices yet.</MutedText>
+          ) : (
+            clubNotices.map((notice) => (
+              <View key={notice.id} style={styles.notice}>
+                <Text style={styles.noticeTitle}>{notice.title}</Text>
+                <MutedText>
+                  {notice.clubName} · {formatParentDateTime(notice.sentAt)}
+                </MutedText>
+                <Text style={styles.clubDescription}>{notice.body}</Text>
+              </View>
+            ))
+          )}
+        </Card>
+      ) : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  buttonColumn: {
-    gap: 8,
-  },
-  capacityText: {
-    color: C.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  clubCard: {
-    gap: 10,
-    padding: 16,
-  },
-  clubDescription: {
-    color: C.textSecondary,
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  clubFooter: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    justifyContent: 'space-between',
-  },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
+  capacityText: { color: C.textSecondary, fontSize: 12, fontWeight: '700' },
+  clubCard: { gap: 10, padding: 16 },
+  clubDescription: { color: C.textSecondary, fontSize: 12, lineHeight: 18 },
   clubHeader: {
     alignItems: 'flex-start',
     flexDirection: 'row',
     gap: 10,
     justifyContent: 'space-between',
   },
-  clubList: {
-    gap: 10,
-  },
-  clubNoticeCard: {
+  clubTitle: { color: C.textPrimary, fontSize: 16, fontWeight: '800' },
+  clubTitleGroup: { flex: 1, gap: 3 },
+  detail: { gap: 10 },
+  detailRow: { color: C.textPrimary, fontSize: 13, fontWeight: '700' },
+  list: { gap: 10 },
+  notice: { borderTopColor: C.border, borderTopWidth: 1, gap: 5, paddingTop: 10 },
+  noticeTitle: { color: C.navy, fontSize: 14, fontWeight: '800' },
+  screenIntro: { gap: 2 },
+  subtitle: { color: C.textSecondary, fontSize: 13, fontWeight: '700' },
+  tab: { borderRadius: 10, flex: 1, paddingHorizontal: 8, paddingVertical: 10 },
+  tabActive: { backgroundColor: C.navy },
+  tabText: { color: C.textSecondary, fontSize: 12, fontWeight: '800', textAlign: 'center' },
+  tabTextActive: { color: C.surface },
+  tabs: {
+    backgroundColor: C.bg,
     borderColor: C.border,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    gap: 8,
-    padding: 12,
-  },
-  clubNoticeTitleGroup: {
-    flex: 1,
-    gap: 4,
-    minWidth: 0,
-  },
-  clubTitle: {
-    color: C.textPrimary,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  clubTitleGroup: {
-    flex: 1,
-    gap: 3,
-    minWidth: 0,
-  },
-  compactCard: {
-    gap: 10,
-    padding: 16,
-  },
-  emptyNotice: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-  },
-  emptyTitle: {
-    color: C.navy,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  errorText: {
-    color: C.danger,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  noticeMeta: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    lineHeight: 15,
-  },
-  noticeMetaRow: {
-    alignItems: 'flex-start',
     flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'space-between',
+    padding: 3,
   },
-  noticeSection: {
-    gap: 12,
-    padding: 16,
-  },
-  noticeTitle: {
-    color: C.navy,
-    fontSize: 14,
-    fontWeight: '800',
-    lineHeight: 19,
-  },
-  screenIntro: {
-    gap: 2,
-    paddingTop: 2,
-  },
-  sectionHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'space-between',
-  },
-  sectionTitleGroup: {
-    flex: 1,
-    gap: 4,
-    minWidth: 0,
-  },
-  subtitle: {
-    color: C.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 3,
-  },
-  successText: {
-    color: C.success,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  summaryCard: {
-    padding: 16,
-  },
-  summaryRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    justifyContent: 'space-between',
-  },
-  summaryValue: {
-    color: C.navy,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  title: {
-    color: C.navy,
-    fontSize: 20,
-    fontWeight: '800',
-    lineHeight: 26,
-  },
+  title: { color: C.navy, fontSize: 25, fontWeight: '900' },
 });

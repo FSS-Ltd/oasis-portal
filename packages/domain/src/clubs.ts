@@ -12,6 +12,7 @@ import {
   requireClubsAdminOrFullAdmin,
   type SessionUser,
 } from './rbac.js';
+import { schoolYearStorageAliases } from './schoolYears.js';
 
 export interface ClubDraft {
   name: string;
@@ -28,6 +29,12 @@ export interface ClubScheduleDraft {
   startMinute: number;
   endMinute: number;
   frequency: ClubScheduleFrequency;
+}
+
+export interface ClubYearGroupBand {
+  id: string;
+  name: string;
+  standardYears: readonly string[];
 }
 
 export function assertCanManageClub(user: SessionUser): void {
@@ -80,12 +87,28 @@ function formatMinute(minute: number): string {
   return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 }
 
+function weeklyDayLabel(date: Date): string {
+  const day = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    weekday: 'long',
+  }).format(date);
+  return `${day}s`;
+}
+
 export function formatClubSchedule(schedule: ClubScheduleDraft | null | undefined): string | null {
   const validSchedule = validateClubScheduleDraft(schedule);
   if (!validSchedule) return null;
-  return `Weekly from ${validSchedule.startDate.toISOString().slice(0, 10)}, ${formatMinute(
+  return `${weeklyDayLabel(validSchedule.startDate)} · ${formatMinute(
     validSchedule.startMinute,
-  )}-${formatMinute(validSchedule.endMinute)}`;
+  )}–${formatMinute(validSchedule.endMinute)}`;
+}
+
+export function clubMatchesYearGroupBands(
+  yearGroup: string,
+  bands: readonly ClubYearGroupBand[],
+): boolean {
+  const aliases = new Set(schoolYearStorageAliases(yearGroup));
+  return bands.some((band) => band.standardYears.some((year) => aliases.has(year)));
 }
 
 export interface SignupCheckInput {
