@@ -13,6 +13,11 @@ import {
 const MEETING_COLOUR = '#0f766e';
 
 interface RotaWeekScheduleProps {
+  dateStatuses: readonly {
+    date: string;
+    kind: 'operating' | 'fieldTrip' | 'closed';
+    label: string;
+  }[];
   errorMessage?: string | undefined;
   isFetching: boolean;
   isLoading: boolean;
@@ -30,6 +35,7 @@ interface RotaWeekScheduleProps {
 }
 
 export function RotaWeekSchedule({
+  dateStatuses,
   errorMessage,
   isFetching,
   isLoading,
@@ -76,6 +82,10 @@ export function RotaWeekSchedule({
             </Button>
           </div>
         </div>
+        <div aria-label="Rota people key" className="rota-role-key">
+          <span className="rota-role-chip is-staff">Staff</span>
+          <span className="rota-role-chip is-parent">Parent volunteer</span>
+        </div>
 
         {isLoading ? <div className="empty-state">Loading rota...</div> : null}
         {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
@@ -86,6 +96,7 @@ export function RotaWeekSchedule({
           {weekDays.map((day) => {
             const key = dateKey(day);
             const dayShifts = shifts.filter((shift) => shift.date === key);
+            const dateStatus = dateStatuses.find((status) => status.date === key);
             const dayParentVolunteers = parentVolunteers.filter(
               (volunteer) => volunteer.date === key,
             );
@@ -95,6 +106,11 @@ export function RotaWeekSchedule({
                   <span>{dayLabels[day.getUTCDay()]}</span>
                   <strong>{formatDateLabel(day)}</strong>
                 </header>
+                {dateStatus?.kind === 'closed' ? (
+                  <p className="rota-day__status">{dateStatus.label}</p>
+                ) : dateStatus?.kind === 'fieldTrip' ? (
+                  <p className="rota-day__status is-field-trip">Planned field trip</p>
+                ) : null}
                 <div className="rota-parent-volunteers">
                   <span className="rota-availability-badges__label">Parent volunteers</span>
                   {dayParentVolunteers.length === 0 ? (
@@ -103,7 +119,7 @@ export function RotaWeekSchedule({
                     dayParentVolunteers.map((volunteer) => (
                       <span className="rota-availability-badge is-parent" key={volunteer.id}>
                         {volunteer.parent.fullName}
-                        <small>{parentVolunteerPlacementLabel(volunteer.placement)}</small>
+                        <small>Parent · {parentVolunteerPlacementLabel(volunteer.placement)}</small>
                       </span>
                     ))
                   )}
@@ -130,6 +146,7 @@ export function RotaWeekSchedule({
                             {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
                           </span>
                           <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
+                          <span className="rota-role-chip is-staff">Staff</span>
                           <small>
                             <i style={{ backgroundColor: shiftColour }} />
                             {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Band')}

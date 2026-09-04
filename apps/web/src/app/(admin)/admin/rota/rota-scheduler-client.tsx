@@ -58,6 +58,10 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     [weekStart],
   );
   const weekEnd = weekDays[6] ?? weekStart;
+  const operationalDatesQuery = api.calendar.operationalDates.useQuery(
+    { dates: [...weekDays, asDateTime(shiftForm.date, '00:00')] },
+    { retry: false },
+  );
   const scheduleQuery = api.rota.weekSchedule.useQuery(
     { from: weekStart, to: weekEnd },
     { retry: false },
@@ -237,6 +241,7 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
           errorMessage={scheduleQuery.error ? friendlyErrorMessage(scheduleQuery.error) : undefined}
           isFetching={scheduleQuery.isFetching}
           isLoading={scheduleQuery.isLoading}
+          dateStatuses={operationalDatesQuery.data ?? []}
           onNextWeek={() => {
             setWeekStart((current) => addDays(current, 7));
           }}
@@ -276,6 +281,7 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
       >
         <RotaShiftEditor
           activeBands={activeBands}
+          dateStatus={operationalDatesQuery.data?.find((status) => status.date === shiftForm.date)}
           errorMessage={shiftMutationError ? friendlyErrorMessage(shiftMutationError) : undefined}
           form={shiftForm}
           isDeleting={deleteShift.isPending}

@@ -101,6 +101,10 @@ export function AttendanceCapture({
   const utils = api.useUtils();
 
   const attendanceQuery = api.attendance.forDate.useQuery({ date }, { retry: false });
+  const operationalDatesQuery = api.calendar.operationalDates.useQuery(
+    { dates: [date] },
+    { retry: false },
+  );
   const demeritStatusQuery = useDailyDemeritStatusMap(date);
   const bandsQuery = api.attendance.listYearGroupBands.useQuery(undefined, {
     enabled: showBandFilter,
@@ -114,6 +118,8 @@ export function AttendanceCapture({
   const resetMutation = api.attendance.resetForDate.useMutation();
 
   const bands = showBandFilter ? (bandsQuery.data ?? []) : [];
+  const dateStatus = operationalDatesQuery.data?.[0];
+  const canRecordForDate = canRecord && dateStatus?.kind === 'operating';
   const rows = attendanceQuery.data ?? [];
   const filteredRows = rows.filter((row) => {
     if (!showBandFilter || selectedBand === 'all') return true;
@@ -243,7 +249,7 @@ export function AttendanceCapture({
     },
   );
 
-  if (canRecord) {
+  if (canRecordForDate) {
     columns.push({
       id: 'actions',
       header: <span className="sr-only">Mark attendance</span>,
@@ -367,7 +373,7 @@ export function AttendanceCapture({
         ) : null}
         {canRecord ? (
           <Button
-            disabled={rows.every((row) => row.status === null)}
+            disabled={!canRecordForDate || rows.every((row) => row.status === null)}
             onClick={() => {
               void resetRegister();
             }}
@@ -383,6 +389,12 @@ export function AttendanceCapture({
 
       {showBandFilter && bandsQuery.error ? (
         <p className="status--error attendance-error">{friendlyErrorMessage(bandsQuery.error)}</p>
+      ) : null}
+      {dateStatus && dateStatus.kind !== 'operating' ? (
+        <p className="status--warning">
+          Daily attendance is unavailable: {dateStatus.label}. Use the Field Trip register for a
+          planned trip.
+        </p>
       ) : null}
 
       <div className="panel panel--scroll">

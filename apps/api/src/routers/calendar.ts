@@ -13,6 +13,7 @@ import type { Prisma } from '@oasis/db';
 import type { AppContext } from '../context.js';
 import { dateFromKey, dateKey, minutesFromTime, timeFromMinutes } from '../lib/date-time-keys.js';
 import { decryptOptionalText, decryptRequiredText, optionalText } from '../lib/encrypted-text.js';
+import { operationalDateStatus } from '../lib/operational-date.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -73,6 +74,9 @@ interface RequiredPersonCandidateRow {
 
 const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid date');
 const timeKeySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u, 'Enter a valid time');
+const operationalDatesInput = z.object({
+  dates: z.array(z.coerce.date()).min(1).max(31),
+});
 
 const calendarEventInput = z.object({
   title: z.string().trim().min(1, 'Enter a title').max(160, 'Title is too long'),
@@ -555,6 +559,13 @@ async function assertCalendarEventCanBeManaged(ctx: AuthedContext, id: string): 
 }
 
 export const calendarRouter = router({
+  operationalDates: authedProcedure.input(operationalDatesInput).query(async ({ ctx, input }) => {
+    const uniqueDates = new Map(input.dates.map((date) => [dateKey(date), date]));
+    return Promise.all(
+      [...uniqueDates.values()].map((date) => operationalDateStatus(ctx.db, date)),
+    );
+  }),
+
   listForAdmin: authedProcedure.query(async ({ ctx }) => {
     requireCalendarManager(ctx.user);
     const where = adminEventWhere(ctx.user);

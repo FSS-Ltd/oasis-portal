@@ -9613,6 +9613,21 @@ button.club-assignment-row {
   font-weight: 650;
 }
 
+.status--warning,
+.status--info {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.status--warning {
+  color: #92400e;
+}
+
+.status--info {
+  color: #1d4ed8;
+}
+
 .pending-invite-actions {
   display: flex;
   flex-wrap: wrap;
@@ -13153,6 +13168,52 @@ button.club-assignment-row {
   text-transform: uppercase;
 }
 
+.rota-day__status {
+  margin: -4px 0 10px;
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.rota-day__status.is-field-trip {
+  color: #1d4ed8;
+}
+
+.rota-role-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.rota-role-chip {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.rota-role-chip.is-staff,
+.rota-shift.is-staff {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.rota-role-chip.is-parent,
+.rota-shift.is-parent,
+.club-rota-candidate.is-parent {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #115e59;
+}
+
 .rota-availability-badges {
   display: grid;
   gap: 8px;
@@ -13212,9 +13273,9 @@ button.club-assignment-row {
 }
 
 .rota-availability-badge.is-parent {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #115e59;
 }
 
 .rota-availability-badge.is-empty {

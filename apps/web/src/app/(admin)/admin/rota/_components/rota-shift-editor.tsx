@@ -18,6 +18,7 @@ type RotaYearGroupBand = {
 
 type RotaShiftEditorProps = {
   activeBands: readonly RotaYearGroupBand[];
+  dateStatus?: { kind: 'operating' | 'fieldTrip' | 'closed'; label: string } | undefined;
   errorMessage?: string | undefined;
   form: ShiftForm;
   isDeleting: boolean;
@@ -31,6 +32,7 @@ type RotaShiftEditorProps = {
 
 export function RotaShiftEditor({
   activeBands,
+  dateStatus,
   errorMessage,
   form,
   isDeleting,
@@ -41,6 +43,7 @@ export function RotaShiftEditor({
   onSubmit,
   staff,
 }: RotaShiftEditorProps) {
+  const canSchedule = dateStatus?.kind === 'operating' || dateStatus?.kind === 'fieldTrip';
   return (
     <section aria-labelledby="rota-shift-editor-title" className="panel">
       <div className="panel__body">
@@ -58,6 +61,13 @@ export function RotaShiftEditor({
             onSubmit();
           }}
         >
+          {dateStatus?.kind === 'closed' ? (
+            <p className="status--warning">
+              This date is unavailable for rota shifts: {dateStatus.label}.
+            </p>
+          ) : dateStatus?.kind === 'fieldTrip' ? (
+            <p className="status--info">This shift is being scheduled for a planned field trip.</p>
+          ) : null}
           <Field label="Supervisor">
             <SelectInput
               onChange={(event) => {
@@ -163,7 +173,7 @@ export function RotaShiftEditor({
                 Remove
               </Button>
             ) : null}
-            <Button pending={isSaving} type="submit">
+            <Button disabled={!canSchedule} pending={isSaving} type="submit">
               {form.id ? (
                 <Pencil aria-hidden="true" size={16} />
               ) : (
