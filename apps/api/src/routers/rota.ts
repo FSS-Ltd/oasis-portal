@@ -4,6 +4,7 @@ import { Prisma } from '@oasis/db';
 import {
   canManageStaffParentVolunteerAccess,
   currentOasisTerm,
+  isOasisOperatingDay,
   isStaff,
   nextOasisTerm,
   resolveParentVolunteerAccess,
@@ -14,6 +15,7 @@ import {
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 import type { AppContext } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
+import { assertOperatingDate, assertRotaDate } from '../lib/operational-date.js';
 
 const STAFF_ROLES = [
   'Head',
@@ -428,21 +430,23 @@ async function listParentVolunteerSlots(
   const slotsForPlacement = (placement: ParentVolunteerPlacement, term: OasisTerm) => {
     const { dailyCapacity } = PARENT_VOLUNTEER_PLACEMENTS[placement];
     const termDays = Math.ceil((term.to.getTime() - term.from.getTime()) / 86_400_000);
-    return Array.from({ length: termDays }, (_, index) => {
-      const date = dateKey(addDays(term.from, index));
-      const volunteerIds = volunteersByPlacementAndDate.get(`${placement}:${date}`) ?? [];
-      const selected = volunteerIds.includes(ctx.user.id);
-      return {
-        date,
-        selected,
-        status: selected
-          ? ('Selected' as const)
-          : volunteerIds.length >= dailyCapacity
-            ? ('Full' as const)
-            : ('Available' as const),
-        spacesRemaining: Math.max(dailyCapacity - volunteerIds.length, 0),
-      };
-    });
+    return Array.from({ length: termDays }, (_, index) => addDays(term.from, index))
+      .filter(isOasisOperatingDay)
+      .map((termDate) => {
+        const date = dateKey(termDate);
+        const volunteerIds = volunteersByPlacementAndDate.get(`${placement}:${date}`) ?? [];
+        const selected = volunteerIds.includes(ctx.user.id);
+        return {
+          date,
+          selected,
+          status: selected
+            ? ('Selected' as const)
+            : volunteerIds.length >= dailyCapacity
+              ? ('Full' as const)
+              : ('Available' as const),
+          spacesRemaining: Math.max(dailyCapacity - volunteerIds.length, 0),
+        };
+      });
   };
 
   const sharedTerms: ParentVolunteerSharedTerm[] = terms.map((term) => ({
@@ -788,6 +792,9 @@ export const rotaRouter = router({
       assertStaffWorkflow(ctx.user);
       assertMonthlyAvailabilityWithinMonth(input.month, input.windows);
       assertNoMonthlyAvailabilityOverlap(input.windows);
+      for (const window of input.windows) {
+        await assertOperatingDate(ctx.db, dateFromKey(window.date));
+      }
 
       const range = monthRange(input.month);
       const windows = input.windows
@@ -944,6 +951,9 @@ export const rotaRouter = router({
         requestedSelections.map((selection) => selection.date),
         term,
       );
+      for (const selection of requestedSelections) {
+        await assertOperatingDate(ctx.db, dateFromKey(selection.date));
+      }
 
       const existingRows = await ctx.db.parentVolunteerDay.findMany({
         where: {
@@ -1350,6 +1360,7 @@ export const rotaRouter = router({
 
   createShift: adminOperationsProcedure.input(shiftInput).mutation(async ({ ctx, input }) => {
     const date = normalizeDate(input.date);
+    await assertRotaDate(ctx.db, date);
     assertShiftKindBand({ kind: input.kind, yearGroupBandId: input.yearGroupBandId ?? null });
     await assertActiveStaffUser(ctx, input.staffUserId);
     const yearGroupBandId = input.kind === 'Cover' ? (input.yearGroupBandId ?? null) : null;
@@ -1420,6 +1431,7 @@ export const rotaRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'startsAt must be before endsAt' });
     }
 
+    await assertRotaDate(ctx.db, next.date);
     assertShiftKindBand(next);
     await assertActiveStaffUser(ctx, next.staffUserId);
     if (next.kind === 'Cover' && next.yearGroupBandId) {

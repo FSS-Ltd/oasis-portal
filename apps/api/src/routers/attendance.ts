@@ -17,6 +17,7 @@ import {
   studentMatchesDailyScope,
   studentWhereForDailyScope,
 } from '../lib/daily-year-band-scope.js';
+import { assertFieldTripAttendanceDate, assertOperatingDate } from '../lib/operational-date.js';
 import { canUseStudentAcademicScreens } from '../lib/student-academic-screens.js';
 import { adminOperationsProcedure, authedProcedure, roleProcedure, router } from '../trpc.js';
 
@@ -175,6 +176,18 @@ function requireAbsenceReason(
 
 function isMinibusRegister(register: SpecialAttendanceRegister): boolean {
   return register === 'MinibusInbound' || register === 'MinibusOutbound';
+}
+
+async function assertSpecialAttendanceDate(
+  ctx: AuthedContext,
+  date: Date,
+  register: SpecialAttendanceRegister,
+): Promise<void> {
+  if (register === 'FieldTrip') {
+    await assertFieldTripAttendanceDate(ctx.db, date);
+    return;
+  }
+  await assertOperatingDate(ctx.db, date);
 }
 
 function normalizeDestination(value: string | null | undefined): string | null {
@@ -551,6 +564,7 @@ export const attendanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
+      await assertOperatingDate(ctx.db, date);
       const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
       const scope = await loadDailyYearBandScope(ctx, date);
       const student = await ctx.db.student.findUnique({
@@ -624,6 +638,7 @@ export const attendanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
+      await assertOperatingDate(ctx.db, date);
       const { students } = await loadScopedActiveStudents(ctx, date);
       const studentIds = students.map((student) => student.id);
       const result =
@@ -727,6 +742,7 @@ export const attendanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
+      await assertSpecialAttendanceDate(ctx, date, input.register);
       const destination = isMinibusRegister(input.register)
         ? normalizeDestination(input.destination)
         : null;
@@ -770,6 +786,7 @@ export const attendanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
+      await assertSpecialAttendanceDate(ctx, date, input.register);
       const scope = await loadDailyYearBandScope(ctx, date);
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
@@ -854,6 +871,7 @@ export const attendanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
+      await assertSpecialAttendanceDate(ctx, date, input.register);
       const { students } = await loadScopedActiveStudents(ctx, date);
       const session = await ctx.db.specialAttendanceSession.findUnique({
         where: { date_register: { date, register: input.register } },
@@ -1302,6 +1320,7 @@ export const attendanceRouter = router({
     .input(staffAttendanceMarkInput)
     .mutation(async ({ ctx, input }) => {
       const date = normalizeDate(input.date);
+      await assertOperatingDate(ctx.db, date);
       const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
       await assertActiveStaffUser(ctx, input.staffUserId);
 
@@ -1354,6 +1373,7 @@ export const attendanceRouter = router({
 
   resetStaffForDate: adminOperationsProcedure.input(dateInput).mutation(async ({ ctx, input }) => {
     const date = normalizeDate(input.date);
+    await assertOperatingDate(ctx.db, date);
     const result = await ctx.db.staffAttendance.deleteMany({ where: { date } });
 
     await ctx.db.auditLog.create({

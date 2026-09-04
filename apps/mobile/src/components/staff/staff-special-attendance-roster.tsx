@@ -15,6 +15,7 @@ export type SpecialAttendanceRowData =
   RouterOutputs['attendance']['specialForDate']['rows'][number];
 
 export function StaffSpecialAttendanceRoster({
+  available = true,
   destination,
   error,
   loading,
@@ -29,6 +30,7 @@ export function StaffSpecialAttendanceRoster({
   savingDestination,
   sessionDestination,
 }: {
+  available?: boolean;
   destination: string;
   error: string | null;
   loading: boolean;
@@ -45,7 +47,7 @@ export function StaffSpecialAttendanceRoster({
 }) {
   const minibus = isMinibusRegister(register);
   const destinationSaved = sessionDestination.trim().length > 0;
-  const markDisabled = minibus && !destinationSaved;
+  const markDisabled = !available || (minibus && !destinationSaved);
 
   return (
     <Card style={styles.card}>
@@ -80,7 +82,7 @@ export function StaffSpecialAttendanceRoster({
           />
           <MobileButton
             compact
-            disabled={destination.trim().length === 0 || savingDestination}
+            disabled={!available || destination.trim().length === 0 || savingDestination}
             label={savingDestination ? 'Saving...' : 'Save destination'}
             onPress={onSaveDestination}
             variant="blue"

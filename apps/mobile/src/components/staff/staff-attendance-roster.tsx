@@ -16,6 +16,7 @@ export type AttendanceRowData = RouterOutputs['attendance']['forDate'][number];
 
 export function AttendanceRoster({
   drafts,
+  disabled = false,
   onChangeDraft,
   onSave,
   pendingStudentId,
@@ -23,6 +24,7 @@ export function AttendanceRoster({
   saving,
 }: {
   drafts: Record<string, AttendanceDraft | undefined>;
+  disabled?: boolean;
   onChangeDraft: (studentId: string, draft: AttendanceDraft) => void;
   onSave: (row: AttendanceRowData, draft: AttendanceDraft) => void;
   pendingStudentId: string | null;
@@ -43,6 +45,7 @@ export function AttendanceRoster({
       {rows.map((row) => (
         <AttendanceRosterRow
           draft={drafts[row.studentId]}
+          disabled={disabled}
           key={row.studentId}
           onChangeDraft={(draft) => {
             onChangeDraft(row.studentId, draft);
@@ -61,6 +64,7 @@ export function AttendanceRoster({
 
 function AttendanceRosterRow({
   draft,
+  disabled,
   onChangeDraft,
   onSave,
   pending,
@@ -68,6 +72,7 @@ function AttendanceRosterRow({
   saving,
 }: {
   draft: AttendanceDraft | undefined;
+  disabled: boolean;
   onChangeDraft: (draft: AttendanceDraft) => void;
   onSave: (draft: AttendanceDraft) => void;
   pending: boolean;
@@ -76,7 +81,7 @@ function AttendanceRosterRow({
 }) {
   const activeDraft = draft ?? (row.status ? buildDraft(row.status, row.absenceReason) : null);
   const activeStatus = activeDraft?.status ?? null;
-  const canSave = isDraftSaveable(draft) && !pending && !saving;
+  const canSave = isDraftSaveable(draft) && !disabled && !pending && !saving;
 
   return (
     <Card style={[styles.rowCard, row.status === 'Absent' ? styles.absentCard : null]}>

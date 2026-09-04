@@ -44,6 +44,10 @@ export function StaffAttendanceScreen({
   const [specialRegister, setSpecialRegister] = useState<SpecialAttendanceRegister>('FieldTrip');
   const [specialDestination, setSpecialDestination] = useState('');
   const selectedDate = useMemo(() => dateFromKey(dateKey), [dateKey]);
+  const operationalDates = api.calendar.operationalDates.useQuery(
+    { dates: [selectedDate] },
+    { retry: false },
+  );
   const roster = api.attendance.forDate.useQuery({ date: selectedDate }, { retry: false });
   const specialRoster = api.attendance.specialForDate.useQuery(
     { date: selectedDate, register: specialRegister },
@@ -52,6 +56,11 @@ export function StaffAttendanceScreen({
   const rows = roster.data ?? [];
   const specialRows = specialRoster.data?.rows ?? [];
   const sessionDestination = specialRoster.data?.session.destination ?? '';
+  const dateStatus = operationalDates.data?.[0];
+  const canRecordDaily = dateStatus?.kind === 'operating';
+  const canRecordSpecial =
+    dateStatus?.kind === 'operating' ||
+    (dateStatus?.kind === 'fieldTrip' && specialRegister === 'FieldTrip');
   const counts = useMemo(() => countAttendanceRows(rows), [rows]);
 
   useEffect(() => {
@@ -267,6 +276,18 @@ export function StaffAttendanceScreen({
             </View>
           ) : null}
 
+          {dateStatus &&
+          ((attendanceMode === 'daily' && !canRecordDaily) ||
+            (attendanceMode === 'special' && !canRecordSpecial)) ? (
+            <View style={[styles.statusMessage, styles.errorMessage]}>
+              <Text style={[styles.statusMessageText, styles.errorMessageText]}>
+                {dateStatus.kind === 'fieldTrip'
+                  ? 'Only the Field Trip register is available for this planned trip.'
+                  : `Attendance is unavailable: ${dateStatus.label}.`}
+              </Text>
+            </View>
+          ) : null}
+
           {attendanceMode === 'daily' && roster.isLoading ? (
             <InlineSpinner label="Loading attendance roster" />
           ) : null}
@@ -278,6 +299,7 @@ export function StaffAttendanceScreen({
             <>
               <AttendanceSummaryCard counts={counts} />
               <AttendanceRoster
+                disabled={!canRecordDaily}
                 drafts={drafts}
                 onChangeDraft={(studentId, draft) => {
                   setDrafts((current) => ({ ...current, [studentId]: draft }));
@@ -291,6 +313,7 @@ export function StaffAttendanceScreen({
           ) : null}
           {attendanceMode === 'special' ? (
             <StaffSpecialAttendanceRoster
+              available={canRecordSpecial}
               destination={specialDestination}
               error={specialRoster.error?.message ?? null}
               loading={specialRoster.isLoading}

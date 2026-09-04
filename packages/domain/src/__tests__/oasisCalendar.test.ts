@@ -28,8 +28,8 @@ describe('currentOasisTerm', () => {
     ['2026-03-27', 'Spring', 'Spring term', '2026-Spring', '2026-01-05', '2026-03-28'],
     ['2026-04-13', 'Summer', 'Summer term', '2026-Summer', '2026-04-13', '2026-07-21'],
     ['2026-08-31', 'Summer', 'Summer term', '2026-Summer', '2026-04-13', '2026-07-21'],
-    ['2026-09-01', 'Autumn', 'Autumn term', '2026-Autumn', '2026-09-01', '2026-12-19'],
-    ['2026-12-31', 'Autumn', 'Autumn term', '2026-Autumn', '2026-09-01', '2026-12-19'],
+    ['2026-09-08', 'Autumn', 'Autumn term', '2026-Autumn', '2026-09-08', '2026-12-19'],
+    ['2026-12-31', 'Autumn', 'Autumn term', '2026-Autumn', '2026-09-08', '2026-12-19'],
   ] as const)('maps %s to the %s term', (dateKey, season, label, id, expectedFrom, expectedTo) => {
     const term = currentOasisTerm(new Date(`${dateKey}T00:00:00.000Z`));
 
@@ -46,8 +46,8 @@ describe('currentOasisTerm', () => {
     ['2026-05-22', 'term', 'Summer term 1', '2026-04-13', '2026-05-25'],
     ['2026-05-25', 'halfTerm', 'Half term', '2026-05-25', '2026-05-30'],
     ['2026-06-02', 'term', 'Summer term 2', '2026-05-30', '2026-07-21'],
-    ['2026-08-25', 'holiday', 'Summer holiday', '2026-07-21', '2026-09-01'],
-    ['2026-12-21', 'holiday', 'Christmas holiday', '2026-12-19', '2027-01-04'],
+    ['2026-08-25', 'holiday', 'Summer holiday', '2026-07-21', '2026-09-08'],
+    ['2026-12-21', 'holiday', 'Christmas holiday', '2026-12-19', '2027-01-05'],
   ] as const)('resolves %s as the current academic period', (dateKey, kind, label, from, to) => {
     expect(currentOasisAcademicPeriod(new Date(`${dateKey}T00:00:00.000Z`))).toMatchObject({
       kind,
@@ -55,6 +55,18 @@ describe('currentOasisTerm', () => {
       from: new Date(`${from}T00:00:00.000Z`),
       to: new Date(`${to}T00:00:00.000Z`),
     });
+  });
+
+  it.each([
+    ['autumn opens', '2026-09-08', true],
+    ['autumn half term', '2026-10-20', false],
+    ['spring opens', '2027-01-05', true],
+    ['spring half term', '2027-02-16', false],
+    ['summer opens', '2027-04-13', true],
+    ['summer half term', '2027-06-01', false],
+    ['summer closes', '2027-07-23', true],
+  ] as const)('uses supplied 2026-27 date for %s', (_label, dateKey, expected) => {
+    expect(isOasisOperatingDay(new Date(`${dateKey}T00:00:00.000Z`))).toBe(expected);
   });
 
   it('uses the current calendar year for report term choices', () => {

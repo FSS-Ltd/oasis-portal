@@ -78,13 +78,22 @@ export function SpecialAttendanceCapture({
   const utils = api.useUtils();
 
   const specialQuery = api.attendance.specialForDate.useQuery({ date, register }, { retry: false });
+  const operationalDatesQuery = api.calendar.operationalDates.useQuery(
+    { dates: [date] },
+    { retry: false },
+  );
   const saveSessionMutation = api.attendance.saveSpecialSession.useMutation();
   const markMutation = api.attendance.markSpecial.useMutation();
   const resetMutation = api.attendance.resetSpecialForDate.useMutation();
 
   const rows = specialQuery.data?.rows ?? [];
+  const dateStatus = operationalDatesQuery.data?.[0];
   const sessionDestination = specialQuery.data?.session.destination ?? '';
   const minibus = isMinibusRegister(register);
+  const canRecordForDate =
+    canRecord &&
+    (dateStatus?.kind === 'operating' ||
+      (dateStatus?.kind === 'fieldTrip' && register === 'FieldTrip'));
 
   useEffect(() => {
     setDestination(sessionDestination);
@@ -168,7 +177,7 @@ export function SpecialAttendanceCapture({
     },
   ];
 
-  if (canRecord) {
+  if (canRecordForDate) {
     columns.push({
       id: 'actions',
       header: <span className="sr-only">Mark special attendance</span>,
@@ -236,7 +245,11 @@ export function SpecialAttendanceCapture({
             value={register}
           >
             {specialRegisters.map((option) => (
-              <option key={option.id} value={option.id}>
+              <option
+                disabled={dateStatus?.kind === 'fieldTrip' && option.id !== 'FieldTrip'}
+                key={option.id}
+                value={option.id}
+              >
                 {option.label}
               </option>
             ))}
@@ -254,7 +267,7 @@ export function SpecialAttendanceCapture({
           </Button>
           {canRecord ? (
             <Button
-              disabled={rows.every((row) => row.status === null)}
+              disabled={!canRecordForDate || rows.every((row) => row.status === null)}
               onClick={() => {
                 void resetRegister();
               }}
@@ -268,6 +281,14 @@ export function SpecialAttendanceCapture({
           ) : null}
         </div>
       </div>
+
+      {dateStatus && !canRecordForDate ? (
+        <p className="status--warning">
+          {dateStatus.kind === 'fieldTrip'
+            ? 'Only the Field Trip register is available for this planned trip.'
+            : `Special attendance is unavailable: ${dateStatus.label}.`}
+        </p>
+      ) : null}
 
       {minibus ? (
         <div className="panel panel__body attendance-special-destination">
@@ -283,7 +304,7 @@ export function SpecialAttendanceCapture({
             />
           </Field>
           <Button
-            disabled={destination.trim().length === 0}
+            disabled={!canRecordForDate || destination.trim().length === 0}
             onClick={() => {
               void saveDestination();
             }}

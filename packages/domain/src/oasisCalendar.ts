@@ -27,9 +27,9 @@ interface TermDates {
 }
 
 /**
- * Birmingham City Council's published community-school dates. The centre's
- * demo data is based in Birmingham, and these dates are the local standard
- * used throughout the portal. Academies can set their own dates.
+ * Published dates used by the Oasis calendar seed. These drive operational
+ * workflows throughout the portal; the 2026–27 dates are Oasis's supplied
+ * academic calendar.
  */
 const PUBLISHED_TERM_DATES: readonly TermDates[] = [
   {
@@ -55,24 +55,24 @@ const PUBLISHED_TERM_DATES: readonly TermDates[] = [
   },
   {
     season: 'Autumn',
-    startsOn: '2026-09-01',
-    halfTermStartsOn: '2026-10-26',
-    halfTermEndsOn: '2026-10-30',
+    startsOn: '2026-09-08',
+    halfTermStartsOn: '2026-10-17',
+    halfTermEndsOn: '2026-11-02',
     endsOn: '2026-12-18',
   },
   {
     season: 'Spring',
-    startsOn: '2027-01-04',
-    halfTermStartsOn: '2027-02-15',
-    halfTermEndsOn: '2027-02-19',
+    startsOn: '2027-01-05',
+    halfTermStartsOn: '2027-02-13',
+    halfTermEndsOn: '2027-02-22',
     endsOn: '2027-03-25',
   },
   {
     season: 'Summer',
-    startsOn: '2027-04-12',
-    halfTermStartsOn: '2027-05-31',
-    halfTermEndsOn: '2027-06-04',
-    endsOn: '2027-07-21',
+    startsOn: '2027-04-13',
+    halfTermStartsOn: '2027-05-29',
+    halfTermEndsOn: '2027-06-07',
+    endsOn: '2027-07-23',
   },
   {
     season: 'Autumn',

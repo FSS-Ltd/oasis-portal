@@ -71,6 +71,10 @@ export function StaffAttendanceRoster() {
   const utils = api.useUtils();
 
   const staffQuery = api.attendance.staffForDate.useQuery({ date }, { retry: false });
+  const operationalDatesQuery = api.calendar.operationalDates.useQuery(
+    { dates: [date] },
+    { retry: false },
+  );
   const markMutation = api.attendance.markStaff.useMutation();
   const resetMutation = api.attendance.resetStaffForDate.useMutation();
 
@@ -141,6 +145,8 @@ export function StaffAttendanceRoster() {
   }
 
   const rows = staffQuery.data?.rows ?? [];
+  const dateStatus = operationalDatesQuery.data?.[0];
+  const canRecordForDate = dateStatus?.kind === 'operating';
   const columns: DataTableColumn<StaffAttendanceRow>[] = [
     {
       id: 'name',
@@ -189,7 +195,10 @@ export function StaffAttendanceRoster() {
           <span className="muted">Not recorded</span>
         ),
     },
-    {
+  ];
+
+  if (canRecordForDate) {
+    columns.push({
       id: 'actions',
       header: <span className="sr-only">Mark supervisor attendance</span>,
       render: (row) => {
@@ -247,8 +256,8 @@ export function StaffAttendanceRoster() {
           </div>
         );
       },
-    },
-  ];
+    });
+  }
 
   return (
     <section className="attendance-staff-roster">
@@ -286,7 +295,7 @@ export function StaffAttendanceRoster() {
             Refresh
           </Button>
           <Button
-            disabled={rows.every((row) => row.status === null)}
+            disabled={!canRecordForDate || rows.every((row) => row.status === null)}
             onClick={() => {
               void resetRegister();
             }}
@@ -299,6 +308,10 @@ export function StaffAttendanceRoster() {
           </Button>
         </div>
       </div>
+
+      {dateStatus && !canRecordForDate ? (
+        <p className="status--warning">Supervisor attendance is unavailable: {dateStatus.label}.</p>
+      ) : null}
 
       <div className="panel panel__body attendance-unscheduled-panel">
         <SelectInput
@@ -317,7 +330,7 @@ export function StaffAttendanceRoster() {
           ))}
         </SelectInput>
         <Button
-          disabled={!selectedStaffUserId}
+          disabled={!canRecordForDate || !selectedStaffUserId}
           onClick={() => {
             void addUnscheduledSupervisor();
           }}
