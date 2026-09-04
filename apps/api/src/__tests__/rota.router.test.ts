@@ -1104,9 +1104,9 @@ describe('parent volunteer days', () => {
 
       const staffCaller = makeCaller(supervisorUser, db);
       const staffSlots = await staffCaller.rota.parentVolunteerSlots();
-      const term = staffSlots.terms[0];
+      const term = staffSlots.terms.find((candidate) => candidate.id === '2026-Autumn');
       const lunchDate = term?.lunchAndClubs.primary.days.find(
-        (candidate) => candidate.date === '2026-09-04',
+        (candidate) => candidate.date === '2026-09-08',
       )?.date;
       if (!term || !lunchDate) throw new Error('Expected an available staff volunteer day');
 
@@ -1232,10 +1232,10 @@ describe('parent volunteer days', () => {
       const staffSlots = await staffCaller.rota.parentVolunteerSlots();
       expect(staffSlots.scope).toBe('staff');
       expect(staffSlots.terms[0]).not.toHaveProperty('centreVolunteer');
-      const term = staffSlots.terms[0];
+      const term = staffSlots.terms.find((candidate) => candidate.id === '2026-Autumn');
       if (!term) throw new Error('Expected an available staff volunteer term');
       const lunchDate = term.lunchAndClubs.primary.days.find(
-        (day) => day.date === '2026-09-04',
+        (day) => day.date === '2026-09-08',
       )?.date;
       if (!lunchDate) throw new Error('Expected an available lunch and clubs day');
 
@@ -1353,7 +1353,7 @@ describe('parent volunteer days', () => {
         secondary: { dailyCapacity: 2 },
       },
     });
-    expect(initialTerm.from).toBe(firstDate);
+    expect(initialTerm.from).toBe('2026-04-13');
     expect(initialTerm.centreVolunteer.days[0]).toMatchObject({ date: firstDate });
     expect(initialTerm.centreVolunteer.days[0]).not.toHaveProperty('parent');
     expect(initialTerm.lunchAndClubs.primary.days[0]).not.toHaveProperty('volunteers');
@@ -1566,8 +1566,8 @@ describe('parent volunteer days', () => {
       expect(beforeOpeningSlots.terms.map((term) => term.id)).toEqual(['2026-Summer']);
       const summerTerm = firstAvailableParentVolunteerTerm(beforeOpeningSlots);
       expect(summerTerm).toMatchObject({ from: '2026-04-13', to: '2026-07-20' });
-      expect(summerTerm.centreVolunteer.days.at(0)).toMatchObject({ date: '2026-04-13' });
-      expect(summerTerm.centreVolunteer.days.at(-1)).toMatchObject({ date: '2026-07-20' });
+      expect(summerTerm.centreVolunteer.days.at(0)).toMatchObject({ date: '2026-04-14' });
+      expect(summerTerm.centreVolunteer.days.at(-1)).toMatchObject({ date: '2026-07-17' });
 
       await expect(
         caller.rota.setMyParentVolunteerDays({
@@ -1579,14 +1579,14 @@ describe('parent volunteer days', () => {
         message: 'Volunteer term is not currently available',
       });
 
-      vi.setSystemTime(new Date('2026-08-25T12:00:00.000Z'));
+      vi.setSystemTime(new Date('2026-09-01T12:00:00.000Z'));
 
       const openingDaySlots = await caller.rota.parentVolunteerSlots();
       if (openingDaySlots.scope !== 'parent') throw new Error('Expected parent volunteer scope');
       expect(openingDaySlots.terms.map((term) => term.id)).toEqual(['2026-Summer', '2026-Autumn']);
       const autumnTerm = openingDaySlots.terms[1];
-      expect(autumnTerm).toMatchObject({ from: '2026-09-01', to: '2026-12-18' });
-      expect(autumnTerm?.centreVolunteer.days.at(0)).toMatchObject({ date: '2026-09-01' });
+      expect(autumnTerm).toMatchObject({ from: '2026-09-08', to: '2026-12-18' });
+      expect(autumnTerm?.centreVolunteer.days.at(0)).toMatchObject({ date: '2026-09-08' });
       expect(autumnTerm?.centreVolunteer.days.at(-1)).toMatchObject({ date: '2026-12-18' });
     } finally {
       vi.useRealTimers();

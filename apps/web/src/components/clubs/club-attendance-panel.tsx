@@ -49,10 +49,18 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
     { clubId: club.id, date },
     { retry: false },
   );
+  const operationalDatesQuery = api.calendar.operationalDates.useQuery(
+    { dates: [date] },
+    {
+      retry: false,
+    },
+  );
   const demeritStatusQuery = useDailyDemeritStatusMap(date, true, club.id);
   const markAttendance = api.club.markAttendance.useMutation();
   const resetAttendance = api.club.resetAttendanceForSession.useMutation();
   const rows = attendanceQuery.data?.students ?? [];
+  const dateStatus = operationalDatesQuery.data?.[0];
+  const canRecordForDate = dateStatus?.kind === 'operating';
   const counts = rows.reduce(
     (totals, row) => {
       if (row.status === 'Present') totals.present += 1;
@@ -151,7 +159,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
             />
           </Field>
           <Button
-            disabled={rows.length === 0 || pendingAll}
+            disabled={!canRecordForDate || rows.length === 0 || pendingAll}
             onClick={() => {
               void markAllPresent();
             }}
@@ -164,7 +172,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
             Mark all present
           </Button>
           <Button
-            disabled={rows.every((row) => row.status === null) || pendingAll}
+            disabled={!canRecordForDate || rows.every((row) => row.status === null) || pendingAll}
             onClick={() => {
               void resetRegister();
             }}
@@ -178,6 +186,10 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
           </Button>
         </div>
       </div>
+
+      {dateStatus && !canRecordForDate ? (
+        <p className="status--warning">Club attendance is unavailable: {dateStatus.label}.</p>
+      ) : null}
 
       <div className="club-attendance-summary" aria-label="Attendance summary">
         <span className="club-attendance-summary__item club-attendance-summary__item--present">
@@ -226,7 +238,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
               <div className="club-attendance-actions">
                 {statuses.map(({ icon: Icon, label, value }) => (
                   <Button
-                    disabled={pending || pendingAll}
+                    disabled={!canRecordForDate || pending || pendingAll}
                     key={value}
                     onClick={() => {
                       void mark(row, value);

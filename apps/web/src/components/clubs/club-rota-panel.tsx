@@ -92,7 +92,10 @@ function CandidatePicker({
   return (
     <div className="club-rota-candidates">
       {candidates.map((candidate) => (
-        <label className="club-rota-candidate" key={candidate.id}>
+        <label
+          className={`club-rota-candidate${candidate.role === 'Parent' ? ' is-parent' : ' is-staff'}`}
+          key={candidate.id}
+        >
           <input
             checked={selectedUserIds.has(candidate.id)}
             onChange={() => {
@@ -135,6 +138,10 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
     { clubId: club.id, from: weekStart, to: weekEnd },
     { retry: false },
   );
+  const operationalDatesQuery = api.calendar.operationalDates.useQuery(
+    { dates: [...weekDays, dateFromKey(shiftForm.date)] },
+    { retry: false },
+  );
   const setParticipants = api.club.setRotaParticipants.useMutation();
   const createShift = api.club.createClubRotaShift.useMutation();
   const updateShift = api.club.updateClubRotaShift.useMutation();
@@ -145,6 +152,11 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   const shifts = scheduleQuery.data ?? [];
   const availability = availabilityQuery.data ?? [];
   const selectedAvailability = availability.find((row) => row.id === shiftForm.participantUserId);
+  const selectedDateStatus = operationalDatesQuery.data?.find(
+    (status) => status.date === shiftForm.date,
+  );
+  const canSchedule =
+    selectedDateStatus?.kind === 'operating' || selectedDateStatus?.kind === 'fieldTrip';
   const mutationError =
     setParticipants.error ?? createShift.error ?? updateShift.error ?? deleteShift.error;
 
@@ -271,6 +283,13 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
               void saveShift();
             }}
           >
+            {selectedDateStatus?.kind === 'closed' ? (
+              <p className="status--warning">
+                This date is unavailable for rota shifts: {selectedDateStatus.label}.
+              </p>
+            ) : selectedDateStatus?.kind === 'fieldTrip' ? (
+              <p className="status--info">This cover is scheduled for a planned field trip.</p>
+            ) : null}
             <Field label="Person">
               <SelectInput
                 onChange={(event) => {
@@ -370,7 +389,11 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
                   </Button>
                 </>
               ) : null}
-              <Button pending={createShift.isPending || updateShift.isPending} type="submit">
+              <Button
+                disabled={!canSchedule}
+                pending={createShift.isPending || updateShift.isPending}
+                type="submit"
+              >
                 <Plus aria-hidden="true" size={14} />
                 {shiftForm.id ? 'Update cover' : 'Add cover'}
               </Button>
@@ -410,6 +433,10 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
             </Button>
           </div>
         </div>
+        <div aria-label="Rota people key" className="rota-role-key">
+          <span className="rota-role-chip is-staff">Staff</span>
+          <span className="rota-role-chip is-parent">Parent volunteer</span>
+        </div>
         {scheduleQuery.isLoading ? <div className="empty-state">Loading club rota...</div> : null}
         {scheduleQuery.error ? (
           <p className="status--error">{friendlyErrorMessage(scheduleQuery.error)}</p>
@@ -418,19 +445,25 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
           {weekDays.map((day) => {
             const key = dateKey(day);
             const dayShifts = shifts.filter((shift) => shift.date === key);
+            const dateStatus = operationalDatesQuery.data?.find((status) => status.date === key);
             return (
               <article className="rota-day" key={key}>
                 <header>
                   <span>{dayLabels[day.getUTCDay()]}</span>
                   <strong>{formatDateLabel(day)}</strong>
                 </header>
+                {dateStatus?.kind === 'closed' ? (
+                  <p className="rota-day__status">{dateStatus.label}</p>
+                ) : dateStatus?.kind === 'fieldTrip' ? (
+                  <p className="rota-day__status is-field-trip">Planned field trip</p>
+                ) : null}
                 {dayShifts.length === 0 ? (
                   <p className="muted">No cover</p>
                 ) : (
                   <div className="rota-shift-list">
                     {dayShifts.map((shift) => (
                       <button
-                        className="rota-shift"
+                        className={`rota-shift${shift.participant?.role === 'Parent' ? ' is-parent' : ' is-staff'}`}
                         key={shift.id}
                         onClick={() => {
                           setShiftForm(shiftToForm(shift));
@@ -441,6 +474,13 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
                           {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
                         </span>
                         <strong>{shift.participant?.fullName ?? 'Selected cover'}</strong>
+                        <span
+                          className={`rota-role-chip${
+                            shift.participant?.role === 'Parent' ? ' is-parent' : ' is-staff'
+                          }`}
+                        >
+                          {shift.participant?.role === 'Parent' ? 'Parent volunteer' : 'Staff'}
+                        </span>
                         {shift.notes ? <em>{shift.notes}</em> : null}
                       </button>
                     ))}

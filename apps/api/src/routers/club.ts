@@ -16,6 +16,7 @@ import {
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
+import { assertOperatingDate, assertRotaDate } from '../lib/operational-date.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import {
   buildClubNotificationEmail,
@@ -1435,6 +1436,10 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
     create: authedProcedure.input(clubCreateInput).mutation(async ({ ctx, input }) => {
       requireClubManager(ctx.user);
 
+      if (input.schedule && typeof input.schedule !== 'string') {
+        await assertOperatingDate(ctx.db, input.schedule.startDate);
+      }
+
       const draft = validateClubDraft({
         name: input.name,
         schedule: input.schedule ?? null,
@@ -1508,6 +1513,9 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         data.description = normalizeOptionalText(input.description);
       }
       if (input.schedule !== undefined) {
+        if (input.schedule && typeof input.schedule !== 'string') {
+          await assertOperatingDate(ctx.db, input.schedule.startDate);
+        }
         Object.assign(data, scheduleData(input.schedule));
       }
       if (input.capacity !== undefined) {
@@ -1827,6 +1835,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         await requireClubManagerOrAssignedLead(ctx, input.clubId);
         await assertActiveClub(ctx, input.clubId);
         const sessionDate = normalizeDate(input.date);
+        await assertOperatingDate(ctx.db, sessionDate);
 
         const signup = await ctx.db.clubSignup.findFirst({
           where: {
@@ -1895,6 +1904,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         await requireClubManagerOrAssignedLead(ctx, input.clubId);
         await assertActiveClub(ctx, input.clubId);
         const sessionDate = normalizeDate(input.date);
+        await assertOperatingDate(ctx.db, sessionDate);
         const result = await ctx.db.clubAttendance.deleteMany({
           where: { clubId: input.clubId, sessionDate },
         });
@@ -2079,6 +2089,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       .mutation(async ({ ctx, input }) => {
         requireClubManager(ctx.user);
         const date = normalizeDate(input.date);
+        await assertRotaDate(ctx.db, date);
         await assertActiveClub(ctx, input.clubId);
         await assertClubRotaParticipant(ctx, input.clubId, input.participantUserId);
         await assertNoClubShiftOverlap(ctx, { ...input, date });
@@ -2146,6 +2157,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'startsAt must be before endsAt' });
         }
 
+        await assertRotaDate(ctx.db, next.date);
         await assertActiveClub(ctx, next.clubId);
         await assertClubRotaParticipant(ctx, next.clubId, next.participantUserId);
         await assertNoClubShiftOverlap(ctx, { ...next, exceptShiftId: existing.id });
