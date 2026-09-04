@@ -193,7 +193,10 @@ export function StaffRotaScreen({
     availability.isFetching ||
     monthlyAvailability.isFetching ||
     swapCandidates.isFetching ||
-    mySwaps.isFetching || saveAvailability.isPending || saveMonthlyAvailability.isPending || requestSwap.isPending;
+    mySwaps.isFetching ||
+    saveAvailability.isPending ||
+    saveMonthlyAvailability.isPending ||
+    requestSwap.isPending;
 
   async function refresh() {
     await Promise.all([

@@ -169,7 +169,7 @@ interface FakeDb {
   parentVolunteerDay: {
     findMany: ReturnType<typeof vi.fn>;
     deleteMany: ReturnType<typeof vi.fn>;
-    create: ReturnType<typeof vi.fn>;
+    createMany: ReturnType<typeof vi.fn>;
   };
   shiftSwapRequest: {
     findFirst: ReturnType<typeof vi.fn>;
@@ -363,7 +363,10 @@ function makeFakeDb() {
         return Promise.resolve(eligible ? [{ id: user.id }] : []);
       },
     ),
-    $transaction: vi.fn(async (fn: (tx: FakeDb) => Promise<unknown>) => fn(db)),
+    $transaction: vi.fn(
+      async (input: ((tx: FakeDb) => Promise<unknown>) | Promise<unknown>[]) =>
+        Array.isArray(input) ? Promise.all(input) : input(db),
+    ),
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     user: {
       findMany: vi.fn(
@@ -644,10 +647,11 @@ function makeFakeDb() {
         }: {
           where: {
             parentUserId?: string;
-            date: Date | { gte: Date; lte: Date };
+            date?: Date | { gte: Date; lte: Date };
             placement?:
               | StoredParentVolunteerDay['placement']
               | { in: StoredParentVolunteerDay['placement'][] };
+            OR?: { date: Date; placement: StoredParentVolunteerDay['placement'] }[];
           };
         }) =>
           Promise.resolve(
@@ -657,6 +661,7 @@ function makeFakeDb() {
                   where.parentUserId === undefined || row.parentUserId === where.parentUserId,
               )
               .filter((row) => {
+                if (where.date === undefined) return true;
                 if (where.date instanceof Date) return dateKey(row.date) === dateKey(where.date);
                 return (
                   row.date.getTime() >= where.date.gte.getTime() &&
@@ -669,6 +674,15 @@ function makeFakeDb() {
                   (typeof where.placement === 'string'
                     ? row.placement === where.placement
                     : where.placement.in.includes(row.placement)),
+              )
+              .filter(
+                (row) =>
+                  where.OR === undefined ||
+                  where.OR.some(
+                    (condition) =>
+                      dateKey(row.date) === dateKey(condition.date) &&
+                      row.placement === condition.placement,
+                  ),
               )
               .sort((a, b) => a.date.getTime() - b.date.getTime() || a.slot - b.slot)
               .map((row) => ({
@@ -706,30 +720,35 @@ function makeFakeDb() {
           return Promise.resolve({ count: before - parentVolunteerDays.length });
         },
       ),
-      create: vi.fn(
+      createMany: vi.fn(
         ({
           data,
         }: {
-          data: Pick<StoredParentVolunteerDay, 'parentUserId' | 'date' | 'placement' | 'slot'>;
+          data: Pick<StoredParentVolunteerDay, 'parentUserId' | 'date' | 'placement' | 'slot'>[];
         }) => {
-          const duplicate = parentVolunteerDays.find(
-            (row) =>
-              (row.parentUserId === data.parentUserId &&
-                dateKey(row.date) === dateKey(data.date) &&
-                row.placement === data.placement) ||
-              (dateKey(row.date) === dateKey(data.date) &&
-                row.placement === data.placement &&
-                row.slot === data.slot),
+          const candidates = [...parentVolunteerDays, ...data];
+          const duplicate = candidates.some((row, index) =>
+            candidates.slice(index + 1).some(
+              (other) =>
+                (other.parentUserId === row.parentUserId &&
+                  dateKey(other.date) === dateKey(row.date) &&
+                  other.placement === row.placement) ||
+                (dateKey(other.date) === dateKey(row.date) &&
+                  other.placement === row.placement &&
+                  other.slot === row.slot),
+            ),
           );
           if (duplicate) throw new Error('duplicate parent volunteer day');
-          const row: StoredParentVolunteerDay = {
-            id: `parent_volunteer_${String(nextParentVolunteerDayId++)}`,
-            createdAt: at('2026-04-29T09:00:00.000Z'),
-            updatedAt: at('2026-04-29T09:00:00.000Z'),
-            ...data,
-          };
-          parentVolunteerDays.push(row);
-          return Promise.resolve(row);
+
+          parentVolunteerDays.push(
+            ...data.map((row) => ({
+              id: `parent_volunteer_${String(nextParentVolunteerDayId++)}`,
+              createdAt: at('2026-04-29T09:00:00.000Z'),
+              updatedAt: at('2026-04-29T09:00:00.000Z'),
+              ...row,
+            })),
+          );
+          return Promise.resolve({ count: data.length });
         },
       ),
     },

@@ -997,6 +997,68 @@ export const rotaRouter = router({
         (selection) => !existingSelectionKeys.has(`${selection.placement}:${selection.date}`),
       );
 
+      let recordsToCreate: Array<{
+        parentUserId: string;
+        date: Date;
+        placement: ParentVolunteerPlacement;
+        slot: number;
+      }> = [];
+
+      if (selectionsToCreate.length > 0) {
+        const requestedPairs = new Map<
+          string,
+          { date: string; placement: ParentVolunteerPlacement }
+        >();
+        for (const selection of requestedSelections) {
+          requestedPairs.set(`${selection.placement}:${selection.date}`, {
+            date: selection.date,
+            placement: selection.placement,
+          });
+        }
+
+        const existingReservations = await ctx.db.parentVolunteerDay.findMany({
+          where: {
+            OR: [...requestedPairs.values()].map(({ date, placement }) => ({
+              date: dateFromKey(date),
+              placement,
+            })),
+          },
+          select: { date: true, placement: true, slot: true },
+        });
+        const occupiedSlotsByPlacementDate = new Map<string, Set<number>>();
+        for (const reservation of existingReservations) {
+          const key = `${reservation.placement}:${dateKey(reservation.date)}`;
+          const occupiedSlots = occupiedSlotsByPlacementDate.get(key) ?? new Set<number>();
+          occupiedSlots.add(reservation.slot);
+          occupiedSlotsByPlacementDate.set(key, occupiedSlots);
+        }
+
+        recordsToCreate = selectionsToCreate.map((selection) => {
+          const date = dateFromKey(selection.date);
+          const key = `${selection.placement}:${selection.date}`;
+          const occupiedSlots = occupiedSlotsByPlacementDate.get(key) ?? new Set<number>();
+          const capacity = PARENT_VOLUNTEER_PLACEMENTS[selection.placement].dailyCapacity;
+          const slot = Array.from({ length: capacity }, (_, index) => index + 1).find(
+            (candidate) => !occupiedSlots.has(candidate),
+          );
+          if (!slot) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `${selection.date} already has no ${PARENT_VOLUNTEER_PLACEMENTS[selection.placement].label.toLowerCase()} spaces`,
+            });
+          }
+          occupiedSlots.add(slot);
+          occupiedSlotsByPlacementDate.set(key, occupiedSlots);
+
+          return {
+            parentUserId: ctx.user.id,
+            date,
+            placement: selection.placement,
+            slot,
+          };
+        });
+      }
+
       try {
         await ctx.db.$transaction(async (tx) => {
           if (scope === 'staff') {
@@ -1009,38 +1071,14 @@ export const rotaRouter = router({
             }
           }
 
-          if (recordsToRemove.length > 0) {
-            await tx.parentVolunteerDay.deleteMany({
-              where: { id: { in: recordsToRemove.map((row) => row.id) } },
-            });
-          }
-
-          for (const selection of selectionsToCreate) {
-            const date = dateFromKey(selection.date);
-            const reservations = await tx.parentVolunteerDay.findMany({
-              where: { date, placement: selection.placement },
-              select: { slot: true },
-            });
-            const occupiedSlots = new Set(reservations.map((reservation) => reservation.slot));
-            const capacity = PARENT_VOLUNTEER_PLACEMENTS[selection.placement].dailyCapacity;
-            const slot = Array.from({ length: capacity }, (_, index) => index + 1).find(
-              (candidate) => !occupiedSlots.has(candidate),
-            );
-            if (!slot) {
-              throw new TRPCError({
-                code: 'BAD_REQUEST',
-                message: `${selection.date} already has no ${PARENT_VOLUNTEER_PLACEMENTS[selection.placement].label.toLowerCase()} spaces`,
-              });
-            }
-            await tx.parentVolunteerDay.create({
-              data: {
-                parentUserId: ctx.user.id,
-                date,
-                placement: selection.placement,
-                slot,
-              },
-            });
-          }
+        if (recordsToRemove.length > 0) {
+          await tx.parentVolunteerDay.deleteMany({
+            where: { id: { in: recordsToRemove.map((row) => row.id) } },
+          });
+        }
+        if (recordsToCreate.length > 0) {
+          await tx.parentVolunteerDay.createMany({ data: recordsToCreate });
+        }
         });
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
