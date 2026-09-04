@@ -40,7 +40,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('react-native', () => ({
   RefreshControl: 'RefreshControl',
   ScrollView: 'ScrollView',
-  StyleSheet: { create: <T,>(styles: T) => styles },
+  StyleSheet: { create: <T>(styles: T) => styles },
   View: 'View',
 }));
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
@@ -78,6 +78,10 @@ vi.mock('../../lib/trpc', () => ({
       listItems: { useQuery: () => mocks.queryResult },
       listReservations: { useQuery: () => mocks.queryResult },
     },
+    timetable: {
+      publishedForParent: { useQuery: () => mocks.queryResult },
+      terms: { useQuery: () => mocks.queryResult },
+    },
     useUtils: () => ({ message: { listConversations: { invalidate: mocks.queryRefetch } } }),
   },
 }));
@@ -102,10 +106,15 @@ vi.mock('./parent-incident-reports-screen', () => ({ ParentIncidentReportsScreen
 vi.mock('./parent-messages-screen', () => ({ ParentMessagesScreen: () => null }));
 vi.mock('./parent-notices-screen', () => ({ ParentNoticesScreen: () => null }));
 vi.mock('./parent-permission-slips-screen', () => ({ ParentPermissionSlipsScreen: () => null }));
-vi.mock('./parent-profile-registration-screen', () => ({ ParentProfileRegistrationScreen: () => null }));
+vi.mock('./parent-profile-registration-screen', () => ({
+  ParentProfileRegistrationScreen: () => null,
+}));
 vi.mock('./parent-reports-ranks-screen', () => ({ ParentReportsRanksScreen: () => null }));
 vi.mock('./parent-shop-reservations-screen', () => ({ ParentShopReservationsScreen: () => null }));
 vi.mock('./parent-student-settings-screen', () => ({ ParentStudentSettingsScreen: () => null }));
+vi.mock('../timetable/mobile-published-timetable-screen', () => ({
+  MobilePublishedTimetableScreen: () => null,
+}));
 
 const user = { id: 'parent_1', requires2fa: false, role: 'Parent' as const, tags: [] };
 

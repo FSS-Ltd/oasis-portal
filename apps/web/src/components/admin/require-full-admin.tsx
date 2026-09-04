@@ -127,6 +127,12 @@ export async function getAcademicInventoryHeadUser(): Promise<SessionUser> {
   return user;
 }
 
+export async function getHeadUser(): Promise<SessionUser> {
+  const user = await getAdminShellUser();
+  if (user.role !== 'Head') notFound();
+  return user;
+}
+
 export async function getShopWorkflowUser(): Promise<SessionUser> {
   const user = await getRequiredSessionUser();
   if (!canManageShop(user) && !canSellInShop(user)) {

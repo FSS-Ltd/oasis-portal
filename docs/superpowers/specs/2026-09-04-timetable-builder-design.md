@@ -1,7 +1,7 @@
 # Timetable Builder Design
 
 **Date:** 4 September 2026  
-**Status:** Approved in conversation; awaiting written-spec review
+**Status:** Approved
 
 ## Purpose
 
@@ -11,7 +11,7 @@ The experience must work across the existing web portal and mobile/PWA app. It s
 
 ## Authoritative term dates
 
-The shared domain calendar remains the source of truth. Timetable records reference stable teaching-term keys and do not duplicate editable term dates in the database.
+The existing active `CalendarEvent` term-boundary records remain the source of truth. Timetable records reference stable teaching-term keys and do not create a second editable term-date configuration.
 
 The 2026/27 teaching terms are:
 
@@ -24,7 +24,7 @@ The 2026/27 teaching terms are:
 | Term 5 | Tuesday 13 April 2027    | Friday 28 May 2027      |
 | Term 6 | Tuesday 8 June 2027      | Friday 23 July 2027     |
 
-The domain calendar will expose these six numbered teaching terms through typed helpers. Existing seasonal and holiday behaviour must remain coherent for current consumers.
+The timetable API will pair the existing program-owned `calendar-YYYY-YY-term-N-start` and `calendar-YYYY-YY-term-N-end` events into typed teaching terms. It will ignore unrelated calendar events and reject an incomplete selected term. Existing calendar administration, seasonal logic, and holiday behaviour remain unchanged.
 
 ## Core rules
 
@@ -83,6 +83,7 @@ One child timetable record is unique by child and teaching term. It stores the a
 
 Publishing creates an immutable publication and publication-entry set. Each publication copies the display information required to reproduce the exact released timetable:
 
+- term label and start/end dates resolved from the calendar at publication time;
 - teaching day;
 - slot position, kind, label, and time range;
 - subject identifier where available;
@@ -108,7 +109,7 @@ System-generated timetable tasks use a stable system source/key per Head and tea
 
 ## Automated Head tasks
 
-Every active Head receives one automated personal task for each teaching term. The task is due and reminds the Head seven days before the term starts.
+Every active Head receives one automated personal task for each teaching term resolved from the existing calendar records. The task is due and reminds the Head seven days before the term starts.
 
 The visible title includes live publication progress, for example:
 
@@ -209,7 +210,6 @@ Use test-driven development for each behavioural slice.
 
 ### Domain tests
 
-- exact 2026/27 numbered teaching-term boundaries;
 - term-key and reminder-date calculation;
 - default subject-colour mapping;
 - slot ordering and overlap validation;
@@ -217,6 +217,8 @@ Use test-driven development for each behavioural slice.
 
 ### Database and API tests
 
+- pairing the existing active calendar boundary records into the exact 2026/27 numbered terms;
+- rejecting an incomplete selected term without duplicating calendar dates;
 - migration structure and uniqueness constraints;
 - Head-only mutation access;
 - reusable subject creation and child assignment;

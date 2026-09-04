@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import { makeTestContext } from './helpers/test-context.js';
-import { personalTaskRouter } from '../routers/personalTask.js';
+import { createPersonalTaskRouter, personalTaskRouter } from '../routers/personalTask.js';
 import { router } from '../trpc.js';
 
 const supervisor: SessionUser = {
@@ -23,6 +23,7 @@ const technicalSupport: SessionUser = {
   requires2fa: false,
 };
 const parent: SessionUser = { id: 'user_parent', role: 'Parent', tags: [], requires2fa: false };
+const head: SessionUser = { id: 'user_head', role: 'Head', tags: [], requires2fa: false };
 
 interface StoredTask {
   id: string;
@@ -115,6 +116,32 @@ function makeCaller(user: SessionUser | null, db: FakeDb) {
 }
 
 describe('personal tasks', () => {
+  it('synchronises timetable progress before a Head reads the task list', async () => {
+    const { db, tasks } = makeFakeDb();
+    const syncedRouter = createPersonalTaskRouter({
+      syncTimetableTasks: () => {
+        tasks.push({
+          id: 'task_timetable',
+          ownerId: head.id,
+          title: 'Complete Term 1 timetables · 1/2 done',
+          dueAt: at('2026-09-01T09:00:00.000Z'),
+          reminderAt: at('2026-09-01T09:00:00.000Z'),
+          completedAt: null,
+          createdAt: at('2026-09-01T09:00:00.000Z'),
+          updatedAt: at('2026-09-01T09:00:00.000Z'),
+        });
+        return Promise.resolve({ heads: 1, terms: 1, updated: 1 });
+      },
+    });
+    const syncedCaller = router({ personalTask: syncedRouter }).createCaller(
+      makeTestContext({ db, rls: { kind: 'db', db }, user: head }),
+    );
+
+    await expect(syncedCaller.personalTask.list()).resolves.toMatchObject([
+      { id: 'task_timetable', title: 'Complete Term 1 timetables · 1/2 done' },
+    ]);
+  });
+
   it('keeps task lists and completion changes scoped to the signed-in staff member', async () => {
     const { db, tasks } = makeFakeDb();
     const caller = makeCaller(supervisor, db);

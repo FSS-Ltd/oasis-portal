@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
@@ -24,6 +24,7 @@ import { StudentNotificationsScreen } from './student-notifications-screen';
 import { StudentShopScreen } from './student-shop-screen';
 import { StudentWalletScreen } from './student-wallet-screen';
 import type { TithePreferenceInput, TransferAccount } from './student-wallet-utils';
+import { MobilePublishedTimetableScreen } from '../timetable/mobile-published-timetable-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StudentMobileTab =
@@ -36,6 +37,7 @@ type StudentMobileTab =
   | 'clubs'
   | 'shop'
   | 'markets'
+  | 'timetable'
   | 'updates';
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
@@ -83,6 +85,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
   const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
   const [notificationRefreshFailed, setNotificationRefreshFailed] = useState(false);
+  const [timetableTermKey, setTimetableTermKey] = useState('');
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
   const titheStatus = api.tithe.getStatus.useQuery(undefined, {
@@ -130,6 +133,14 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     enabled: activeTab === 'markets',
     retry: false,
   });
+  const timetableTerms = api.timetable.terms.useQuery(undefined, {
+    enabled: activeTab === 'timetable',
+    retry: false,
+  });
+  const publishedTimetable = api.timetable.publishedForStudent.useQuery(
+    { termKey: timetableTermKey },
+    { enabled: activeTab === 'timetable' && timetableTermKey.length > 0, retry: false },
+  );
   const transfer = api.meritLedger.transfer.useMutation();
   const updateTithePreference = api.tithe.updatePreference.useMutation();
   const payTitheDue = api.tithe.payDue.useMutation();
@@ -157,6 +168,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     { id: 'wallet', icon: 'wallet', label: 'Wallet' },
     { id: 'learning', icon: 'pace', label: 'Learning' },
     { id: 'activity', icon: 'activity', label: 'Activity' },
+    { id: 'timetable', icon: 'pace', label: 'Timetable' },
     { id: 'clubs', icon: 'clubs', label: 'Clubs' },
     { id: 'shop', icon: 'shop', label: 'Shop' },
     { id: 'markets', icon: 'markets', label: 'Markets' },
@@ -167,6 +179,19 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
       badge: studentNotificationUnread.data?.count,
     },
   ];
+
+  useEffect(() => {
+    if (timetableTermKey || !timetableTerms.data?.length) return;
+    const now = Date.now();
+    const current =
+      timetableTerms.data.find(
+        (term) =>
+          new Date(term.startsOn).getTime() <= now && new Date(term.endsOn).getTime() >= now,
+      ) ??
+      timetableTerms.data.find((term) => new Date(term.startsOn).getTime() > now) ??
+      timetableTerms.data.at(-1);
+    setTimetableTermKey(current?.key ?? '');
+  }, [timetableTermKey, timetableTerms.data]);
 
   async function refreshHomework() {
     await Promise.all([studentHomeworkDue.refetch(), studentHomeworkGraded.refetch()]);
@@ -192,6 +217,10 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
           ? investmentAccount.refetch()
           : Promise.resolve(),
         activeTab === 'markets' ? investmentMarket.refetch() : Promise.resolve(),
+        activeTab === 'timetable' ? timetableTerms.refetch() : Promise.resolve(),
+        activeTab === 'timetable' && timetableTermKey
+          ? publishedTimetable.refetch()
+          : Promise.resolve(),
       ]);
     } catch {
       setNotificationRefreshFailed(true);
@@ -367,7 +396,9 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     shopItems.isFetching ||
     shopHistory.isFetching ||
     investmentAccount.isFetching ||
-    investmentMarket.isFetching;
+    investmentMarket.isFetching ||
+    timetableTerms.isFetching ||
+    publishedTimetable.isFetching;
   const queryError =
     studentDashboard.error?.message ??
     studentWallet.error?.message ??
@@ -375,6 +406,9 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     (activeTab === 'shop' ? (shopItems.error?.message ?? shopHistory.error?.message) : null) ??
     (activeTab === 'markets'
       ? (investmentAccount.error?.message ?? investmentMarket.error?.message)
+      : null) ??
+    (activeTab === 'timetable'
+      ? (timetableTerms.error?.message ?? publishedTimetable.error?.message)
       : null) ??
     null;
 
@@ -532,6 +566,17 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         ) : null}
 
         {activeTab === 'community' ? <StudentCommunityScreen /> : null}
+
+        {activeTab === 'timetable' ? (
+          <MobilePublishedTimetableScreen
+            error={timetableTerms.error?.message ?? publishedTimetable.error?.message ?? null}
+            loading={timetableTerms.isLoading || publishedTimetable.isLoading}
+            onSelectTerm={setTimetableTermKey}
+            publication={publishedTimetable.data}
+            selectedTermKey={timetableTermKey}
+            terms={timetableTerms.data ?? []}
+          />
+        ) : null}
 
         {activeTab === 'updates' ? (
           <StudentNotificationsScreen

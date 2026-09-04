@@ -91,6 +91,7 @@ export function StaffHomeScreen({
   onOpenPace,
   onOpenRota,
   onOpenShop,
+  onOpenTimetables,
   onOpenUserAccess,
   onSwitchToParent,
   user,
@@ -105,6 +106,7 @@ export function StaffHomeScreen({
   onOpenPace?: () => void;
   onOpenRota?: () => void;
   onOpenShop?: () => void;
+  onOpenTimetables?: (() => void) | undefined;
   onOpenUserAccess?: (() => void) | undefined;
   onSwitchToParent?: () => void;
   user: SessionUser | undefined;
@@ -182,6 +184,18 @@ export function StaffHomeScreen({
                 <MutedText>Manage portal accounts and invitations.</MutedText>
               </View>
               <MobileButton label="User Access" onPress={onOpenUserAccess} variant="blue" />
+            </View>
+          </Card>
+        ) : null}
+
+        {user?.role === 'Head' && onOpenTimetables ? (
+          <Card style={styles.compactCard}>
+            <View style={styles.rowHeader}>
+              <View style={styles.rowBody}>
+                <Text style={styles.cardTitle}>Timetables</Text>
+                <MutedText>Set age-group times and publish each child’s timetable.</MutedText>
+              </View>
+              <MobileButton label="Timetables" onPress={onOpenTimetables} variant="blue" />
             </View>
           </Card>
         ) : null}
