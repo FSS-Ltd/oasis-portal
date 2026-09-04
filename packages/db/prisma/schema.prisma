@@ -96,6 +96,7 @@ model User {
   addressEnc                        String?
   // --- operational ---
   active                            Boolean                       @default(true)
+  staffParentVolunteerAccess        Boolean                       @default(false)
   lunchAndClubsVolunteerExempt      Boolean                       @default(false)
   createdAt                         DateTime                      @default(now())
   updatedAt                         DateTime                      @updatedAt

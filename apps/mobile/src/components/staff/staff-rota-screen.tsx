@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
@@ -6,7 +6,6 @@ import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { AvailabilityPanel } from './staff-rota-availability-panel';
-import { StaffRotaCoverPanel } from './staff-rota-cover-panel';
 import { TabButton } from './staff-rota-common';
 import { RotaPanel } from './staff-rota-rota-panel';
 import { SwapPanel } from './staff-rota-swap-panel';
@@ -24,7 +23,9 @@ import {
 } from './staff-rota-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StaffRotaTab = 'rota' | 'availability' | 'cover' | 'swaps';
+// Cover feature depends on staff lunch/clubs volunteer APIs that were removed from the current
+// backend router. Keep this disabled until those APIs are restored.
+type StaffRotaTab = 'rota' | 'availability' | 'swaps';
 
 const today = new Date(`${dateKey(new Date())}T00:00:00.000Z`);
 
@@ -42,11 +43,9 @@ export function StaffRotaScreen({
   const [month, setMonth] = useState(currentMonthKey);
   const [weeklyDraft, setWeeklyDraft] = useState<AvailabilityDraft[]>([]);
   const [monthlyDraft, setMonthlyDraft] = useState<MonthlyAvailabilityDraft[]>([]);
-  const [coverDates, setCoverDates] = useState<Set<string>>(new Set());
   const [fromShiftId, setFromShiftId] = useState('');
   const [toShiftId, setToShiftId] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const coverDatesWindow = useRef<string | null>(null);
   const weekStart = useMemo(() => startOfWeek(today), []);
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const monthBounds = useMemo(() => monthRange(month), [month]);
@@ -71,10 +70,6 @@ export function StaffRotaScreen({
   );
   const availability = api.rota.myAvailability.useQuery(undefined, { retry: false });
   const monthlyAvailability = api.rota.myMonthlyAvailability.useQuery({ month }, { retry: false });
-  const coverDays = api.rota.myStaffLunchAndClubsVolunteerDays.useQuery(undefined, {
-    enabled: activeTab === 'cover',
-    retry: false,
-  });
   const swapCandidates = api.rota.swapCandidates.useQuery(
     { from: weekStart, to: weekEnd },
     { retry: false },
@@ -105,15 +100,6 @@ export function StaffRotaScreen({
         utils.rota.myMonthlyAvailability.invalidate({ month }),
         utils.staffHome.summary.invalidate(),
       ]);
-    },
-  });
-  const saveCoverDays = api.rota.setMyStaffLunchAndClubsVolunteerDays.useMutation({
-    onError: (error) => {
-      setStatusMessage(error.message);
-    },
-    onSuccess: async () => {
-      setStatusMessage('Lunch and clubs cover days saved.');
-      await utils.rota.myStaffLunchAndClubsVolunteerDays.invalidate();
     },
   });
   const requestSwap = api.rota.requestSwap.useMutation({
@@ -157,13 +143,8 @@ export function StaffRotaScreen({
     );
   }, [monthlyAvailability.data]);
 
-  useEffect(() => {
-    if (!coverDays.data) return;
-    const windowKey = `${coverDays.data.from}:${coverDays.data.to}`;
-    if (coverDatesWindow.current === windowKey) return;
-    setCoverDates(new Set(coverDays.data.dates));
-    coverDatesWindow.current = windowKey;
-  }, [coverDays.data]);
+  // Cover feature is intentionally disabled for now; the required APIs are no longer exposed in
+  // the router. Re-enable this effect once `myStaffLunchAndClubsVolunteerDays` is available again.
 
   const activeRota =
     rotaMode === 'today'
@@ -211,13 +192,8 @@ export function StaffRotaScreen({
     monthParentVolunteers.isFetching ||
     availability.isFetching ||
     monthlyAvailability.isFetching ||
-    coverDays.isFetching ||
     swapCandidates.isFetching ||
-    mySwaps.isFetching ||
-    saveAvailability.isPending ||
-    saveMonthlyAvailability.isPending ||
-    saveCoverDays.isPending ||
-    requestSwap.isPending;
+    mySwaps.isFetching || saveAvailability.isPending || saveMonthlyAvailability.isPending || requestSwap.isPending;
 
   async function refresh() {
     await Promise.all([
@@ -229,7 +205,6 @@ export function StaffRotaScreen({
       rotaMode === 'month' ? monthParentVolunteers.refetch() : Promise.resolve(),
       availability.refetch(),
       monthlyAvailability.refetch(),
-      activeTab === 'cover' ? coverDays.refetch() : Promise.resolve(),
       swapCandidates.refetch(),
       mySwaps.refetch(),
     ]);
@@ -261,7 +236,7 @@ export function StaffRotaScreen({
           </Pressable>
           <View style={styles.titleGroup}>
             <Text style={styles.eyebrow}>Rota and availability</Text>
-            <Text style={styles.title}>Today, availability, cover and swaps</Text>
+            <Text style={styles.title}>Today, availability and swaps</Text>
           </View>
         </View>
 
@@ -278,13 +253,6 @@ export function StaffRotaScreen({
             label="Availability"
             onPress={() => {
               setActiveTab('availability');
-            }}
-          />
-          <TabButton
-            active={activeTab === 'cover'}
-            label="Cover"
-            onPress={() => {
-              setActiveTab('cover');
             }}
           />
           <TabButton
@@ -371,27 +339,6 @@ export function StaffRotaScreen({
               weeklyDraft={weeklyDraft}
               weeklyError={availability.error?.message ?? saveAvailability.error?.message}
               weeklyLoading={availability.isLoading}
-            />
-          ) : null}
-
-          {activeTab === 'cover' ? (
-            <StaffRotaCoverPanel
-              error={coverDays.error?.message ?? saveCoverDays.error?.message}
-              loading={coverDays.isLoading}
-              onSave={() => {
-                saveCoverDays.mutate({ dates: [...coverDates].sort() });
-              }}
-              onToggle={(date) => {
-                setCoverDates((current) => {
-                  const next = new Set(current);
-                  if (next.has(date)) next.delete(date);
-                  else next.add(date);
-                  return next;
-                });
-              }}
-              saving={saveCoverDays.isPending}
-              selectedDates={coverDates}
-              slots={coverDays.data}
             />
           ) : null}
 

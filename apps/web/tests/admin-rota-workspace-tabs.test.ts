@@ -6,12 +6,23 @@ import {
   type AdminRotaWorkspaceTab,
 } from '../src/app/(admin)/admin/rota/_components/admin-rota-workspace-tabs.ts';
 
-test('keeps admin rota navigation focused on planning actions', () => {
+test('shows volunteer access only to managers and includes it in keyboard navigation', () => {
   assert.deepEqual(
-    adminRotaWorkspaceTabs.map((tab) => tab.id),
+    adminRotaWorkspaceTabs(true).map((tab) => tab.id),
+    ['week', 'shifts', 'availability', 'swaps', 'volunteerAccess'],
+  );
+  assert.deepEqual(
+    adminRotaWorkspaceTabs(false).map((tab) => tab.id),
     ['week', 'shifts', 'availability', 'swaps'],
   );
 
+  assert.equal(
+    nextAdminRotaWorkspaceTab('swaps', 'ArrowRight', adminRotaWorkspaceTabs(true)),
+    'volunteerAccess',
+  );
+});
+
+test('keeps non-manager admin rota navigation focused on planning actions', () => {
   const expectations: Array<[AdminRotaWorkspaceTab, string, AdminRotaWorkspaceTab | null]> = [
     ['week', 'ArrowRight', 'shifts'],
     ['shifts', 'ArrowRight', 'availability'],
@@ -24,6 +35,9 @@ test('keeps admin rota navigation focused on planning actions', () => {
   ];
 
   for (const [activeTab, key, expectedTab] of expectations) {
-    assert.equal(nextAdminRotaWorkspaceTab(activeTab, key), expectedTab);
+    assert.equal(
+      nextAdminRotaWorkspaceTab(activeTab, key, adminRotaWorkspaceTabs(false)),
+      expectedTab,
+    );
   }
 });

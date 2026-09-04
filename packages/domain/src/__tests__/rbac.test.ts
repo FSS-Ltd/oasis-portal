@@ -5,6 +5,7 @@ import {
   canExportAttendance,
   canManageCalendar,
   canManageClubs,
+  canManageStaffParentVolunteerAccess,
   canManageInvoices,
   canManageUserAccountRole,
   canManageUserAccounts,
@@ -32,6 +33,7 @@ import {
   canUseLinkedChildGuardianAccess,
   hasCompletedTwoFactor,
   isFullAdmin,
+  isStaffParentVolunteerEligibleRole,
   isStaff,
   PERMISSION_TAGS,
   ROLES,
@@ -48,6 +50,10 @@ import {
   resolvePostSignInPortal,
   type SessionUser,
 } from '../rbac.js';
+import {
+  canUseParentVolunteerNavigation,
+  resolveParentVolunteerAccess,
+} from '../parentVolunteer.js';
 
 const head: SessionUser = { id: 'u1', role: 'Head', tags: [], requires2fa: false };
 const principal: SessionUser = { id: 'u2', role: 'Principal', tags: [], requires2fa: false };
@@ -146,6 +152,75 @@ describe('TechnicalSupport account administration', () => {
     }
     expect(canManageUserAccountRole(supervisor, 'Parent')).toBe(false);
     expect(canManageUserAccountRole(head, 'Supervisor')).toBe(true);
+  });
+});
+
+describe('staff parent volunteer access', () => {
+  it('allows Head and Technical Support to manage access', () => {
+    expect(canManageStaffParentVolunteerAccess(head)).toBe(true);
+    expect(canManageStaffParentVolunteerAccess(technicalSupport)).toBe(true);
+    expect(canManageStaffParentVolunteerAccess(principal)).toBe(false);
+    expect(canManageStaffParentVolunteerAccess(supervisor)).toBe(false);
+  });
+
+  it('allows every role except Parent and Student to receive access', () => {
+    expect(isStaffParentVolunteerEligibleRole({ role: 'ClubsLead' })).toBe(true);
+    expect(isStaffParentVolunteerEligibleRole({ role: 'Parent' })).toBe(false);
+    expect(isStaffParentVolunteerEligibleRole({ role: 'Student' })).toBe(false);
+  });
+
+  it('resolves Parent, entitled staff, and every denied staff entitlement state', () => {
+    expect(
+      resolveParentVolunteerAccess({
+        active: false,
+        activeGuardianCount: 0,
+        role: 'Parent',
+        staffParentVolunteerAccess: false,
+      }),
+    ).toBe('parent');
+    expect(
+      resolveParentVolunteerAccess({
+        active: true,
+        activeGuardianCount: 1,
+        role: 'ClubsLead',
+        staffParentVolunteerAccess: true,
+      }),
+    ).toBe('staff');
+
+    for (const deniedCandidate of [
+      {
+        active: false,
+        activeGuardianCount: 1,
+        role: 'Supervisor' as const,
+        staffParentVolunteerAccess: true,
+      },
+      {
+        active: true,
+        activeGuardianCount: 0,
+        role: 'Supervisor' as const,
+        staffParentVolunteerAccess: true,
+      },
+      {
+        active: true,
+        activeGuardianCount: 1,
+        role: 'Supervisor' as const,
+        staffParentVolunteerAccess: false,
+      },
+      {
+        active: true,
+        activeGuardianCount: 1,
+        role: 'Student' as const,
+        staffParentVolunteerAccess: true,
+      },
+    ]) {
+      expect(resolveParentVolunteerAccess(deniedCandidate)).toBeNull();
+    }
+  });
+
+  it('shares route and navigation access', () => {
+    expect(canUseParentVolunteerNavigation('parent')).toBe(true);
+    expect(canUseParentVolunteerNavigation('staff')).toBe(true);
+    expect(canUseParentVolunteerNavigation(null)).toBe(false);
   });
 });
 

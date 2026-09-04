@@ -210,6 +210,14 @@ export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean 
   return isFullAdmin(user) || user.role === 'TechnicalSupport';
 }
 
+export function canManageStaffParentVolunteerAccess(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Head' || user.role === 'TechnicalSupport';
+}
+
+export function isStaffParentVolunteerEligibleRole(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role !== 'Parent' && user.role !== 'Student';
+}
+
 export type PostSignInPortal =
   | 'two-factor-required'
   | 'full-admin'

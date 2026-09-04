@@ -20,6 +20,7 @@ import {
   canUseFullPaceAccess,
   canUseClubLeadAccess,
   canUseAdminOperations,
+  resolveParentVolunteerAccess,
   canViewAuditLog,
   canManageUserAccounts,
   requireAdminOperations,
@@ -274,6 +275,32 @@ export async function getRegistrationUser(): Promise<SessionUser> {
 
 export async function linkedChildCount(userId: string): Promise<number> {
   return prisma.guardian.count({ where: { userId, student: { active: true } } });
+}
+
+export async function getParentVolunteerAccess(
+  user: SessionUser,
+): Promise<'parent' | 'staff' | null> {
+  const localUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      active: true,
+      role: true,
+      staffParentVolunteerAccess: true,
+      _count: {
+        select: {
+          guardianOf: { where: { student: { active: true } } },
+        },
+      },
+    },
+  });
+
+  if (!localUser) return null;
+  return resolveParentVolunteerAccess({
+    active: localUser.active,
+    activeGuardianCount: localUser._count.guardianOf,
+    role: localUser.role,
+    staffParentVolunteerAccess: localUser.staffParentVolunteerAccess,
+  });
 }
 
 export async function getLinkedChildPortalUser(): Promise<SessionUser> {

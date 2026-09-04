@@ -9,12 +9,18 @@ function readWeb(relativePath) {
   return readFileSync(path.join(webRoot, relativePath), 'utf8');
 }
 
-test('linked staff accounts do not see the blocked parent-volunteer route', () => {
+test('linked staff accounts receive scoped parent-volunteer navigation', () => {
   const parentNav = readWeb('src/components/parent/parent-nav.tsx');
   const parentLayout = readWeb('src/app/(parent)/parent/layout.tsx');
+  const parentVolunteerClient = readWeb('src/components/parent/parent-volunteer-client.tsx');
 
-  assert.match(parentNav, /function visibleParentNavItems\(canUseParentVolunteer: boolean\)/);
+  assert.match(parentNav, /function parentNavigationItems\(\n?\s*canUseParentVolunteer: boolean/);
   assert.match(parentNav, /item\.href !== '\/parent\/volunteer'/);
-  assert.match(parentNav, /visibleParentNavItems\(canUseParentVolunteer\)/);
-  assert.match(parentLayout, /canUseParentVolunteer: user\.role === 'Parent'/);
+  assert.match(parentNav, /parentNavigationItems\(canUseParentVolunteer\)/);
+  assert.match(parentLayout, /canUseParentVolunteerNavigation\(parentVolunteerAccess\)/);
+  assert.match(parentLayout, /<ParentSidebarNav \{\.\.\.parentNavProps\} \/>/);
+  assert.match(parentVolunteerClient, /slots\.scope === 'parent'/);
+  assert.match(parentVolunteerClient, /Lunch \+ Clubs-only/);
+  assert.match(parentVolunteerClient, /role="status"/);
+  assert.match(parentVolunteerClient, /role="alert"/);
 });

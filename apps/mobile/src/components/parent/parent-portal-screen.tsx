@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
+import { canUseParentVolunteerNavigation, type ParentVolunteerAccess } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -64,14 +65,18 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
 ];
 
 export function ParentPortalScreen({
+  onRefreshEntitlement,
   onSwitchToStaff,
+  parentVolunteerAccess,
   user,
 }: {
+  onRefreshEntitlement: () => Promise<unknown>;
   onSwitchToStaff?: () => void;
+  parentVolunteerAccess: ParentVolunteerAccess;
   user: SessionUser;
 }) {
   const { signOut } = useClerk();
-  const canUseParentVolunteer = user.role === 'Parent';
+  const canUseParentVolunteer = canUseParentVolunteerNavigation(parentVolunteerAccess);
   const [route, setRoute] = useState<ParentPortalRoute>('home');
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
@@ -160,10 +165,17 @@ export function ParentPortalScreen({
     });
   }, [conversationsQuery.data, messageCursor]);
 
+  useEffect(() => {
+    if (!canUseParentVolunteer && route === 'volunteer') {
+      setRoute('home');
+    }
+  }, [canUseParentVolunteer, route]);
+
   async function refresh() {
     setMessageCursor(undefined);
     setMessagePages([]);
     await Promise.all([
+      onRefreshEntitlement(),
       profile.refetch(),
       dashboard.refetch(),
       registrationStatus.refetch(),
@@ -421,7 +433,7 @@ export function ParentPortalScreen({
               loading={parentCalendar.isFetching}
             />
           ) : null}
-          {route === 'volunteer' ? (
+          {canUseParentVolunteer && route === 'volunteer' ? (
             <ParentVolunteerScreen
               error={parentVolunteerSlots.error?.message ?? null}
               loading={parentVolunteerSlots.isFetching}

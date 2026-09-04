@@ -5,8 +5,26 @@ import { rotaRouter } from '../routers/rota.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const principalUser: SessionUser = {
+  id: 'u_principal',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'u_sup',
+  role: 'Supervisor',
+  tags: [],
+  requires2fa: false,
+};
+const clubsLeadUser: SessionUser = {
+  id: 'u_clubs_lead',
+  role: 'ClubsLead',
+  tags: [],
+  requires2fa: false,
+};
+const inactiveSupervisorUser: SessionUser = {
+  id: 'u_inactive_supervisor',
   role: 'Supervisor',
   tags: [],
   requires2fa: false,
@@ -48,9 +66,12 @@ interface StoredUser {
   id: string;
   role: SessionUser['role'];
   active: boolean;
+  staffParentVolunteerAccess: boolean;
+  activeChildCount: number;
   fullNameEnc: string;
   emailEnc: string;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 interface StoredBand {
@@ -118,12 +139,13 @@ interface StoredParentVolunteerDay {
 
 interface FakeDb {
   $enc: { decrypt: ReturnType<typeof vi.fn> };
+  $queryRaw: ReturnType<typeof vi.fn>;
   $transaction: ReturnType<typeof vi.fn>;
   auditLog: { create: ReturnType<typeof vi.fn> };
   user: {
     findMany: ReturnType<typeof vi.fn>;
-    findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   yearGroupBand: { findUnique: ReturnType<typeof vi.fn> };
   staffAvailabilityWindow: {
@@ -181,65 +203,111 @@ function makeFakeDb() {
       id: headUser.id,
       role: 'Head',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 0,
       fullNameEnc: 'enc:Head User',
       emailEnc: 'enc:head@example.test',
       createdAt: at('2026-04-20T09:00:00.000Z'),
+      updatedAt: at('2026-04-20T09:00:00.000Z'),
     },
     {
       id: supervisorUser.id,
       role: 'Supervisor',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 1,
       fullNameEnc: 'enc:Supervisor One',
       emailEnc: 'enc:sup@example.test',
       createdAt: at('2026-04-21T09:00:00.000Z'),
+      updatedAt: at('2026-04-21T09:00:00.000Z'),
     },
     {
       id: secondSupervisorUser.id,
       role: 'Supervisor',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 0,
       fullNameEnc: 'enc:Supervisor Two',
       emailEnc: 'enc:sup2@example.test',
       createdAt: at('2026-04-22T09:00:00.000Z'),
+      updatedAt: at('2026-04-22T09:00:00.000Z'),
+    },
+    {
+      id: clubsLeadUser.id,
+      role: 'ClubsLead',
+      active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 1,
+      fullNameEnc: 'enc:Clubs Lead User',
+      emailEnc: 'enc:clubs-lead@example.test',
+      createdAt: at('2026-04-22T10:00:00.000Z'),
+      updatedAt: at('2026-04-22T10:00:00.000Z'),
+    },
+    {
+      id: inactiveSupervisorUser.id,
+      role: 'Supervisor',
+      active: false,
+      staffParentVolunteerAccess: true,
+      activeChildCount: 1,
+      fullNameEnc: 'enc:Inactive Supervisor User',
+      emailEnc: 'enc:inactive-supervisor@example.test',
+      createdAt: at('2026-04-22T11:00:00.000Z'),
+      updatedAt: at('2026-04-22T11:00:00.000Z'),
     },
     {
       id: parentUser.id,
       role: 'Parent',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 1,
       fullNameEnc: 'enc:Parent User',
       emailEnc: 'enc:parent@example.test',
       createdAt: at('2026-04-23T09:00:00.000Z'),
+      updatedAt: at('2026-04-23T09:00:00.000Z'),
     },
     {
       id: secondParentUser.id,
       role: 'Parent',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 1,
       fullNameEnc: 'enc:Second Parent',
       emailEnc: 'enc:parent2@example.test',
       createdAt: at('2026-04-24T09:00:00.000Z'),
+      updatedAt: at('2026-04-24T09:00:00.000Z'),
     },
     {
       id: thirdParentUser.id,
       role: 'Parent',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 1,
       fullNameEnc: 'enc:Third Parent',
       emailEnc: 'enc:parent3@example.test',
       createdAt: at('2026-04-25T09:00:00.000Z'),
+      updatedAt: at('2026-04-25T09:00:00.000Z'),
     },
     {
       id: clubsUser.id,
       role: 'ClubsAdmin',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 0,
       fullNameEnc: 'enc:Clubs User',
       emailEnc: 'enc:clubs@example.test',
       createdAt: at('2026-04-24T09:00:00.000Z'),
+      updatedAt: at('2026-04-24T09:00:00.000Z'),
     },
     {
       id: technicalSupportUser.id,
       role: 'TechnicalSupport',
       active: true,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 0,
       fullNameEnc: 'enc:Technical Support',
       emailEnc: 'enc:technical@example.test',
       createdAt: at('2026-04-26T09:00:00.000Z'),
+      updatedAt: at('2026-04-26T09:00:00.000Z'),
     },
   ];
   const bands: StoredBand[] = [
@@ -263,6 +331,12 @@ function makeFakeDb() {
     ...withBand(shift),
     staffUser: users.find((user) => user.id === shift.staffUserId) ?? null,
   });
+  const withActiveGuardians = (user: StoredUser) => ({
+    ...user,
+    guardianOf: Array.from({ length: user.activeChildCount }, (_, index) => ({
+      student: { id: `student_${user.id}_${String(index)}`, active: true },
+    })),
+  });
   const withSwapRelations = (swap: StoredSwap) => {
     const fromShift = shifts.find((candidate) => candidate.id === swap.fromShiftId);
     const toShift = shifts.find((candidate) => candidate.id === swap.toShiftId);
@@ -277,6 +351,18 @@ function makeFakeDb() {
 
   const db: FakeDb = {
     $enc: { decrypt: vi.fn(decrypt) },
+    $queryRaw: vi.fn(
+      (_query: TemplateStringsArray, userId: string, requireEnabledAccess: boolean) => {
+        const user = users.find((candidate) => candidate.id === userId);
+        const eligible =
+          user?.active === true &&
+          user.role !== 'Parent' &&
+          user.role !== 'Student' &&
+          (!requireEnabledAccess || user.staffParentVolunteerAccess) &&
+          user.activeChildCount > 0;
+        return Promise.resolve(eligible ? [{ id: user.id }] : []);
+      },
+    ),
     $transaction: vi.fn(async (fn: (tx: FakeDb) => Promise<unknown>) => fn(db)),
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     user: {
@@ -284,33 +370,51 @@ function makeFakeDb() {
         ({
           where,
         }: {
-          where?: { active?: boolean; role?: { in?: string[] }; id?: { in?: string[] } };
+          where?: {
+            active?: boolean;
+            role?: { in?: string[]; notIn?: string[] };
+            id?: { in?: string[] };
+            guardianOf?: { some: { student: { active: boolean } } };
+          };
         }) =>
           Promise.resolve(
             users
               .filter((user) => where?.active === undefined || user.active === where.active)
               .filter((user) => where?.role?.in === undefined || where.role.in.includes(user.role))
+              .filter(
+                (user) => where?.role?.notIn === undefined || !where.role.notIn.includes(user.role),
+              )
               .filter((user) => where?.id?.in === undefined || where.id.in.includes(user.id))
+              .filter(
+                (user) =>
+                  where?.guardianOf === undefined ||
+                  !where.guardianOf.some.student.active ||
+                  user.activeChildCount > 0,
+              )
               .sort(
                 (a, b) =>
                   a.role.localeCompare(b.role) || b.createdAt.getTime() - a.createdAt.getTime(),
-              ),
+              )
+              .map(withActiveGuardians),
           ),
       ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
         const user = users.find((candidate) => candidate.id === where.id);
-        return Promise.resolve(user ?? null);
+        return Promise.resolve(user ? withActiveGuardians(user) : null);
       }),
-      findFirst: vi.fn(
-        ({ where }: { where: { active?: boolean; id?: string; role?: { in?: string[] } } }) =>
-          Promise.resolve(
-            users.find(
-              (user) =>
-                (where.active === undefined || user.active === where.active) &&
-                (where.id === undefined || user.id === where.id) &&
-                (where.role?.in === undefined || where.role.in.includes(user.role)),
-            ) ?? null,
-          ),
+      update: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Pick<StoredUser, 'staffParentVolunteerAccess'>;
+        }) => {
+          const user = users.find((candidate) => candidate.id === where.id);
+          if (!user) throw new Error('user missing');
+          Object.assign(user, data, { updatedAt: new Date() });
+          return Promise.resolve(withActiveGuardians(user));
+        },
       ),
     },
     yearGroupBand: {
@@ -541,7 +645,9 @@ function makeFakeDb() {
           where: {
             parentUserId?: string;
             date: Date | { gte: Date; lte: Date };
-            placement?: StoredParentVolunteerDay['placement'];
+            placement?:
+              | StoredParentVolunteerDay['placement']
+              | { in: StoredParentVolunteerDay['placement'][] };
           };
         }) =>
           Promise.resolve(
@@ -557,7 +663,13 @@ function makeFakeDb() {
                   row.date.getTime() <= where.date.lte.getTime()
                 );
               })
-              .filter((row) => where.placement === undefined || row.placement === where.placement)
+              .filter(
+                (row) =>
+                  where.placement === undefined ||
+                  (typeof where.placement === 'string'
+                    ? row.placement === where.placement
+                    : where.placement.in.includes(row.placement)),
+              )
               .sort((a, b) => a.date.getTime() - b.date.getTime() || a.slot - b.slot)
               .map((row) => ({
                 ...row,
@@ -565,14 +677,35 @@ function makeFakeDb() {
               })),
           ),
       ),
-      deleteMany: vi.fn(({ where }: { where: { id: { in: string[] } } }) => {
-        const before = parentVolunteerDays.length;
-        for (let index = parentVolunteerDays.length - 1; index >= 0; index -= 1) {
-          const row = parentVolunteerDays[index];
-          if (row && where.id.in.includes(row.id)) parentVolunteerDays.splice(index, 1);
-        }
-        return Promise.resolve({ count: before - parentVolunteerDays.length });
-      }),
+      deleteMany: vi.fn(
+        ({
+          where,
+        }: {
+          where:
+            | { id: { in: string[] } }
+            | {
+                parentUserId: string;
+                date: { gt: Date };
+                placement: { in: StoredParentVolunteerDay['placement'][] };
+              };
+        }) => {
+          const before = parentVolunteerDays.length;
+          for (let index = parentVolunteerDays.length - 1; index >= 0; index -= 1) {
+            const row = parentVolunteerDays[index];
+            if (
+              row &&
+              ('id' in where
+                ? where.id.in.includes(row.id)
+                : row.parentUserId === where.parentUserId &&
+                  row.date.getTime() > where.date.gt.getTime() &&
+                  where.placement.in.includes(row.placement))
+            ) {
+              parentVolunteerDays.splice(index, 1);
+            }
+          }
+          return Promise.resolve({ count: before - parentVolunteerDays.length });
+        },
+      ),
       create: vi.fn(
         ({
           data,
@@ -840,16 +973,349 @@ describe('rota availability', () => {
 });
 
 describe('parent volunteer days', () => {
-  type ParentVolunteerSlots = Awaited<
+  type AnyParentVolunteerSlots = Awaited<
     ReturnType<ReturnType<typeof makeCaller>['rota']['parentVolunteerSlots']>
   >;
+  type ParentVolunteerSlots = Extract<AnyParentVolunteerSlots, { scope: 'parent' }>;
   type ParentVolunteerTerm = ParentVolunteerSlots['terms'][number];
 
-  function firstAvailableParentVolunteerTerm(slots: ParentVolunteerSlots): ParentVolunteerTerm {
+  function firstAvailableParentVolunteerTerm(slots: AnyParentVolunteerSlots): ParentVolunteerTerm {
+    if (slots.scope !== 'parent') throw new Error('Expected parent volunteer scope');
     const term = slots.terms[0];
     if (!term) throw new Error('Expected an available parent volunteer term');
     return term;
   }
+
+  async function grantedStaffVolunteerSelection(db: FakeDb, users: StoredUser[]) {
+    const supervisor = users.find((user) => user.id === supervisorUser.id);
+    if (!supervisor) throw new Error('Expected supervisor fixture');
+    supervisor.staffParentVolunteerAccess = true;
+    const staffCaller = makeCaller(supervisorUser, db);
+    const staffSlots = await staffCaller.rota.parentVolunteerSlots();
+    const term = staffSlots.terms[0];
+    const lunchDate = term?.lunchAndClubs.primary.days[0]?.date;
+    if (!term || !lunchDate) throw new Error('Expected an available staff volunteer day');
+    return { lunchDate, staffCaller, supervisor, term };
+  }
+
+  it('lists only eligible staff access recipients and limits management to Head and Technical Support', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(makeCaller(headUser, db).rota.listStaffParentVolunteerAccess()).resolves.toEqual([
+      expect.objectContaining({ id: clubsLeadUser.id, childCount: 1, enabled: false }),
+      expect.objectContaining({ id: supervisorUser.id, childCount: 1, enabled: false }),
+    ]);
+    expect(db.$enc.decrypt).toHaveBeenCalledTimes(2);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'StaffParentVolunteerAccess',
+        meta: { count: 2, source: 'rota.listStaffParentVolunteerAccess' },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
+
+    db.$enc.decrypt.mockClear();
+    db.auditLog.create.mockClear();
+    await expect(
+      makeCaller(principalUser, db).rota.listStaffParentVolunteerAccess(),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.$enc.decrypt).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+
+    await expect(
+      makeCaller(technicalSupportUser, db).rota.setStaffParentVolunteerAccess({
+        userId: clubsLeadUser.id,
+        enabled: true,
+      }),
+    ).resolves.toMatchObject({ id: clubsLeadUser.id, childCount: 1, enabled: true });
+    for (const user of [parentUser, secondSupervisorUser, inactiveSupervisorUser]) {
+      await expect(
+        makeCaller(headUser, db).rota.setStaffParentVolunteerAccess({
+          userId: user.id,
+          enabled: true,
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    }
+  });
+
+  it('does not audit a manager list read when a staff name cannot be decrypted', async () => {
+    const { db } = makeFakeDb();
+    db.$enc.decrypt.mockReturnValueOnce(null);
+
+    await expect(makeCaller(headUser, db).rota.listStaffParentVolunteerAccess()).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'user PII decrypt failed',
+    });
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an access change when the target loses eligibility before the transaction writes', async () => {
+    const { db, users } = makeFakeDb();
+    const supervisor = users.find((user) => user.id === supervisorUser.id);
+    if (!supervisor) throw new Error('Expected supervisor fixture');
+    db.$transaction.mockImplementationOnce(async (fn: (tx: FakeDb) => Promise<unknown>) => {
+      supervisor.activeChildCount = 0;
+      return fn(db);
+    });
+
+    await expect(
+      makeCaller(headUser, db).rota.setStaffParentVolunteerAccess({
+        userId: supervisorUser.id,
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'Staff parent volunteer access can only be changed for eligible staff',
+    });
+    expect(supervisor.staffParentVolunteerAccess).toBe(false);
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+    expect(db.$queryRaw.mock.calls[0]?.slice(1)).toEqual([supervisorUser.id, false]);
+  });
+
+  it('does not let an in-flight staff booking recreate a reservation after revocation commits', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-02T12:00:00.000Z'));
+    try {
+      const { db, users, parentVolunteerDays } = makeFakeDb();
+      const supervisor = users.find((user) => user.id === supervisorUser.id);
+      if (!supervisor) throw new Error('Expected supervisor fixture');
+      supervisor.staffParentVolunteerAccess = true;
+
+      const staffCaller = makeCaller(supervisorUser, db);
+      const staffSlots = await staffCaller.rota.parentVolunteerSlots();
+      const term = staffSlots.terms[0];
+      const lunchDate = term?.lunchAndClubs.primary.days.find(
+        (candidate) => candidate.date === '2026-09-04',
+      )?.date;
+      if (!term || !lunchDate) throw new Error('Expected an available staff volunteer day');
+
+      let signalBookingTransaction: (() => void) | undefined;
+      const bookingTransactionEntered = new Promise<void>((resolve) => {
+        signalBookingTransaction = resolve;
+      });
+      let resumeBookingTransaction: (() => void) | undefined;
+      const bookingTransactionResume = new Promise<void>((resolve) => {
+        resumeBookingTransaction = resolve;
+      });
+      let transactionCount = 0;
+      db.$transaction.mockImplementation(async (fn: (tx: FakeDb) => Promise<unknown>) => {
+        transactionCount += 1;
+        if (transactionCount === 1) {
+          signalBookingTransaction?.();
+          await bookingTransactionResume;
+        }
+        return fn(db);
+      });
+
+      const inFlightBooking = staffCaller.rota.setMyParentVolunteerDays({
+        termId: term.id,
+        primaryLunchAndClubsDates: [lunchDate],
+      });
+      await bookingTransactionEntered;
+
+      await makeCaller(headUser, db).rota.setStaffParentVolunteerAccess({
+        userId: supervisorUser.id,
+        enabled: false,
+      });
+      expect(supervisor.staffParentVolunteerAccess).toBe(false);
+
+      resumeBookingTransaction?.();
+      await expect(inFlightBooking).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'parent volunteer access is not available',
+      });
+      expect(
+        parentVolunteerDays.filter(
+          (row) => row.parentUserId === supervisorUser.id && dateKey(row.date) === lunchDate,
+        ),
+      ).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects a staff booking when the last active child is lost inside the transaction before locking', async () => {
+    const { db, users, parentVolunteerDays } = makeFakeDb();
+    const { lunchDate, staffCaller, supervisor, term } = await grantedStaffVolunteerSelection(
+      db,
+      users,
+    );
+    db.$transaction.mockImplementationOnce(async (fn: (tx: FakeDb) => Promise<unknown>) => {
+      supervisor.activeChildCount = 0;
+      return fn(db);
+    });
+
+    await expect(
+      staffCaller.rota.setMyParentVolunteerDays({
+        termId: term.id,
+        primaryLunchAndClubsDates: [lunchDate],
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'parent volunteer access is not available',
+    });
+    expect(parentVolunteerDays).toHaveLength(0);
+  });
+
+  it('locks the eligible user, guardian, and active student with parameterized staff inputs', async () => {
+    const { db, users } = makeFakeDb();
+    const { lunchDate, staffCaller, term } = await grantedStaffVolunteerSelection(db, users);
+
+    await staffCaller.rota.setMyParentVolunteerDays({
+      termId: term.id,
+      primaryLunchAndClubsDates: [lunchDate],
+    });
+
+    const lockCall = db.$queryRaw.mock.calls[0];
+    const lockSql = ((lockCall?.[0] as readonly string[] | undefined) ?? [])
+      .join('?')
+      .replace(/\s+/gu, ' ')
+      .trim();
+    expect(lockCall?.slice(1)).toEqual([supervisorUser.id, true]);
+    expect(lockSql).toContain('FOR UPDATE OF eligible_user, guardian_link, active_student');
+  });
+
+  it('does not change staff account metadata when volunteer days are saved', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-02T12:00:00.000Z'));
+    try {
+      const { db, users } = makeFakeDb();
+      const { lunchDate, staffCaller, supervisor, term } = await grantedStaffVolunteerSelection(
+        db,
+        users,
+      );
+      const accountUpdatedAt = supervisor.updatedAt;
+
+      await staffCaller.rota.setMyParentVolunteerDays({
+        termId: term.id,
+        primaryLunchAndClubsDates: [lunchDate],
+      });
+
+      expect(supervisor.updatedAt).toEqual(accountUpdatedAt);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives granted staff Lunch and Clubs only, blocks a crafted Centre request, and revokes future reservations', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-02T12:00:00.000Z'));
+    try {
+      const { db, parentVolunteerDays } = makeFakeDb();
+      await makeCaller(headUser, db).rota.setStaffParentVolunteerAccess({
+        userId: supervisorUser.id,
+        enabled: true,
+      });
+
+      const staffCaller = makeCaller(supervisorUser, db);
+      const staffSlots = await staffCaller.rota.parentVolunteerSlots();
+      expect(staffSlots.scope).toBe('staff');
+      expect(staffSlots.terms[0]).not.toHaveProperty('centreVolunteer');
+      const term = staffSlots.terms[0];
+      if (!term) throw new Error('Expected an available staff volunteer term');
+      const lunchDate = term.lunchAndClubs.primary.days.find(
+        (day) => day.date === '2026-09-04',
+      )?.date;
+      if (!lunchDate) throw new Error('Expected an available lunch and clubs day');
+
+      await expect(
+        staffCaller.rota.setMyParentVolunteerDays({
+          termId: term.id,
+          centreDates: [lunchDate],
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await staffCaller.rota.setMyParentVolunteerDays({
+        termId: term.id,
+        primaryLunchAndClubsDates: [lunchDate],
+      });
+
+      parentVolunteerDays.push(
+        {
+          id: 'past_lunch_reservation',
+          parentUserId: supervisorUser.id,
+          date: day('2026-09-01'),
+          placement: 'LunchAndClubsSecondary',
+          slot: 1,
+          createdAt: day('2026-09-01'),
+          updatedAt: day('2026-09-01'),
+        },
+        {
+          id: 'future_lunch_reservation',
+          parentUserId: supervisorUser.id,
+          date: day('2026-09-03'),
+          placement: 'LunchAndClubsPrimary',
+          slot: 1,
+          createdAt: day('2026-09-01'),
+          updatedAt: day('2026-09-01'),
+        },
+      );
+
+      await makeCaller(headUser, db).rota.setStaffParentVolunteerAccess({
+        userId: supervisorUser.id,
+        enabled: false,
+      });
+      expect(db.user.update.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        db.parentVolunteerDay.deleteMany.mock.invocationCallOrder.at(-1) ?? 0,
+      );
+      expect(
+        parentVolunteerDays.filter(
+          (row) =>
+            row.parentUserId === supervisorUser.id &&
+            row.placement !== 'Centre' &&
+            row.date.getTime() > day('2026-09-02').getTime(),
+        ),
+      ).toHaveLength(0);
+      expect(
+        parentVolunteerDays.filter(
+          (row) => row.parentUserId === supervisorUser.id && dateKey(row.date) === '2026-09-01',
+        ),
+      ).toHaveLength(1);
+      expect(db.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: headUser.id,
+          action: 'Update',
+          entity: 'StaffParentVolunteerAccess',
+          entityId: supervisorUser.id,
+          meta: {
+            enabled: false,
+            releasedReservationCount: 2,
+            source: 'rota.setStaffParentVolunteerAccess',
+          },
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rechecks a granted staff member’s active child link on every volunteer request', async () => {
+    const { db, users } = makeFakeDb();
+    await makeCaller(headUser, db).rota.setStaffParentVolunteerAccess({
+      userId: supervisorUser.id,
+      enabled: true,
+    });
+    await expect(makeCaller(supervisorUser, db).rota.parentVolunteerSlots()).resolves.toMatchObject(
+      {
+        scope: 'staff',
+      },
+    );
+
+    const supervisor = users.find((user) => user.id === supervisorUser.id);
+    if (!supervisor) throw new Error('Expected supervisor fixture');
+    supervisor.activeChildCount = 0;
+
+    await expect(makeCaller(supervisorUser, db).rota.parentVolunteerSlots()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+
+    supervisor.activeChildCount = 1;
+    supervisor.active = false;
+    await expect(makeCaller(supervisorUser, db).rota.parentVolunteerSlots()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
 
   it('keeps parent selections private and separates centre, Primary, and Secondary capacity', async () => {
     const { db, parentVolunteerDays } = makeFakeDb();
@@ -1097,6 +1563,7 @@ describe('parent volunteer days', () => {
       vi.setSystemTime(new Date('2026-08-25T12:00:00.000Z'));
 
       const openingDaySlots = await caller.rota.parentVolunteerSlots();
+      if (openingDaySlots.scope !== 'parent') throw new Error('Expected parent volunteer scope');
       expect(openingDaySlots.terms.map((term) => term.id)).toEqual(['2026-Summer', '2026-Autumn']);
       const autumnTerm = openingDaySlots.terms[1];
       expect(autumnTerm).toMatchObject({ from: '2026-09-01', to: '2026-12-18' });
@@ -1217,9 +1684,12 @@ describe('rota scheduling', () => {
       id: 'u_inactive_sup',
       role: 'Supervisor',
       active: false,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 0,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
       createdAt: at('2026-04-25T09:00:00.000Z'),
+      updatedAt: at('2026-04-25T09:00:00.000Z'),
     });
     shifts.push({
       id: 'shift_inactive',
@@ -1279,9 +1749,12 @@ describe('rota scheduling', () => {
       id: 'u_inactive_sup',
       role: 'Supervisor',
       active: false,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 0,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
       createdAt: at('2026-04-25T09:00:00.000Z'),
+      updatedAt: at('2026-04-25T09:00:00.000Z'),
     });
     availability.push(
       {
@@ -1345,9 +1818,12 @@ describe('rota scheduling', () => {
       id: 'u_inactive_sup',
       role: 'Supervisor',
       active: false,
+      staffParentVolunteerAccess: false,
+      activeChildCount: 0,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
       createdAt: at('2026-04-25T09:00:00.000Z'),
+      updatedAt: at('2026-04-25T09:00:00.000Z'),
     });
     monthlyAvailability.push(
       {
