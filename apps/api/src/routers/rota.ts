@@ -652,10 +652,13 @@ async function assertActiveStaffUser(ctx: RouterCtx, staffUserId: string): Promi
   }
 }
 
-async function assertActiveBand(ctx: RouterCtx, yearGroupBandId: string): Promise<void> {
+async function assertActiveBand(
+  ctx: RouterCtx,
+  yearGroupBandId: string,
+): Promise<{ id: string; name: string; colour: string }> {
   const band = await ctx.db.yearGroupBand.findUnique({
     where: { id: yearGroupBandId },
-    select: { id: true, active: true },
+    select: { id: true, active: true, name: true, colour: true },
   });
   if (!band) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'year-group band not found' });
@@ -663,6 +666,7 @@ async function assertActiveBand(ctx: RouterCtx, yearGroupBandId: string): Promis
   if (!band.active) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'year-group band is inactive' });
   }
+  return band;
 }
 
 async function assertNoShiftOverlap(
@@ -1585,7 +1589,7 @@ export const rotaRouter = router({
       assertShiftKindBand({ kind: input.kind, yearGroupBandId: input.yearGroupBandId ?? null });
       await assertActiveStaffUser(ctx, input.staffUserId);
       const yearGroupBandId = input.kind === 'Cover' ? (input.yearGroupBandId ?? null) : null;
-      if (yearGroupBandId) await assertActiveBand(ctx, yearGroupBandId);
+      const yearGroupBand = yearGroupBandId ? await assertActiveBand(ctx, yearGroupBandId) : null;
 
       const dates = expandOasisRotaDates(selectedDates, input.repeatScope);
       for (const date of dates) {
@@ -1619,23 +1623,18 @@ export const rotaRouter = router({
         });
       }
 
-      const shifts = await ctx.db.$transaction(async (tx) =>
-        Promise.all(
-          candidates.map(({ date, startsAt, endsAt }) =>
-            tx.staffShift.create({
-              data: {
-                staffUserId: input.staffUserId,
-                kind: input.kind,
-                yearGroupBandId,
-                date,
-                startsAt,
-                endsAt,
-                notes: input.notes ?? null,
-              },
-              include: { yearGroupBand: { select: { name: true, colour: true } } },
-            }),
-          ),
-        ),
+      const shifts = await ctx.db.$transaction((tx) =>
+        tx.staffShift.createManyAndReturn({
+          data: candidates.map(({ date, startsAt, endsAt }) => ({
+            staffUserId: input.staffUserId,
+            kind: input.kind,
+            yearGroupBandId,
+            date,
+            startsAt,
+            endsAt,
+            notes: input.notes ?? null,
+          })),
+        }),
       );
 
       await ctx.db.auditLog.create({
@@ -1655,7 +1654,9 @@ export const rotaRouter = router({
       return {
         count: shifts.length,
         dates: candidates.map((candidate) => dateKey(candidate.date)),
-        shifts: shifts.map(mapShift),
+        shifts: shifts
+          .sort((left, right) => left.date.getTime() - right.date.getTime())
+          .map((shift) => mapShift({ ...shift, yearGroupBand })),
       };
     }),
 

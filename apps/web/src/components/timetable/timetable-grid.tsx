@@ -76,11 +76,7 @@ export function TimetableGrid({
                   if (day !== TIMETABLE_DAYS[0]) return null;
 
                   return (
-                    <td
-                      className={styles.breakCell}
-                      key={slot.id}
-                      rowSpan={TIMETABLE_DAYS.length}
-                    >
+                    <td className={styles.breakCell} key={slot.id} rowSpan={TIMETABLE_DAYS.length}>
                       <span style={{ writingMode: 'vertical-rl' }}>B.R.E.A.K.</span>
                     </td>
                   );
@@ -102,6 +98,7 @@ export function TimetableGrid({
                   >
                     {editable ? (
                       <select
+                        disabled={!onSubjectChange}
                         aria-label={`${day} ${slot.label}`}
                         onChange={(event) => {
                           onSubjectChange?.(day, slot.id, event.target.value);

@@ -36,6 +36,8 @@ export function StudentTimetableEditor({
   const [entries, setEntries] = useState<TimetableGridEntry[]>(draft.entries);
   const [subjectName, setSubjectName] = useState('');
   const [subjectError, setSubjectError] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const busy = publishing || pendingAction !== null;
   const lessonCount = slots.filter((slot) => slot.kind === 'Lesson').length * TIMETABLE_DAYS.length;
   const assignedCellCount = useMemo(
     () =>
@@ -83,6 +85,17 @@ export function StudentTimetableEditor({
     );
   }
 
+  async function publishCurrentDraft(): Promise<void> {
+    if (busy) return;
+    setPublishing(true);
+    try {
+      await saveDraft();
+      await onPublish();
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   return (
     <section className={styles.editorPanel} aria-labelledby="student-timetable-heading">
       <div className={styles.sectionHeading}>
@@ -109,7 +122,7 @@ export function StudentTimetableEditor({
       <TimetableGrid
         editable
         entries={entries}
-        onSubjectChange={updateSubject}
+        {...(busy ? {} : { onSubjectChange: updateSubject })}
         slots={slots}
         subjects={draft.subjects}
       />
@@ -130,6 +143,7 @@ export function StudentTimetableEditor({
           label="Add another subject"
         >
           <TextInput
+            disabled={busy}
             aria-invalid={subjectError ? true : undefined}
             onChange={(event) => {
               setSubjectName(event.target.value);
@@ -138,13 +152,20 @@ export function StudentTimetableEditor({
             value={subjectName}
           />
         </Field>
-        <Button pending={pendingAction === 'subject'} size="sm" type="submit" variant="secondary">
+        <Button
+          disabled={busy}
+          pending={pendingAction === 'subject'}
+          size="sm"
+          type="submit"
+          variant="secondary"
+        >
           <Plus aria-hidden="true" size={15} /> Add subject
         </Button>
       </form>
 
       <div className={styles.editorActions}>
         <Button
+          disabled={busy}
           onClick={() => {
             void saveDraft().catch(() => undefined);
           }}
@@ -155,10 +176,11 @@ export function StudentTimetableEditor({
           <Save aria-hidden="true" size={16} /> Save draft
         </Button>
         <Button
+          disabled={busy}
           onClick={() => {
-            void onPublish().catch(() => undefined);
+            void publishCurrentDraft().catch(() => undefined);
           }}
-          pending={pendingAction === 'publish'}
+          pending={publishing || pendingAction === 'publish'}
           type="button"
         >
           <Send aria-hidden="true" size={16} /> Publish timetable

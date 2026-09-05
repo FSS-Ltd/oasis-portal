@@ -27,7 +27,6 @@ import {
   findPublishedTimetableForStudent,
   publishStudentTimetable,
 } from '../services/timetable-publications.js';
-import { syncTimetableTasks, type TimetableTaskDb } from '../services/timetable-tasks.js';
 import {
   loadTeachingTerms,
   requireTeachingTerm,
@@ -233,23 +232,12 @@ export interface TimetableRouterDeps {
 const defaultTimetableRouterDeps: TimetableRouterDeps = {
   loadTeachingTerms: (db) => loadTeachingTerms(db),
   requireTeachingTerm: (db, termKey) => requireTeachingTerm(db, termKey),
-  loadHeadWorkspace: async (ctx, input) => {
-    await ctx.withRls((db) =>
-      syncTimetableTasks({ db: db as unknown as TimetableTaskDb, headIds: [ctx.user.id] }),
-    );
-    return loadHeadTimetableWorkspace(ctx, input);
-  },
+  loadHeadWorkspace: loadHeadTimetableWorkspace,
   loadStudentDraft: loadStudentTimetableDraft,
   saveSchedule: saveTimetableSchedule,
   saveDraft: saveStudentTimetableDraft,
   createAndAssignSubject: createAndAssignTimetableSubject,
-  publish: async (ctx, input) => {
-    const result = await publishStudentTimetable(ctx, input);
-    await ctx.withRls((db) =>
-      syncTimetableTasks({ db: db as unknown as TimetableTaskDb, headIds: [ctx.user.id] }),
-    );
-    return result;
-  },
+  publish: publishStudentTimetable,
   publishedForParent: findPublishedTimetableForParent,
   publishedForStudent: findPublishedTimetableForStudent,
   publicationForHead: findPublishedTimetableForHead,

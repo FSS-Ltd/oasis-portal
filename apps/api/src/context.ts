@@ -22,6 +22,7 @@ export interface CreateContextArgs {
 export type RlsTx = Prisma.TransactionClient;
 
 const SERIALIZABLE_TRANSACTION_ATTEMPTS = 3;
+const RLS_TRANSACTION_MAX_WAIT_MS = 10_000;
 
 export class RlsSerializationConflictError extends Error {
   constructor() {
@@ -131,12 +132,15 @@ export function applyRlsTx<T>(
   const userId = user?.id ?? '';
   const role: string = user?.role ?? '';
   const fullAdmin = user ? (isFullAdmin(user) ? 'true' : 'false') : '';
-  return client.$transaction(async (tx: RlsTx) => {
-    await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
-    await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
-    await tx.$executeRaw`SELECT set_config('app.full_admin', ${fullAdmin}, true)`;
-    return fn(tx);
-  });
+  return client.$transaction(
+    async (tx: RlsTx) => {
+      await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.full_admin', ${fullAdmin}, true)`;
+      return fn(tx);
+    },
+    { maxWait: RLS_TRANSACTION_MAX_WAIT_MS },
+  );
 }
 
 function isSerializationConflict(error: unknown): boolean {

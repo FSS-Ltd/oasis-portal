@@ -5,6 +5,7 @@ import {
   TIMETABLE_DAYS,
   countTimetableProgress,
   firstNameFromFullName,
+  timetableColourForSubject,
   type TimetableColour,
   type TimetableRegistrationLevel,
 } from '@oasis/domain';
@@ -68,7 +69,7 @@ function subjectView(subject: {
     id: subject.id,
     code: subject.code,
     name: subject.name,
-    colour: subject.timetableColour,
+    colour: timetableColourForSubject(subject),
   };
 }
 
@@ -433,12 +434,13 @@ export async function createAndAssignTimetableSubject(
     });
     if (!student) notFound('Student not found');
 
+    const name = input.name.trim();
     let subject = await db.subject.findFirst({
-      where: { name: { equals: input.name.trim(), mode: 'insensitive' } },
+      where: { name: { equals: name, mode: 'insensitive' } },
     });
     let created = false;
     if (!subject) {
-      const base = customSubjectCodeBase(input.name);
+      const base = customSubjectCodeBase(name);
       const existing = await db.subject.findMany({
         where: { code: { startsWith: base.slice(0, 14) } },
         select: { code: true },
@@ -446,16 +448,23 @@ export async function createAndAssignTimetableSubject(
       const used = new Set(existing.map(({ code }) => code));
       let index = 1;
       while (used.has(suffixedSubjectCode(base, index))) index += 1;
+      const code = suffixedSubjectCode(base, index);
       subject = await db.subject.create({
         data: {
-          code: suffixedSubjectCode(base, index),
-          name: input.name.trim(),
-          timetableColour: 'Grey',
+          code,
+          name,
+          timetableColour: timetableColourForSubject({ code, name }),
         },
       });
       created = true;
-    } else if (!subject.active) {
-      subject = await db.subject.update({ where: { id: subject.id }, data: { active: true } });
+    } else {
+      const timetableColour = timetableColourForSubject(subject);
+      if (!subject.active || subject.timetableColour !== timetableColour) {
+        subject = await db.subject.update({
+          where: { id: subject.id },
+          data: { active: true, timetableColour },
+        });
+      }
     }
 
     await db.studentSubject.upsert({

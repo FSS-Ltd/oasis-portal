@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { customSubjectCodeBase, registrationLevelForStudent } from '../services/timetable-data.js';
+import { describe, expect, it, vi } from 'vitest';
+import type { SessionUser } from '@oasis/domain';
+import type { AppContext } from '../context.js';
+import {
+  createAndAssignTimetableSubject,
+  customSubjectCodeBase,
+  registrationLevelForStudent,
+} from '../services/timetable-data.js';
+
+const head: SessionUser = { id: 'head_1', role: 'Head', tags: [], requires2fa: false };
 
 describe('registrationLevelForStudent', () => {
   it('uses a valid registration profile before the year-group fallback', () => {
@@ -22,5 +30,36 @@ describe('customSubjectCodeBase', () => {
     expect(customSubjectCodeBase(' French conversation ')).toBe('CUSTOM-FRENCH-CONVER');
     expect(customSubjectCodeBase('Art & Design')).toBe('CUSTOM-ART-DESIGN');
     expect(customSubjectCodeBase('日本語')).toBe('CUSTOM-SUBJECT');
+  });
+});
+
+describe('createAndAssignTimetableSubject', () => {
+  it('uses the canonical colour when an added subject has a recognised name', async () => {
+    const db = {
+      student: { findFirst: vi.fn().mockResolvedValue({ id: 'student_1' }) },
+      subject: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+        create: vi.fn(({ data }) => Promise.resolve({ id: 'subject_1', active: true, ...data })),
+      },
+      studentSubject: { upsert: vi.fn().mockResolvedValue({}) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const ctx = {
+      db: {},
+      user: head,
+      withRls: (operation: (tx: never) => Promise<unknown>) => operation(db as never),
+    } as unknown as AppContext & { user: SessionUser };
+
+    await expect(
+      createAndAssignTimetableSubject(ctx, { studentId: 'student_1', name: 'Maths' }),
+    ).resolves.toMatchObject({ colour: 'Yellow' });
+    expect(db.subject.create).toHaveBeenCalledWith({
+      data: {
+        code: 'CUSTOM-MATHS',
+        name: 'Maths',
+        timetableColour: 'Yellow',
+      },
+    });
   });
 });
