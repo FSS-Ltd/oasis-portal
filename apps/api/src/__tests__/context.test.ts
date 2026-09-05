@@ -1,8 +1,32 @@
 import type { SessionUser } from '@oasis/domain';
 import { describe, expect, it, vi } from 'vitest';
-import { applySerializableRlsTx, RlsSerializationConflictError, type RlsTx } from '../context.js';
+import {
+  applyRlsTx,
+  applySerializableRlsTx,
+  RlsSerializationConflictError,
+  type RlsTx,
+} from '../context.js';
 
 const HEAD: SessionUser = { id: 'user_head', role: 'Head', tags: [], requires2fa: false };
+
+describe('applyRlsTx', () => {
+  it('waits for a pooled connection long enough to start an RLS-scoped request', async () => {
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(0),
+    } as unknown as RlsTx;
+    const client = {
+      $transaction: vi.fn((callback: (transaction: RlsTx) => Promise<string>, options: unknown) => {
+        expect(options).toEqual({ maxWait: 10_000 });
+        return callback(tx);
+      }),
+    };
+
+    await expect(applyRlsTx(client as never, HEAD, () => Promise.resolve('complete'))).resolves.toBe(
+      'complete',
+    );
+    expect(client.$transaction).toHaveBeenCalledTimes(1);
+  });
+});
 
 function serializationConflict(): Error & { code: string } {
   return Object.assign(new Error('Serialization conflict'), { code: 'P2034' });

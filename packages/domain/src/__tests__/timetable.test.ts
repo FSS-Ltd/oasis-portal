@@ -43,6 +43,8 @@ describe('timetableColourForSubject', () => {
     [{ code: 'SOC', name: 'Social Studies' }, 'Green'],
     [{ code: 'BIBLE', name: 'Bible Studies' }, 'Brown'],
     [{ code: 'CUSTOM-FRENCH', name: 'French' }, 'Grey'],
+    [{ code: 'CUSTOM-MATHS', name: 'Maths' }, 'Yellow'],
+    [{ code: 'CUSTOM-ANIMAL', name: 'Animal Science' }, 'LightBlue'],
   ] as const)('maps $0 to $1', (subject, expected) => {
     expect(timetableColourForSubject(subject)).toBe(expected);
   });
