@@ -692,8 +692,7 @@ describe('report.draft', () => {
           status: 'Ahead',
           tone: 'green',
           testingLevel: 4,
-          testingLevelLabel: 'Testing at Level 4',
-          detail: 'Testing at Level 4',
+          detail: 'Ahead',
         },
       },
     ]);

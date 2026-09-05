@@ -1318,8 +1318,12 @@ describe('student.dashboard', () => {
           iconInitials: 'JA',
           childIconPhotoUrl: 'https://storage.example/student-icons/child.jpg',
           yearGroup: 'Year 6',
-          yearGroupLabel: 'Level 6',
-          ageBand: '11-13',
+          yearGroupLabel: 'Year 6',
+          ageBand: {
+            id: 'band_upper',
+            name: 'Upper Primary',
+            colour: '#5B90C5',
+          },
           academicScreensEnabled: false,
         },
         merits: {

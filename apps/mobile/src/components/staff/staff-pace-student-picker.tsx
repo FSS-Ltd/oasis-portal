@@ -53,10 +53,7 @@ export function StaffPaceStudentPicker({
             </View>
             <View style={styles.rowBody}>
               <Text style={styles.studentName}>{row.studentName}</Text>
-              <Text style={styles.yearGroup}>
-                {row.yearGroupLabel}
-                {row.band ? ` · ${row.band.name}` : ''}
-              </Text>
+              <Text style={styles.yearGroup}>{row.band?.name ?? 'Age band not set'}</Text>
             </View>
           </Pressable>
         ))}

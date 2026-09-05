@@ -66,9 +66,7 @@ export function StudentHomeScreen({
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>Student Portal</Text>
             <SectionTitle>Hi, {dashboard.profile.firstName}</SectionTitle>
-            <Text style={styles.subtle}>
-              {dashboard.profile.yearGroupLabel} · {dashboard.profile.ageBand}
-            </Text>
+            <Text style={styles.subtle}>{dashboard.profile.ageBand?.name ?? 'Age band not set'}</Text>
           </View>
         </View>
         <View style={styles.heroStats}>

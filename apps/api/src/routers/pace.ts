@@ -12,6 +12,7 @@ import {
   paceRecordInput,
   paceUpdateRecordInput,
   requireSelfStudent,
+  resolveAgeBand,
   rowsForMerit,
   schoolYearStorageAliases,
   type PaceProgressStatusResult,
@@ -35,7 +36,6 @@ const HIDDEN_PACE_STATUS = {
   detail: 'Status hidden by parent setting',
   status: 'Unavailable',
   testingLevel: null,
-  testingLevelLabel: null,
   tone: 'grey',
 } as const satisfies PaceProgressStatusResult;
 
@@ -1029,6 +1029,10 @@ export const paceRouter = router({
       studentName,
       yearGroup: canonicalSchoolYear(student.yearGroup) ?? student.yearGroup,
       yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
+      ageBand: resolveAgeBand(
+        student.yearGroup,
+        scope.rowBands.map((band) => ({ ...band, active: true })),
+      ),
       paceStatusVisible,
       subjects,
       today: {

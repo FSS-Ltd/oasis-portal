@@ -22,6 +22,7 @@ import {
 type YearGroupBand = {
   active: boolean;
   colour: string;
+  conflictingYears: string[];
   id: string;
   name: string;
   sortOrder: number;
@@ -290,6 +291,11 @@ export function AcademicSettingsClient() {
           <div className="academic-list">
             {bands.map((band: YearGroupBand) => (
               <div className="academic-row academic-row--stack" key={band.id}>
+                {band.conflictingYears.length > 0 ? (
+                  <p className="status--warning" role="alert">
+                    Resolve duplicate active age-band years: {band.conflictingYears.join(', ')}.
+                  </p>
+                ) : null}
                 {editingBandId === band.id ? (
                   <form
                     className="form-grid"

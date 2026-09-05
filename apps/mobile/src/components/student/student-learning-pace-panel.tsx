@@ -39,9 +39,12 @@ export function StudentPacePanel({ error, loading, pace }: StudentPacePanelProps
           <View key={subject.subjectId} style={styles.subjectRow}>
             <View style={styles.headingCopy}>
               <Text style={styles.rowTitle}>{subject.name}</Text>
-              <MutedText>
-                {subject.code} · PACE {String(subject.currentPaceNumber)}
-              </MutedText>
+              <View style={styles.paceMeta}>
+                <MutedText>{subject.code} · PACE {String(subject.currentPaceNumber)}</MutedText>
+                {subject.status.testingLevel !== null ? (
+                  <Badge variant="blue">Level {String(subject.status.testingLevel)}</Badge>
+                ) : null}
+              </View>
             </View>
             <View style={styles.rowMeta}>
               {pace.paceStatusVisible ? (
@@ -49,9 +52,6 @@ export function StudentPacePanel({ error, loading, pace }: StudentPacePanelProps
                   <Badge variant={paceStatusVariant(subject.status.tone)}>
                     {subject.status.status}
                   </Badge>
-                  {subject.status.testingLevelLabel ? (
-                    <Text style={styles.levelText}>{subject.status.testingLevelLabel}</Text>
-                  ) : null}
                 </>
               ) : null}
               <Text style={styles.scoreText}>{scoreLabel(latest?.score)}</Text>
@@ -75,12 +75,11 @@ const styles = StyleSheet.create({
     gap: 3,
     minWidth: 0,
   },
-  levelText: {
-    color: C.textSecondary,
-    flexShrink: 1,
-    fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'right',
+  paceMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
   },
   rowBetween: {
     alignItems: 'center',

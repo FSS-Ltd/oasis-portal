@@ -58,41 +58,45 @@ describe('PACE level status helpers', () => {
     expect(paceNumberToAceLevel(1145)).toBeNull();
   });
 
-  it('computes behind, on-track, ahead, and unavailable status text', () => {
-    expect(paceProgressStatusForYear(1001, 'Year 1')).toMatchObject({
+  it('keeps progress status separate from the mapped PACE level', () => {
+    const onTrack = paceProgressStatusForYear(1001, 'Year 1');
+    expect(onTrack).toMatchObject({
       status: 'On Track',
-      detail: 'Testing at Level 1',
+      detail: 'On Track',
       tone: 'blue',
+      testingLevel: 1,
     });
+    expect(onTrack).not.toHaveProperty('testingLevelLabel');
     expect(paceProgressStatusForYear(1001, 'Reception')).toMatchObject({
       status: 'Ahead',
-      detail: 'Testing at Level 1',
       tone: 'green',
+      testingLevel: 1,
     });
     expect(paceProgressStatusForYear(1001, 'Year 3')).toMatchObject({
       status: 'Behind',
-      detail: 'Testing at Level 1',
       tone: 'amber',
+      testingLevel: 1,
     });
     expect(paceProgressStatusForYear(1025, 'Year 3')).toMatchObject({
       status: 'On Track',
-      detail: 'Testing at Level 3',
       tone: 'blue',
+      testingLevel: 3,
     });
     expect(paceProgressStatusForYear(1049, 'Year 3')).toMatchObject({
       status: 'Ahead',
-      detail: 'Testing at Level 5',
       tone: 'green',
+      testingLevel: 5,
     });
     expect(paceProgressStatusForYear(1023, 'Y5')).toMatchObject({
       status: 'Behind',
-      detail: 'Testing at Level 2',
       tone: 'amber',
+      testingLevel: 2,
     });
     expect(paceProgressStatusForYear(2000, 'Year 3')).toMatchObject({
       status: 'Unavailable',
       detail: 'Status unavailable',
       tone: 'grey',
+      testingLevel: null,
     });
   });
 });

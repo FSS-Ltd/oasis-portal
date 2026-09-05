@@ -6,6 +6,7 @@ import {
   deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
   expectedPaceLevelForYear,
+  resolveAgeBand,
   schoolYearStorageAliases,
   updateYearGroupBandInput,
 } from '../schoolYears.js';
@@ -61,12 +62,12 @@ describe('displaySchoolYearLabel', () => {
     expect(schoolYearStorageAliases('Year 5')).toEqual(['Year 5', 'Y5']);
   });
 
-  it('keeps stored values stable while showing Oasis level labels', () => {
+  it('keeps stored values stable while showing canonical school-year labels', () => {
     expect(displaySchoolYearLabel('Nursery')).toBe('Nursery');
-    expect(displaySchoolYearLabel('Reception')).toBe('ABC');
-    expect(displaySchoolYearLabel('Y5')).toBe('Level 5');
-    expect(displaySchoolYearLabel('Year 1')).toBe('Level 1');
-    expect(displaySchoolYearLabel('Year 13')).toBe('Level 13');
+    expect(displaySchoolYearLabel('Reception')).toBe('Reception');
+    expect(displaySchoolYearLabel('Y5')).toBe('Year 5');
+    expect(displaySchoolYearLabel('Year 1')).toBe('Year 1');
+    expect(displaySchoolYearLabel('Year 13')).toBe('Year 13');
     expect(displaySchoolYearLabel('Custom')).toBe('Custom');
   });
 
@@ -76,6 +77,43 @@ describe('displaySchoolYearLabel', () => {
     expect(expectedPaceLevelForYear('Year 1')).toBe(1);
     expect(expectedPaceLevelForYear('Y5')).toBe(5);
     expect(expectedPaceLevelForYear('Year 13')).toBe(13);
+  });
+});
+
+describe('resolveAgeBand', () => {
+  const bands = [
+    {
+      id: 'lower',
+      name: 'Lower Primary',
+      colour: '#5B90C5',
+      active: true,
+      standardYears: ['Reception', 'Year 1', 'Year 2'],
+    },
+    {
+      id: 'upper',
+      name: 'Upper Primary',
+      colour: '#0E5C3A',
+      active: true,
+      standardYears: ['Year 3', 'Year 4'],
+    },
+  ] as const;
+
+  it('resolves a configured age band from a canonical or legacy school year', () => {
+    expect(resolveAgeBand('Y1', bands)).toEqual({
+      id: 'lower',
+      name: 'Lower Primary',
+      colour: '#5B90C5',
+    });
+  });
+
+  it('returns null when configuration is missing or ambiguous', () => {
+    expect(resolveAgeBand('Year 13', bands)).toBeNull();
+    expect(
+      resolveAgeBand('Year 3', [
+        ...bands,
+        { id: 'duplicate', name: 'Duplicate', colour: '#FFFFFF', active: true, standardYears: ['Year 3'] },
+      ]),
+    ).toBeNull();
   });
 });
 
