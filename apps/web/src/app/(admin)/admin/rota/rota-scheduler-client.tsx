@@ -25,6 +25,7 @@ import {
   emptyShiftForm,
   formatDateLabel,
   mondayFor,
+  minuteFromTime,
   shiftToForm,
   today,
   type ParentVolunteerDay,
@@ -43,8 +44,12 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
   const [weekStart, setWeekStart] = useState(() => mondayFor(today()));
   const [shiftForm, setShiftForm] = useState<ShiftForm>(() => ({
     ...emptyShiftForm,
-    date: dateKey(mondayFor(today())),
+    date: dateKey(addDays(mondayFor(today()), 1)),
   }));
+  const [selectedDates, setSelectedDates] = useState<string[]>(() => [
+    dateKey(addDays(mondayFor(today()), 1)),
+  ]);
+  const [repeatScope, setRepeatScope] = useState<'week' | 'term'>('week');
   const utils = api.useUtils();
   const canManageVolunteerAccess = canManageStaffParentVolunteerAccess({ role: currentUserRole });
   const tabs = useMemo(
@@ -66,6 +71,10 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     { from: weekStart, to: weekEnd },
     { retry: false },
   );
+  const combinedScheduleQuery = api.rota.combinedSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
   const staffQuery = api.rota.listStaff.useQuery(undefined, { retry: false });
   const availabilityQuery = api.rota.staffAvailability.useQuery(undefined, { retry: false });
   const monthlyAvailabilityQuery = api.rota.staffMonthlyAvailability.useQuery(
@@ -83,7 +92,26 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     () => (bandsQuery.data ?? []).filter((band) => band.active),
     [bandsQuery.data],
   );
+  const availableDates = useMemo(
+    () =>
+      (operationalDatesQuery.data ?? [])
+        .filter((status) => {
+          const date = new Date(`${status.date}T00:00:00.000Z`);
+          return status.kind === 'operating' && date.getUTCDay() >= 2 && date.getUTCDay() <= 5;
+        })
+        .map((status) => {
+          const date = new Date(`${status.date}T00:00:00.000Z`);
+          return { label: `${date.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' })} ${formatDateLabel(date)}`, value: status.date };
+        }),
+    [operationalDatesQuery.data],
+  );
   const shifts = (scheduleQuery.data ?? []) as RotaShift[];
+  const clubShifts = (combinedScheduleQuery.data ?? []).filter(
+    (
+      shift,
+    ): shift is Extract<NonNullable<typeof combinedScheduleQuery.data>[number], { source: 'club' }> =>
+      shift.source === 'club',
+  );
   const staffAvailability = (availabilityQuery.data ?? []) as StaffAvailability[];
   const staffMonthlyAvailability = (monthlyAvailabilityQuery.data ??
     []) as StaffMonthlyAvailability[];
@@ -100,6 +128,7 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
   const refreshRota = async () => {
     await Promise.all([
       utils.rota.weekSchedule.invalidate({ from: weekStart, to: weekEnd }),
+      utils.rota.combinedSchedule.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.staffAvailability.invalidate(),
       utils.rota.staffMonthlyAvailability.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.parentVolunteerSchedule.invalidate({ from: weekStart, to: weekEnd }),
@@ -107,14 +136,16 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     ]);
   };
 
-  const createShift = api.rota.createShift.useMutation({
+  const createShiftBatch = api.rota.createShiftBatch.useMutation({
     async onSuccess() {
       setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
-      showSuccessToast('Shift saved.');
+      setSelectedDates([shiftForm.date]);
+      setRepeatScope('week');
+      showSuccessToast('Shifts saved.');
       await refreshRota();
     },
     onError(error) {
-      showErrorToast(error, 'Shift could not be saved.');
+      showErrorToast(error, 'Shifts could not be saved.');
     },
   });
   const updateShift = api.rota.updateShift.useMutation({
@@ -156,7 +187,8 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     },
   });
 
-  const shiftMutationError = createShift.error ?? updateShift.error ?? deleteShift.error;
+  const shiftMutationError =
+    createShiftBatch.error ?? updateShift.error ?? deleteShift.error;
 
   function selectTab(event: KeyboardEvent<HTMLButtonElement>): void {
     if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
@@ -177,6 +209,13 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     requestAnimationFrame(() => {
       document.getElementById('admin-rota-tab-shifts')?.focus();
     });
+  }
+
+  function selectWeek(nextWeek: Date): void {
+    const firstOperatingDate = dateKey(addDays(nextWeek, 1));
+    setWeekStart(nextWeek);
+    setShiftForm((current) => ({ ...current, date: firstOperatingDate }));
+    setSelectedDates([firstOperatingDate]);
   }
 
   return (
@@ -238,26 +277,29 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
         role="tabpanel"
       >
         <RotaWeekSchedule
-          errorMessage={scheduleQuery.error ? friendlyErrorMessage(scheduleQuery.error) : undefined}
-          isFetching={scheduleQuery.isFetching}
-          isLoading={scheduleQuery.isLoading}
+          clubShifts={clubShifts}
+          errorMessage={
+            scheduleQuery.error || combinedScheduleQuery.error
+              ? friendlyErrorMessage(scheduleQuery.error ?? combinedScheduleQuery.error)
+              : undefined
+          }
+          isFetching={scheduleQuery.isFetching || combinedScheduleQuery.isFetching}
+          isLoading={scheduleQuery.isLoading || combinedScheduleQuery.isLoading}
           dateStatuses={operationalDatesQuery.data ?? []}
           onNextWeek={() => {
-            setWeekStart((current) => addDays(current, 7));
+            selectWeek(addDays(weekStart, 7));
           }}
           onPreviousWeek={() => {
-            setWeekStart((current) => addDays(current, -7));
+            selectWeek(addDays(weekStart, -7));
           }}
           onRefresh={() => {
-            void scheduleQuery.refetch();
+            void Promise.all([scheduleQuery.refetch(), combinedScheduleQuery.refetch()]);
           }}
           onSelectShift={(shift) => {
             showShiftEditor(shift);
           }}
           onThisWeek={() => {
-            const nextWeek = mondayFor(today());
-            setWeekStart(nextWeek);
-            setShiftForm((current) => ({ ...current, date: dateKey(nextWeek) }));
+            selectWeek(mondayFor(today()));
           }}
           parentVolunteerErrorMessage={
             parentVolunteerScheduleQuery.error
@@ -281,15 +323,18 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
       >
         <RotaShiftEditor
           activeBands={activeBands}
+          availableDates={availableDates}
           dateStatus={operationalDatesQuery.data?.find((status) => status.date === shiftForm.date)}
           errorMessage={shiftMutationError ? friendlyErrorMessage(shiftMutationError) : undefined}
           form={shiftForm}
           isDeleting={deleteShift.isPending}
-          isSaving={createShift.isPending || updateShift.isPending}
+          isSaving={createShiftBatch.isPending || updateShift.isPending}
           onCancel={() => {
             setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
           }}
           onChange={setShiftForm}
+          onChangeRepeatScope={setRepeatScope}
+          onChangeSelectedDates={setSelectedDates}
           onDelete={() => {
             if (shiftForm.id) {
               deleteShift.mutate({ id: shiftForm.id });
@@ -308,9 +353,20 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
             if (shiftForm.id) {
               updateShift.mutate({ id: shiftForm.id, ...payload });
             } else {
-              createShift.mutate(payload);
+              createShiftBatch.mutate({
+                staffUserId: shiftForm.staffUserId,
+                kind: shiftForm.kind,
+                ...(shiftForm.kind === 'Cover' ? { yearGroupBandId: shiftForm.yearGroupBandId } : {}),
+                dates: selectedDates,
+                startMinute: minuteFromTime(shiftForm.startsAt),
+                endMinute: minuteFromTime(shiftForm.endsAt),
+                repeatScope,
+                notes: shiftForm.notes || undefined,
+              });
             }
           }}
+          repeatScope={repeatScope}
+          selectedDates={selectedDates}
           staff={staffQuery.data ?? []}
         />
       </div>

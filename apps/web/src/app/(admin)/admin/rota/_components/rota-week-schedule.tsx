@@ -13,6 +13,16 @@ import {
 const MEETING_COLOUR = '#0f766e';
 
 interface RotaWeekScheduleProps {
+  clubShifts: readonly {
+    source: 'club';
+    id: string;
+    date: string;
+    startsAt: Date;
+    endsAt: Date;
+    notes: string | null;
+    club: { id: string; name: string };
+    participant: { id: string; fullName: string; role: string } | null;
+  }[];
   dateStatuses: readonly {
     date: string;
     kind: 'operating' | 'fieldTrip' | 'closed';
@@ -35,6 +45,7 @@ interface RotaWeekScheduleProps {
 }
 
 export function RotaWeekSchedule({
+  clubShifts,
   dateStatuses,
   errorMessage,
   isFetching,
@@ -51,6 +62,11 @@ export function RotaWeekSchedule({
   weekEnd,
   weekStart,
 }: RotaWeekScheduleProps) {
+  const operatingDays = weekDays.filter((day) => {
+    const status = dateStatuses.find((candidate) => candidate.date === dateKey(day));
+    return day.getUTCDay() >= 2 && day.getUTCDay() <= 5 && status?.kind === 'operating';
+  });
+
   return (
     <section className="panel rota-week-board">
       <div className="panel__body">
@@ -85,6 +101,8 @@ export function RotaWeekSchedule({
         <div aria-label="Rota people key" className="rota-role-key">
           <span className="rota-role-chip is-staff">Staff</span>
           <span className="rota-role-chip is-parent">Parent volunteer</span>
+          <span className="rota-source-chip is-centre">Centre volunteer</span>
+          <span className="rota-source-chip is-clubs">Clubs volunteer</span>
         </div>
 
         {isLoading ? <div className="empty-state">Loading rota...</div> : null}
@@ -92,10 +110,12 @@ export function RotaWeekSchedule({
         {parentVolunteerErrorMessage ? (
           <p className="status--error">{parentVolunteerErrorMessage}</p>
         ) : null}
-        <div className="rota-week-grid">
-          {weekDays.map((day) => {
+        {operatingDays.length === 0 ? <p className="empty-state">No operating days this week.</p> : null}
+        <div className="rota-week-grid rota-week-grid--operating">
+          {operatingDays.map((day) => {
             const key = dateKey(day);
             const dayShifts = shifts.filter((shift) => shift.date === key);
+            const dayClubShifts = clubShifts.filter((shift) => shift.date === key);
             const dateStatus = dateStatuses.find((status) => status.date === key);
             const dayParentVolunteers = parentVolunteers.filter(
               (volunteer) => volunteer.date === key,
@@ -117,9 +137,14 @@ export function RotaWeekSchedule({
                     <span className="rota-availability-badge is-empty">None selected</span>
                   ) : (
                     dayParentVolunteers.map((volunteer) => (
-                      <span className="rota-availability-badge is-parent" key={volunteer.id}>
+                      <span
+                        className={`rota-availability-badge is-parent ${
+                          volunteer.placement === 'Centre' ? 'is-centre' : 'is-clubs'
+                        }`}
+                        key={volunteer.id}
+                      >
                         {volunteer.parent.fullName}
-                        <small>Parent · {parentVolunteerPlacementLabel(volunteer.placement)}</small>
+                        <small>{parentVolunteerPlacementLabel(volunteer.placement)}</small>
                       </span>
                     ))
                   )}
@@ -157,6 +182,29 @@ export function RotaWeekSchedule({
                     })}
                   </div>
                 )}
+                {dayClubShifts.length > 0 ? (
+                  <div className="rota-shift-list">
+                    {dayClubShifts.map((shift) => (
+                      <article
+                        aria-label={`Clubs volunteer: ${shift.participant?.fullName ?? 'Selected cover'} for ${shift.club.name}`}
+                        className="rota-shift rota-shift--club"
+                        key={shift.id}
+                        style={{ borderLeftColor: '#0E5C3A' }}
+                      >
+                        <span>
+                          {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
+                        </span>
+                        <strong>{shift.participant?.fullName ?? 'Selected cover'}</strong>
+                        <span className="rota-role-chip is-clubs">Clubs volunteer</span>
+                        <small>
+                          <i style={{ backgroundColor: '#0E5C3A' }} />
+                          {shift.club.name}
+                        </small>
+                        {shift.notes ? <em>{shift.notes}</em> : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
               </article>
             );
           })}

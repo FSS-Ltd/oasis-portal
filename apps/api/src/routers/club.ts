@@ -9,6 +9,7 @@ import {
   canUseClubLeadAccess,
   canUseLinkedChildClubSignup,
   clubMatchesYearGroupBands,
+  expandOasisRotaDates,
   formatClubSchedule,
   type ClubScheduleDraft,
   type SessionUser,
@@ -234,6 +235,26 @@ const clubRotaShiftInput = clubRotaShiftBaseInput.refine(
     path: ['endsAt'],
   },
 );
+
+const createClubRotaShiftBatchInput = z
+  .object({
+    clubId: stringIdInput,
+    participantUserId: z.string().min(1),
+    dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/u)).min(1).max(4),
+    startMinute: z.number().int().min(0).max(1439),
+    endMinute: z.number().int().min(1).max(1440),
+    repeatScope: z.enum(['week', 'term']),
+    notes: z.string().trim().max(500).optional(),
+  })
+  .refine((input) => input.startMinute < input.endMinute, {
+    message: 'startMinute must be before endMinute',
+    path: ['endMinute'],
+  })
+  .superRefine((input, ctx) => {
+    if (new Set(input.dates).size !== input.dates.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Choose each date only once', path: ['dates'] });
+    }
+  });
 
 const updateClubRotaShiftInput = clubRotaShiftBaseInput
   .partial()
@@ -724,6 +745,23 @@ function mapClubRotaShift(
     endsAt: shift.endsAt,
     notes: shift.notes,
   };
+}
+
+function dateFromRotaKey(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function timeOnRotaDate(date: Date, minute: number): Date {
+  const result = normalizeDate(date);
+  result.setUTCHours(Math.floor(minute / 60), minute % 60, 0, 0);
+  return result;
+}
+
+function mondayForRotaDate(date: Date): Date {
+  const monday = normalizeDate(date);
+  const offset = (monday.getUTCDay() + 6) % 7;
+  monday.setUTCDate(monday.getUTCDate() - offset);
+  return monday;
 }
 
 async function assertActiveClub(ctx: AuthedContext, clubId: string) {
@@ -2266,6 +2304,99 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         });
 
         return mapClubRotaShift(ctx.db.$enc.decrypt, shift);
+      }),
+
+    createClubRotaShiftBatch: authedProcedure
+      .input(createClubRotaShiftBatchInput)
+      .mutation(async ({ ctx, input }) => {
+        requireClubManager(ctx.user);
+        await assertActiveClub(ctx, input.clubId);
+        await assertClubRotaParticipant(ctx, input.clubId, input.participantUserId);
+
+        const selectedDates = input.dates.map(dateFromRotaKey);
+        const selectedMonday = mondayForRotaDate(selectedDates[0] as Date).getTime();
+        if (selectedDates.some((date) => mondayForRotaDate(date).getTime() !== selectedMonday)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose dates from one rota week' });
+        }
+        const dates = expandOasisRotaDates(selectedDates, input.repeatScope);
+        if (dates.length === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose Tuesday to Friday operating dates' });
+        }
+
+        const candidates = dates.map((date) => ({
+          date,
+          startsAt: timeOnRotaDate(date, input.startMinute),
+          endsAt: timeOnRotaDate(date, input.endMinute),
+        }));
+        for (const candidate of candidates) {
+          await assertRotaDate(ctx.db, candidate.date);
+        }
+        const conflicts = (
+          await Promise.all(
+            candidates.map(async (candidate) => {
+              const overlap = await ctx.db.clubRotaShift.findFirst({
+                where: {
+                  participantUserId: input.participantUserId,
+                  date: candidate.date,
+                  startsAt: { lt: candidate.endsAt },
+                  endsAt: { gt: candidate.startsAt },
+                },
+                select: { id: true },
+              });
+              return overlap ? dateKey(candidate.date) : null;
+            }),
+          )
+        ).filter((date): date is string => date !== null);
+        if (conflicts.length > 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Club rota shifts conflict on ${conflicts.join(', ')}`,
+          });
+        }
+
+        const shifts = await ctx.db.$transaction(async (tx) => {
+          const created = await Promise.all(
+            candidates.map((candidate) =>
+              tx.clubRotaShift.create({
+                data: {
+                  clubId: input.clubId,
+                  participantUserId: input.participantUserId,
+                  date: candidate.date,
+                  startsAt: candidate.startsAt,
+                  endsAt: candidate.endsAt,
+                  notes: input.notes ?? null,
+                },
+                include: {
+                  club: { select: { name: true } },
+                  participantUser: {
+                    select: { id: true, role: true, fullNameEnc: true, emailEnc: true },
+                  },
+                },
+              }),
+            ),
+          );
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'ClubRotaShift',
+              meta: {
+                source: 'club.createClubRotaShiftBatch',
+                clubId: input.clubId,
+                participantUserId: input.participantUserId,
+                repeatScope: input.repeatScope,
+                dates: candidates.map((candidate) => dateKey(candidate.date)),
+              },
+            },
+          });
+          return created;
+        });
+
+        return {
+          count: shifts.length,
+          dates: candidates.map((candidate) => dateKey(candidate.date)),
+          shifts: shifts.map((shift) => mapClubRotaShift(ctx.db.$enc.decrypt, shift)),
+        };
       }),
 
     updateClubRotaShift: authedProcedure

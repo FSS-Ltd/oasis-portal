@@ -88,8 +88,8 @@ export const emptyShiftForm: ShiftForm = {
   kind: 'Cover',
   yearGroupBandId: '',
   date: '',
-  startsAt: '09:00',
-  endsAt: '12:00',
+  startsAt: '08:30',
+  endsAt: '12:30',
   notes: '',
 };
 
@@ -135,6 +135,11 @@ export function formatMinute(minute: number): string {
 
 export function asDateTime(date: string, time: string): Date {
   return new Date(`${date}T${time}:00.000Z`);
+}
+
+export function minuteFromTime(time: string): number {
+  const [hour = '0', minute = '0'] = time.split(':');
+  return Number(hour) * 60 + Number(minute);
 }
 
 export function shiftToForm(shift: RotaShift): ShiftForm {

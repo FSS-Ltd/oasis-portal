@@ -37,6 +37,10 @@ export function StaffRotaWorkspace() {
   );
 
   const myRotaQuery = api.rota.myRota.useQuery({ from: weekStart, to: weekEnd }, { retry: false });
+  const myCombinedRotaQuery = api.rota.myCombinedSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
   const teamScheduleQuery = api.rota.teamSchedule.useQuery(
     { from: weekStart, to: weekEnd },
     { retry: false },
@@ -56,6 +60,7 @@ export function StaffRotaWorkspace() {
       setSwapForm({ fromShiftId: '', toShiftId: '' });
       await Promise.all([
         utils.rota.myRota.invalidate({ from: weekStart, to: weekEnd }),
+        utils.rota.myCombinedSchedule.invalidate({ from: weekStart, to: weekEnd }),
         utils.rota.swapCandidates.invalidate({ from: weekStart, to: weekEnd }),
       ]);
     },
@@ -66,14 +71,17 @@ export function StaffRotaWorkspace() {
 
   const scheduleError = [
     myRotaQuery.error,
+    myCombinedRotaQuery.error,
     teamScheduleQuery.error,
     parentVolunteerScheduleQuery.error,
   ]
     .map((error) => (error ? friendlyErrorMessage(error) : null))
     .find((error): error is string => error !== null);
   const isScheduleLoading =
-    myRotaQuery.isLoading || teamScheduleQuery.isLoading || parentVolunteerScheduleQuery.isLoading;
-  const myShifts = myRotaQuery.data ?? [];
+    myCombinedRotaQuery.isLoading ||
+    teamScheduleQuery.isLoading ||
+    parentVolunteerScheduleQuery.isLoading;
+  const myShifts = myCombinedRotaQuery.data ?? [];
   const teamShifts = teamScheduleQuery.data ?? [];
   const parentVolunteers = parentVolunteerScheduleQuery.data ?? [];
   const swapCandidates = swapCandidatesQuery.data ?? [];
@@ -185,7 +193,7 @@ export function StaffRotaWorkspace() {
               value={swapForm.fromShiftId}
             >
               <option value="">Choose your shift</option>
-              {myShifts.map((shift) => (
+              {(myRotaQuery.data ?? []).map((shift) => (
                 <option key={shift.id} value={shift.id}>
                   {formatShift(shift)}
                 </option>
