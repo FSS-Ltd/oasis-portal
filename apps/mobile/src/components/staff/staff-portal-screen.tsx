@@ -14,6 +14,7 @@ import { StaffIncidentScreen } from './staff-incident-screen';
 import { StaffPaceScreen } from './staff-pace-screen';
 import { StaffRotaScreen } from './staff-rota-screen';
 import { StaffShopCounterScreen } from './staff-shop-counter-screen';
+import { MobileHeadTimetableScreen } from '../timetable/mobile-head-timetable-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StaffPortalRoute =
@@ -28,6 +29,7 @@ type StaffPortalRoute =
   | 'pace'
   | 'rota'
   | 'shop'
+  | 'timetables'
   | 'user-access';
 
 export function StaffPortalScreen({
@@ -149,6 +151,16 @@ export function StaffPortalScreen({
     );
   }
 
+  if (route === 'timetables' && user?.role === 'Head') {
+    return (
+      <MobileHeadTimetableScreen
+        onBack={() => {
+          setRoute('home');
+        }}
+      />
+    );
+  }
+
   if (route === 'user-access' && user?.role === 'Head') {
     return (
       <UserAccessScreen
@@ -212,6 +224,13 @@ export function StaffPortalScreen({
       onOpenShop={() => {
         setRoute('shop');
       }}
+      onOpenTimetables={
+        user?.role === 'Head'
+          ? () => {
+              setRoute('timetables');
+            }
+          : undefined
+      }
       onOpenUserAccess={
         user?.role === 'Head'
           ? () => {

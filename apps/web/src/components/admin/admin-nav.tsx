@@ -26,6 +26,7 @@ import {
   ShoppingBag,
   Smartphone,
   Star,
+  Table2,
   UserCog,
   UsersRound,
   type LucideIcon,
@@ -70,6 +71,7 @@ const navGroups: NavGroup[] = [
       { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
       { href: '/admin/pace/inventory', label: 'PACE Inventory', icon: PackageCheck },
       { href: '/admin/homework', label: 'Homework', icon: ClipboardList },
+      { href: '/admin/timetables', label: 'Timetables', icon: Table2 },
       { href: '/admin/academic', label: 'Academics', icon: BookOpen },
       { href: '/admin/faith-corner', label: 'Faith Corner', icon: BookOpenText },
       { href: '/admin/leaderboard', label: 'Leaderboard', icon: Medal },
@@ -187,6 +189,7 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
   if (item.label === 'My tasks') return access.canUsePersonalTasks;
   if (item.label === 'Mobile App') return true;
   if (item.label === 'PACE Inventory') return access.isHead;
+  if (item.label === 'Timetables') return access.isHead;
   if (item.label === 'User Access') return access.canManageUserAccounts;
   if (access.fullAdmin) {
     return item.label !== 'Audit' || access.canViewAudit;

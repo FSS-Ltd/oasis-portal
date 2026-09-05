@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   ShoppingBag,
   Smartphone,
+  Table2,
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ import {
 const parentNavItems = [
   { href: '/parent', label: 'Home', icon: Home },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/parent/timetable', label: 'Timetable', icon: Table2 },
   { href: '/parent/volunteer', label: 'Volunteer', icon: CalendarDays },
   { href: '/parent/permission-slips', label: 'Permission Slips', icon: ClipboardCheck },
   { href: '/parent/clubs', label: 'Clubs', icon: Club },

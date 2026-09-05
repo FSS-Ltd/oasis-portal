@@ -75,6 +75,36 @@ enum StudentPaceSupplySource {
   DeliveredOrder
 }
 
+enum TimetableRegistrationLevel {
+  ABC
+  Primary
+  Secondary
+}
+
+enum TimetableSlotKind {
+  Lesson
+  Break
+}
+
+enum TimetableDay {
+  Tuesday
+  Wednesday
+  Thursday
+  Friday
+}
+
+enum TimetableColour {
+  Yellow
+  Red
+  PaleRed
+  Purple
+  DarkBlue
+  LightBlue
+  Green
+  Brown
+  Grey
+}
+
 enum DiagnosticOutcome {
   Pass
   Fail
@@ -203,6 +233,9 @@ model User {
   homeworkAssignmentImagesUploaded   HomeworkAssignmentImage[]         @relation("HomeworkAssignmentImagesUploaded")
   charityPotsUpdated               CharityPot[]                     @relation("CharityPotUpdated")
   personalTasks                    PersonalTask[]
+  timetableSchedulesUpdated        TimetableAgeGroupSchedule[]      @relation("TimetableSchedulesUpdated")
+  studentTimetablesUpdated         StudentTimetable[]               @relation("StudentTimetablesUpdated")
+  timetablePublicationsPublished   StudentTimetablePublication[]    @relation("TimetablePublicationsPublished")
 
   @@index([role])
 }
@@ -214,11 +247,13 @@ model PersonalTask {
   dueAt       DateTime?
   reminderAt  DateTime?
   completedAt DateTime?
+  timetableTermKey String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
+  @@unique([ownerId, timetableTermKey])
   @@index([ownerId, completedAt, dueAt])
   @@index([ownerId, createdAt])
   @@index([ownerId, reminderAt])
@@ -327,6 +362,8 @@ model Student {
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
+  timetables                StudentTimetable[]
+  timetablePublications     StudentTimetablePublication[]
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -631,6 +668,7 @@ model Subject {
   code                 String                    @unique // e.g. "MATH", "ENG", "SOC"
   name                 String
   active               Boolean                   @default(true)
+  timetableColour      TimetableColour           @default(Grey)
   students             StudentSubject[]
   paces                PaceRecord[]
   progress             PaceProgress[]
@@ -638,6 +676,7 @@ model Subject {
   paceInventoryOrders  PaceInventoryOrder[]
   paceSupply           StudentPaceSupply[]
   diagnosticResults    DiagnosticResult[]
+  timetableEntries     StudentTimetableEntry[]
 }
 
 model StudentSubject {
@@ -649,6 +688,120 @@ model StudentSubject {
   subject           Subject @relation(fields: [subjectId], references: [id])
 
   @@unique([studentId, subjectId])
+}
+
+model TimetableAgeGroupSchedule {
+  id                String                     @id @default(cuid())
+  termKey           String
+  registrationLevel TimetableRegistrationLevel
+  updatedById       String
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  updatedBy  User                    @relation("TimetableSchedulesUpdated", fields: [updatedById], references: [id])
+  slots      TimetableScheduleSlot[]
+  timetables StudentTimetable[]
+
+  @@unique([termKey, registrationLevel])
+  @@index([updatedById, updatedAt])
+}
+
+model TimetableScheduleSlot {
+  id           String            @id @default(cuid())
+  scheduleId   String
+  position     Int
+  kind         TimetableSlotKind
+  label        String
+  startMinutes Int
+  endMinutes   Int
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  schedule TimetableAgeGroupSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  entries  StudentTimetableEntry[]
+
+  @@unique([scheduleId, position])
+  @@index([scheduleId, kind, position])
+}
+
+model StudentTimetable {
+  id                String                     @id @default(cuid())
+  studentId         String
+  termKey           String
+  registrationLevel TimetableRegistrationLevel
+  scheduleId        String
+  updatedById       String
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  student      Student                       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schedule     TimetableAgeGroupSchedule     @relation(fields: [scheduleId], references: [id])
+  updatedBy    User                          @relation("StudentTimetablesUpdated", fields: [updatedById], references: [id])
+  entries      StudentTimetableEntry[]
+  publications StudentTimetablePublication[]
+
+  @@unique([studentId, termKey])
+  @@index([scheduleId])
+  @@index([updatedById, updatedAt])
+}
+
+model StudentTimetableEntry {
+  id          String       @id @default(cuid())
+  timetableId String
+  day         TimetableDay
+  slotId      String
+  subjectId   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  timetable StudentTimetable      @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  slot      TimetableScheduleSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  subject   Subject               @relation(fields: [subjectId], references: [id])
+
+  @@unique([timetableId, day, slotId])
+  @@index([slotId])
+  @@index([subjectId])
+}
+
+model StudentTimetablePublication {
+  id                  String                     @id @default(cuid())
+  timetableId         String
+  studentId           String
+  termKey             String
+  termLabel           String
+  termStartsOn        DateTime                   @db.Date
+  termEndsOn          DateTime                   @db.Date
+  registrationLevel   TimetableRegistrationLevel
+  studentFirstNameEnc String
+  publishedById       String
+  publishedAt         DateTime                   @default(now())
+
+  timetable   StudentTimetable                   @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  student     Student                            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  publishedBy User                               @relation("TimetablePublicationsPublished", fields: [publishedById], references: [id])
+  entries     StudentTimetablePublicationEntry[]
+
+  @@index([studentId, termKey, publishedAt])
+  @@index([timetableId, publishedAt])
+  @@index([publishedById, publishedAt])
+}
+
+model StudentTimetablePublicationEntry {
+  id            String            @id @default(cuid())
+  publicationId String
+  day           TimetableDay
+  slotPosition  Int
+  slotKind      TimetableSlotKind
+  slotLabel     String
+  startMinutes  Int
+  endMinutes    Int
+  subjectId     String?
+  subjectName   String?
+  subjectColour TimetableColour?
+
+  publication StudentTimetablePublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, day, slotPosition])
 }
 
 model YearGroupBand {

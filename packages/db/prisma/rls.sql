@@ -1692,3 +1692,95 @@ CREATE POLICY homework_submission_image_student_insert ON "HomeworkSubmissionIma
         AND s."active" = true
     )
   );
+
+-- Timetable schedules and drafts are Head-managed. Parents and students see
+-- immutable publication snapshots only within their existing child boundary.
+ALTER TABLE "TimetableAgeGroupSchedule" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "TimetableAgeGroupSchedule" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "TimetableScheduleSlot" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "TimetableScheduleSlot" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetable" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetable" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetableEntry" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetableEntry" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetablePublication" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetablePublication" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetablePublicationEntry" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "StudentTimetablePublicationEntry" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS timetable_schedule_head_all ON "TimetableAgeGroupSchedule";
+DROP POLICY IF EXISTS timetable_slot_head_all ON "TimetableScheduleSlot";
+DROP POLICY IF EXISTS student_timetable_head_all ON "StudentTimetable";
+DROP POLICY IF EXISTS student_timetable_entry_head_all ON "StudentTimetableEntry";
+DROP POLICY IF EXISTS timetable_publication_head_all ON "StudentTimetablePublication";
+DROP POLICY IF EXISTS timetable_publication_parent_select ON "StudentTimetablePublication";
+DROP POLICY IF EXISTS timetable_publication_student_select ON "StudentTimetablePublication";
+DROP POLICY IF EXISTS timetable_publication_entry_head_all ON "StudentTimetablePublicationEntry";
+DROP POLICY IF EXISTS timetable_publication_entry_parent_select ON "StudentTimetablePublicationEntry";
+DROP POLICY IF EXISTS timetable_publication_entry_student_select ON "StudentTimetablePublicationEntry";
+
+CREATE POLICY timetable_schedule_head_all ON "TimetableAgeGroupSchedule" FOR ALL
+  USING (current_setting('app.user_role', true) = 'Head')
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+CREATE POLICY timetable_slot_head_all ON "TimetableScheduleSlot" FOR ALL
+  USING (current_setting('app.user_role', true) = 'Head')
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+CREATE POLICY student_timetable_head_all ON "StudentTimetable" FOR ALL
+  USING (current_setting('app.user_role', true) = 'Head')
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+CREATE POLICY student_timetable_entry_head_all ON "StudentTimetableEntry" FOR ALL
+  USING (current_setting('app.user_role', true) = 'Head')
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+CREATE POLICY timetable_publication_head_all ON "StudentTimetablePublication" FOR ALL
+  USING (current_setting('app.user_role', true) = 'Head')
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+CREATE POLICY timetable_publication_parent_select ON "StudentTimetablePublication" FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM "Guardian" g
+      WHERE g."studentId" = "StudentTimetablePublication"."studentId"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY timetable_publication_student_select ON "StudentTimetablePublication" FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1 FROM "Student" s
+      WHERE s."id" = "StudentTimetablePublication"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY timetable_publication_entry_head_all ON "StudentTimetablePublicationEntry" FOR ALL
+  USING (current_setting('app.user_role', true) = 'Head')
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+CREATE POLICY timetable_publication_entry_parent_select ON "StudentTimetablePublicationEntry" FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM "StudentTimetablePublication" p
+      JOIN "Guardian" g ON g."studentId" = p."studentId"
+      WHERE p."id" = "StudentTimetablePublicationEntry"."publicationId"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY timetable_publication_entry_student_select ON "StudentTimetablePublicationEntry" FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1
+      FROM "StudentTimetablePublication" p
+      JOIN "Student" s ON s."id" = p."studentId"
+      WHERE p."id" = "StudentTimetablePublicationEntry"."publicationId"
+        AND s."userId" = current_setting('app.user_id', true)
+    )
+  );

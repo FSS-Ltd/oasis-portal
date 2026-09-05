@@ -1,5 +1,11 @@
 export { appRouter, type AppRouter } from './router.js';
-export { createContext, type AppContext, type CreateContextArgs, type RlsTx } from './context.js';
+export {
+  applyRlsTx,
+  createContext,
+  type AppContext,
+  type CreateContextArgs,
+  type RlsTx,
+} from './context.js';
 export {
   router,
   publicProcedure,
@@ -110,6 +116,17 @@ export {
   type PastDueInvoiceReminderSummary,
   type SendPastDueInvoiceRemindersInput,
 } from './services/invoice-past-due-reminders.js';
+export {
+  syncTimetableTasks,
+  type TimetableTaskDb,
+  type TimetableTaskSyncSummary,
+} from './services/timetable-tasks.js';
+export {
+  timetableRouter,
+  createTimetableRouter,
+  type TimetableRouterDeps,
+  type TimetablePublicationView,
+} from './routers/timetable.js';
 export {
   createTwelveDataMarketDataProvider,
   type TwelveDataQuoteProvider,

@@ -26,6 +26,7 @@ import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
 import { ParentShopReservationsScreen } from './parent-shop-reservations-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
 import { ParentVolunteerScreen } from './parent-volunteer-screen';
+import { MobilePublishedTimetableScreen } from '../timetable/mobile-published-timetable-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type MessagePage = RouterOutputs['message']['listConversations'];
@@ -41,6 +42,7 @@ type ParentPortalRoute =
   | 'shop'
   | 'fees'
   | 'calendar'
+  | 'timetable'
   | 'volunteer'
   | 'slips'
   | 'profile'
@@ -50,6 +52,7 @@ const messagePageSize = 20;
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
   { id: 'calendar', icon: 'calendar', label: 'Calendar' },
+  { id: 'timetable', icon: 'pace', label: 'Timetable' },
   { id: 'volunteer', icon: 'calendar', label: 'Volunteer' },
   { id: 'slips', icon: 'slips', label: 'Slips' },
   { id: 'fees', icon: 'fees', label: 'Fees' },
@@ -81,6 +84,7 @@ export function ParentPortalScreen({
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
   const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
+  const [timetableTermKey, setTimetableTermKey] = useState('');
   const profile = api.profile.me.useQuery(undefined, { retry: false });
   const dashboard = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
   const registrationStatus = api.registration.status.useQuery(undefined, { retry: false });
@@ -138,6 +142,17 @@ export function ParentPortalScreen({
     enabled: route === 'calendar',
     retry: false,
   });
+  const timetableTerms = api.timetable.terms.useQuery(undefined, {
+    enabled: route === 'timetable',
+    retry: false,
+  });
+  const publishedTimetable = api.timetable.publishedForParent.useQuery(
+    { studentId: selectedStudentId, termKey: timetableTermKey },
+    {
+      enabled: route === 'timetable' && selectedStudentId.length > 0 && timetableTermKey.length > 0,
+      retry: false,
+    },
+  );
   const parentVolunteerSlots = api.rota.parentVolunteerSlots.useQuery(undefined, {
     enabled: canUseParentVolunteer && route === 'volunteer',
     retry: false,
@@ -174,6 +189,19 @@ export function ParentPortalScreen({
     }
   }, [canUseParentVolunteer, route]);
 
+  useEffect(() => {
+    if (timetableTermKey || !timetableTerms.data?.length) return;
+    const now = Date.now();
+    const current =
+      timetableTerms.data.find(
+        (term) =>
+          new Date(term.startsOn).getTime() <= now && new Date(term.endsOn).getTime() >= now,
+      ) ??
+      timetableTerms.data.find((term) => new Date(term.startsOn).getTime() > now) ??
+      timetableTerms.data.at(-1);
+    setTimetableTermKey(current?.key ?? '');
+  }, [timetableTermKey, timetableTerms.data]);
+
   async function refresh() {
     setMessageCursor(undefined);
     setMessagePages([]);
@@ -192,6 +220,10 @@ export function ParentPortalScreen({
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
       route === 'fees' ? parentInvoices.refetch() : Promise.resolve(),
       route === 'calendar' ? parentCalendar.refetch() : Promise.resolve(),
+      route === 'timetable' ? timetableTerms.refetch() : Promise.resolve(),
+      route === 'timetable' && selectedStudentId && timetableTermKey
+        ? publishedTimetable.refetch()
+        : Promise.resolve(),
       canUseParentVolunteer && route === 'volunteer'
         ? parentVolunteerSlots.refetch()
         : Promise.resolve(),
@@ -213,6 +245,8 @@ export function ParentPortalScreen({
     shopReservations.isFetching ||
     parentInvoices.isFetching ||
     parentCalendar.isFetching ||
+    timetableTerms.isFetching ||
+    publishedTimetable.isFetching ||
     parentVolunteerSlots.isFetching ||
     permissionSlips.isFetching;
   const routeQueryError =
@@ -231,11 +265,13 @@ export function ParentPortalScreen({
               ? (parentInvoices.error?.message ?? null)
               : route === 'calendar'
                 ? (parentCalendar.error?.message ?? null)
-                : route === 'volunteer'
-                  ? (parentVolunteerSlots.error?.message ?? null)
-                  : route === 'slips'
-                    ? (permissionSlips.error?.message ?? null)
-                    : null;
+                : route === 'timetable'
+                  ? (timetableTerms.error?.message ?? publishedTimetable.error?.message ?? null)
+                  : route === 'volunteer'
+                    ? (parentVolunteerSlots.error?.message ?? null)
+                    : route === 'slips'
+                      ? (permissionSlips.error?.message ?? null)
+                      : null;
   const bottomNav = (
     <PortalMobileBottomNav
       activeId={route}
@@ -434,6 +470,22 @@ export function ParentPortalScreen({
               error={parentCalendar.error?.message ?? null}
               events={parentCalendar.data ?? []}
               loading={parentCalendar.isFetching}
+            />
+          ) : null}
+          {route === 'timetable' ? (
+            <MobilePublishedTimetableScreen
+              children={children.map((child) => ({
+                id: child.student.id,
+                name: child.student.fullName,
+              }))}
+              error={timetableTerms.error?.message ?? publishedTimetable.error?.message ?? null}
+              loading={timetableTerms.isLoading || publishedTimetable.isLoading}
+              onSelectChild={setSelectedChildId}
+              onSelectTerm={setTimetableTermKey}
+              publication={publishedTimetable.data}
+              selectedChildId={selectedStudentId}
+              selectedTermKey={timetableTermKey}
+              terms={timetableTerms.data ?? []}
             />
           ) : null}
           {canUseParentVolunteer && route === 'volunteer' ? (
