@@ -37,9 +37,13 @@ export function StaffPaceSubjectPanel({
                 <Text style={styles.subjectName}>
                   {subject.code} · {subject.name}
                 </Text>
-                <Text style={styles.subjectMeta}>
-                  Current PACE #{String(subject.currentPaceNumber)} · {subject.status.status}
-                </Text>
+                <View style={styles.paceMeta}>
+                  <Text style={styles.subjectMeta}>Current PACE #{String(subject.currentPaceNumber)}</Text>
+                  {subject.status.testingLevel !== null ? (
+                    <Badge variant="blue">Level {String(subject.status.testingLevel)}</Badge>
+                  ) : null}
+                </View>
+                <Text style={styles.subjectMeta}>{subject.status.status}</Text>
               </View>
               <Badge variant={subject.status.tone === 'green' ? 'success' : 'blue'}>
                 {String(subject.completedPaceCount)} done
@@ -106,6 +110,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     justifyContent: 'space-between',
+  },
+  paceMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
   },
   scoreText: {
     fontSize: 12,

@@ -270,8 +270,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
             <div>
               <h2>{selectedStudent.studentName}</h2>
               <p>
-                {selectedStudent.yearGroupLabel}
-                {selectedStudent.band ? ` · ${selectedStudent.band.name}` : ''}
+                {selectedStudent.band?.name ?? 'Age band not set'}
                 {subjects.length > 0 ? ` · ${String(subjects.length)} subjects` : ''}
               </p>
             </div>
@@ -339,7 +338,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
           onSave={saveScore}
           pending={recordPace.isPending || updatePace.isPending}
           studentName={selectedStudent.studentName}
-          studentYearLabel={selectedStudent.yearGroupLabel}
+          studentYearLabel={selectedStudent.band?.name ?? 'Age band not set'}
           subject={scoreModal.subject}
           subjects={subjects}
         />

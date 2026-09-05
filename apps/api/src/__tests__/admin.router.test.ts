@@ -162,7 +162,13 @@ function makeFakeDb(): FakeDb {
       encrypt: vi.fn(encryptTestValue),
     },
     yearGroupBand: {
-      findMany: vi.fn(() => Promise.resolve([...yearGroupBands])),
+      findMany: vi.fn(({ where }: { where?: { NOT?: { id?: string } } } = {}) =>
+        Promise.resolve(
+          yearGroupBands.filter(
+            (band) => where?.NOT?.id === undefined || band.id !== where.NOT.id,
+          ),
+        ),
+      ),
       findFirst: vi.fn(
         ({ where }: { where?: { name?: { equals?: string }; NOT?: { id?: string } } }) => {
           const name = where?.name?.equals;
@@ -514,6 +520,23 @@ describe('admin year-group bands', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(blocked.db.yearGroupBand.create).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects active age-band configurations that overlap an existing active band', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    await expect(
+      caller.admin.createYearGroupBand({
+        name: 'Conflicting primary',
+        standardYears: ['Year 1', 'Year 2'],
+        colour: '#2F8F6B',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'Year 1 is already assigned to the active Lower Primary age band',
+    });
+
+    expect(db.yearGroupBand.create).not.toHaveBeenCalled();
   });
 });
 

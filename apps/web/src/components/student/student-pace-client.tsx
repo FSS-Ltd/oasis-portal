@@ -36,7 +36,6 @@ function PaceStatusSummary({ subject }: { subject: PaceSubject }) {
   return (
     <div className="student-pace-status">
       <Badge tone={statusTone(subject.status.tone)}>{subject.status.status}</Badge>
-      {subject.status.testingLevelLabel ? <small>{subject.status.testingLevelLabel}</small> : null}
     </div>
   );
 }
@@ -64,7 +63,10 @@ function SubjectProgressCard({
       <div className="student-pace-current">
         <span>
           <small>Current PACE</small>
-          <strong>{String(subject.currentPaceNumber)}</strong>
+          <strong>PACE {String(subject.currentPaceNumber)}</strong>
+          {subject.status.testingLevel !== null ? (
+            <Badge tone="blue">Level {String(subject.status.testingLevel)}</Badge>
+          ) : null}
         </span>
         <span>
           <small>Latest score</small>
@@ -137,7 +139,7 @@ export function StudentPaceClient() {
           <p>Academic Progress</p>
           <h1>PACE Progress</h1>
           <span>
-            {pace.data.studentName} · {pace.data.yearGroupLabel}
+            {pace.data.studentName} · {pace.data.ageBand?.name ?? 'Age band not set'}
           </span>
         </div>
         <div className="student-pace-hero__meta">

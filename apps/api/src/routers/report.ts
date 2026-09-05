@@ -132,7 +132,6 @@ const paceStatusSchema = z.object({
   status: z.enum(['Behind', 'On Track', 'Ahead', 'Unavailable']),
   tone: z.enum(['amber', 'blue', 'green', 'grey']),
   testingLevel: z.number().nullable(),
-  testingLevelLabel: z.string().nullable(),
   detail: z.string(),
 });
 
@@ -544,7 +543,6 @@ const LEGACY_UNAVAILABLE_PACE_STATUS = {
   status: 'Unavailable',
   tone: 'grey',
   testingLevel: null,
-  testingLevelLabel: null,
   detail: 'Status unavailable',
 } as const;
 

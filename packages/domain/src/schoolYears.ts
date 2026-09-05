@@ -58,15 +58,38 @@ export function schoolYearStorageAliases(year: string): string[] {
 
 export function displaySchoolYearLabel(year: string): string {
   const canonical = canonicalSchoolYear(year);
-  if (canonical === 'Nursery') return 'Nursery';
-  if (canonical === 'Reception') return 'ABC';
-  if (canonical === null) return year;
+  return canonical ?? year;
+}
 
-  const match = /^Year ([1-9]|1[0-3])$/u.exec(canonical);
-  if (!match) return year;
+export interface AgeBandCandidate {
+  active: boolean;
+  colour: string;
+  id: string;
+  name: string;
+  standardYears: readonly string[];
+}
 
-  const level = Number(match[1]);
-  return `Level ${String(level)}`;
+export interface ResolvedAgeBand {
+  colour: string;
+  id: string;
+  name: string;
+}
+
+export function resolveAgeBand(
+  yearGroup: string,
+  bands: readonly AgeBandCandidate[],
+): ResolvedAgeBand | null {
+  const canonical = canonicalSchoolYear(yearGroup);
+  if (!canonical) return null;
+
+  const matches = bands.filter(
+    (band) =>
+      band.active && band.standardYears.some((year) => canonicalSchoolYear(year) === canonical),
+  );
+  if (matches.length !== 1) return null;
+
+  const match = matches[0] as AgeBandCandidate;
+  return { id: match.id, name: match.name, colour: match.colour };
 }
 
 export function expectedPaceLevelForYear(year: string): number | null {
