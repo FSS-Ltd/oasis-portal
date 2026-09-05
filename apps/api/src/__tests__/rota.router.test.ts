@@ -164,6 +164,7 @@ interface FakeDb {
     findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    createManyAndReturn: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
@@ -628,6 +629,22 @@ function makeFakeDb() {
         shifts.push(shift);
         return Promise.resolve(withStaffAndBand(shift));
       }),
+      createManyAndReturn: vi.fn(
+        ({ data }: { data: Omit<StoredShift, 'id' | 'createdAt' | 'updatedAt'>[] }) => {
+          const created = data.map((row) => {
+            const shift: StoredShift = {
+              id: `shift_${String(shifts.length + 1)}`,
+              createdAt: at('2026-04-29T10:00:00.000Z'),
+              updatedAt: at('2026-04-29T10:00:00.000Z'),
+              ...row,
+              notes: row.notes ?? null,
+            };
+            shifts.push(shift);
+            return withBand(shift);
+          });
+          return Promise.resolve(created);
+        },
+      ),
       update: vi.fn(({ where, data }: { where: { id: string }; data: Partial<StoredShift> }) => {
         const shift = shifts.find((candidate) => candidate.id === where.id);
         if (!shift) throw new Error('shift missing');
@@ -1619,6 +1636,26 @@ describe('rota scheduling', () => {
       ],
     });
     expect(shifts).toHaveLength(2);
+  });
+
+  it('creates a whole-term schedule with one bulk database write', async () => {
+    const { db, shifts } = makeFakeDb();
+
+    await expect(
+      makeCaller(headUser, db).rota.createShiftBatch({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        yearGroupBandId: 'band_lower',
+        dates: ['2026-05-19'],
+        startMinute: 510,
+        endMinute: 750,
+        repeatScope: 'term',
+      }),
+    ).resolves.toMatchObject({ count: 13 });
+
+    expect(db.staffShift.createManyAndReturn).toHaveBeenCalledTimes(1);
+    expect(db.staffShift.create).not.toHaveBeenCalled();
+    expect(shifts).toHaveLength(13);
   });
 
   it('lists active staff candidates with decrypted display fields for full-admin users', async () => {
