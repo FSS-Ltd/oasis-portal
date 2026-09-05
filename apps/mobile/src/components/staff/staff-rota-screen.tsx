@@ -56,6 +56,18 @@ export function StaffRotaScreen({
     { from: monthBounds.from, to: monthBounds.to },
     { enabled: rotaMode === 'month', retry: false },
   );
+  const todayCombinedRota = api.rota.myCombinedSchedule.useQuery(
+    { from: today, to: today },
+    { retry: false },
+  );
+  const weekCombinedRota = api.rota.myCombinedSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
+  const monthCombinedRota = api.rota.myCombinedSchedule.useQuery(
+    { from: monthBounds.from, to: monthBounds.to },
+    { enabled: rotaMode === 'month', retry: false },
+  );
   const todayParentVolunteers = api.rota.parentVolunteerSchedule.useQuery(
     { from: today, to: today },
     { retry: false },
@@ -148,22 +160,22 @@ export function StaffRotaScreen({
 
   const activeRota =
     rotaMode === 'today'
-      ? (todayRota.data ?? [])
+      ? (todayCombinedRota.data ?? [])
       : rotaMode === 'week'
-        ? (weekRota.data ?? [])
-        : (monthRota.data ?? []);
+        ? (weekCombinedRota.data ?? [])
+        : (monthCombinedRota.data ?? []);
   const activeRotaLoading =
     rotaMode === 'today'
-      ? todayRota.isLoading
+      ? todayCombinedRota.isLoading
       : rotaMode === 'week'
-        ? weekRota.isLoading
-        : monthRota.isLoading;
+        ? weekCombinedRota.isLoading
+        : monthCombinedRota.isLoading;
   const activeRotaError =
     rotaMode === 'today'
-      ? todayRota.error?.message
+      ? todayCombinedRota.error?.message
       : rotaMode === 'week'
-        ? weekRota.error?.message
-        : monthRota.error?.message;
+        ? weekCombinedRota.error?.message
+        : monthCombinedRota.error?.message;
   const activeParentVolunteers =
     rotaMode === 'today'
       ? (todayParentVolunteers.data ?? [])
@@ -187,6 +199,9 @@ export function StaffRotaScreen({
     todayRota.isFetching ||
     weekRota.isFetching ||
     monthRota.isFetching ||
+    todayCombinedRota.isFetching ||
+    weekCombinedRota.isFetching ||
+    monthCombinedRota.isFetching ||
     todayParentVolunteers.isFetching ||
     weekParentVolunteers.isFetching ||
     monthParentVolunteers.isFetching ||
@@ -203,6 +218,9 @@ export function StaffRotaScreen({
       todayRota.refetch(),
       weekRota.refetch(),
       rotaMode === 'month' ? monthRota.refetch() : Promise.resolve(),
+      todayCombinedRota.refetch(),
+      weekCombinedRota.refetch(),
+      rotaMode === 'month' ? monthCombinedRota.refetch() : Promise.resolve(),
       todayParentVolunteers.refetch(),
       weekParentVolunteers.refetch(),
       rotaMode === 'month' ? monthParentVolunteers.refetch() : Promise.resolve(),

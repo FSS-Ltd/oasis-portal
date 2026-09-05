@@ -4,6 +4,7 @@ import { Prisma } from '@oasis/db';
 import {
   canManageStaffParentVolunteerAccess,
   currentOasisTerm,
+  expandOasisRotaDates,
   isOasisOperatingDay,
   isStaff,
   nextOasisTerm,
@@ -80,6 +81,32 @@ type ParentVolunteerSlots =
       })[];
     }
   | { scope: 'staff'; terms: ParentVolunteerSharedTerm[] };
+
+export type CombinedRotaShift =
+  | {
+      source: 'centre';
+      id: string;
+      participantUserId: string;
+      participant: { id: string; fullName: string; role: SessionUser['role'] } | null;
+      date: string;
+      startsAt: Date;
+      endsAt: Date;
+      notes: string | null;
+      kind: 'Cover' | 'Meeting';
+      bandName: string | null;
+      bandColour: string | null;
+    }
+  | {
+      source: 'club';
+      id: string;
+      participantUserId: string;
+      participant: { id: string; fullName: string; role: SessionUser['role'] } | null;
+      date: string;
+      startsAt: Date;
+      endsAt: Date;
+      notes: string | null;
+      club: { id: string; name: string };
+    };
 
 const setMyParentVolunteerDaysInput = z
   .object({
@@ -196,6 +223,31 @@ const shiftInput = createShiftInput.refine(
   },
 );
 
+const createShiftBatchInput = z
+  .object({
+    staffUserId: z.string().min(1),
+    kind: shiftKindSchema.default('Cover'),
+    yearGroupBandId: z.string().min(1).optional(),
+    dates: z.array(dateKeyInput).min(1).max(4),
+    startMinute: z.number().int().min(0).max(1439),
+    endMinute: z.number().int().min(1).max(1440),
+    repeatScope: z.enum(['week', 'term']),
+    notes: z.string().trim().max(500).optional(),
+  })
+  .refine((input) => input.startMinute < input.endMinute, {
+    message: 'startMinute must be before endMinute',
+    path: ['endMinute'],
+  })
+  .superRefine((input, ctx) => {
+    if (new Set(input.dates).size !== input.dates.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose each date only once',
+        path: ['dates'],
+      });
+    }
+  });
+
 const updateShiftInput = z
   .object({
     id: z.string().min(1),
@@ -238,6 +290,27 @@ function dateFromKey(value: string): Date {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter a valid date' });
   }
   return date;
+}
+
+function dateAtMinute(date: Date, minute: number): Date {
+  const normalized = normalizeDate(date);
+  return new Date(
+    Date.UTC(
+      normalized.getUTCFullYear(),
+      normalized.getUTCMonth(),
+      normalized.getUTCDate(),
+      Math.floor(minute / 60),
+      minute % 60,
+    ),
+  );
+}
+
+function mondayFor(date: Date): Date {
+  const normalized = normalizeDate(date);
+  const day = normalized.getUTCDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  normalized.setUTCDate(normalized.getUTCDate() + offset);
+  return normalized;
 }
 
 function monthRange(month: string): { from: Date; to: Date } {
@@ -663,6 +736,129 @@ function mapShiftWithStaff(
     ...mapShift(shift),
     staff: shift.staffUser ? mapStaffUser(decrypt, shift.staffUser) : null,
   };
+}
+
+function isVisibleCombinedRotaDate(date: Date, halfTerms: readonly { startDate: Date; endDate: Date }[]) {
+  if (!isOasisOperatingDay(date)) return false;
+  const value = normalizeDate(date).getTime();
+  return !halfTerms.some(
+    (halfTerm) =>
+      normalizeDate(halfTerm.startDate).getTime() <= value &&
+      normalizeDate(halfTerm.endDate).getTime() >= value,
+  );
+}
+
+function mapCombinedCentreShift(
+  decrypt: AppContext['db']['$enc']['decrypt'],
+  shift: {
+    id: string;
+    staffUserId: string;
+    kind: 'Cover' | 'Meeting';
+    date: Date;
+    startsAt: Date;
+    endsAt: Date;
+    notes: string | null;
+    staffUser: { id: string; role: SessionUser['role']; fullNameEnc: string } | null;
+    yearGroupBand: { name: string; colour: string } | null;
+  },
+): CombinedRotaShift {
+  return {
+    source: 'centre',
+    id: shift.id,
+    participantUserId: shift.staffUserId,
+    participant: shift.staffUser
+      ? {
+          id: shift.staffUser.id,
+          fullName: decryptRequired(decrypt, shift.staffUser.fullNameEnc, 'staff'),
+          role: shift.staffUser.role,
+        }
+      : null,
+    date: dateKey(shift.date),
+    startsAt: shift.startsAt,
+    endsAt: shift.endsAt,
+    notes: shift.notes,
+    kind: shift.kind,
+    bandName: shift.yearGroupBand?.name ?? null,
+    bandColour: shift.yearGroupBand?.colour ?? null,
+  };
+}
+
+function mapCombinedClubShift(
+  decrypt: AppContext['db']['$enc']['decrypt'],
+  shift: {
+    id: string;
+    participantUserId: string;
+    date: Date;
+    startsAt: Date;
+    endsAt: Date;
+    notes: string | null;
+    club: { id: string; name: string };
+    participantUser: { id: string; role: SessionUser['role']; fullNameEnc: string } | null;
+  },
+): CombinedRotaShift {
+  return {
+    source: 'club',
+    id: shift.id,
+    participantUserId: shift.participantUserId,
+    participant: shift.participantUser
+      ? {
+          id: shift.participantUser.id,
+          fullName: decryptRequired(decrypt, shift.participantUser.fullNameEnc, 'club rota participant'),
+          role: shift.participantUser.role,
+        }
+      : null,
+    date: dateKey(shift.date),
+    startsAt: shift.startsAt,
+    endsAt: shift.endsAt,
+    notes: shift.notes,
+    club: shift.club,
+  };
+}
+
+async function listCombinedRota(
+  ctx: RouterCtx,
+  input: z.infer<typeof dateRangeInput>,
+  participantUserId?: string,
+): Promise<CombinedRotaShift[]> {
+  const from = normalizeDate(input.from);
+  const to = normalizeDate(input.to);
+  const [halfTerms, centreRows, clubRows] = await Promise.all([
+    ctx.db.calendarEvent.findMany({
+      where: {
+        active: true,
+        category: 'HalfTerm',
+        startDate: { lte: to },
+        endDate: { gte: from },
+      },
+      select: { startDate: true, endDate: true },
+    }),
+    ctx.db.staffShift.findMany({
+      where: { date: { gte: from, lte: to }, ...(participantUserId ? { staffUserId: participantUserId } : {}) },
+      orderBy: [{ date: 'asc' }, { startsAt: 'asc' }],
+      include: {
+        staffUser: { select: { id: true, role: true, fullNameEnc: true } },
+        yearGroupBand: { select: { name: true, colour: true } },
+      },
+    }),
+    ctx.db.clubRotaShift.findMany({
+      where: {
+        date: { gte: from, lte: to },
+        ...(participantUserId ? { participantUserId } : {}),
+        club: participantUserId
+          ? { active: true, rotaParticipants: { some: { userId: participantUserId } } }
+          : { active: true },
+      },
+      orderBy: [{ date: 'asc' }, { startsAt: 'asc' }],
+      include: {
+        club: { select: { id: true, name: true } },
+        participantUser: { select: { id: true, role: true, fullNameEnc: true } },
+      },
+    }),
+  ]);
+
+  return [...centreRows.map((row) => mapCombinedCentreShift(ctx.db.$enc.decrypt, row)), ...clubRows.map((row) => mapCombinedClubShift(ctx.db.$enc.decrypt, row))]
+    .filter((shift) => isVisibleCombinedRotaDate(new Date(`${shift.date}T00:00:00.000Z`), halfTerms))
+    .sort((left, right) => left.date.localeCompare(right.date) || left.startsAt.getTime() - right.startsAt.getTime());
 }
 
 async function listScheduleWithStaff(
@@ -1179,6 +1375,10 @@ export const rotaRouter = router({
     return rows.map(mapShift);
   }),
 
+  myCombinedSchedule: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+    return listCombinedRota(ctx, input, ctx.user.id);
+  }),
+
   swapCandidates: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     assertStaffWorkflow(ctx.user);
     const from = normalizeDate(input.from);
@@ -1217,6 +1417,10 @@ export const rotaRouter = router({
 
   weekSchedule: adminOperationsProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     return listScheduleWithStaff(ctx, input, 'rota.weekSchedule');
+  }),
+
+  combinedSchedule: adminOperationsProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+    return listCombinedRota(ctx, input);
   }),
 
   listStaff: adminOperationsProcedure.query(async ({ ctx }) => {
@@ -1356,6 +1560,103 @@ export const rotaRouter = router({
       });
 
       return staff;
+    }),
+
+  createShiftBatch: adminOperationsProcedure
+    .input(createShiftBatchInput)
+    .mutation(async ({ ctx, input }) => {
+      const selectedDates = input.dates.map(dateFromKey);
+      const firstDate = selectedDates[0];
+      if (!firstDate) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose at least one date' });
+      const firstWeekStart = mondayFor(firstDate);
+      const firstTermId = currentOasisTerm(firstDate).id;
+      const invalidDate = selectedDates.find(
+        (date) =>
+          mondayFor(date).getTime() !== firstWeekStart.getTime() ||
+          currentOasisTerm(date).id !== firstTermId,
+      );
+      if (invalidDate) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Choose dates from one operating week in the same term',
+        });
+      }
+
+      assertShiftKindBand({ kind: input.kind, yearGroupBandId: input.yearGroupBandId ?? null });
+      await assertActiveStaffUser(ctx, input.staffUserId);
+      const yearGroupBandId = input.kind === 'Cover' ? (input.yearGroupBandId ?? null) : null;
+      if (yearGroupBandId) await assertActiveBand(ctx, yearGroupBandId);
+
+      const dates = expandOasisRotaDates(selectedDates, input.repeatScope);
+      for (const date of dates) {
+        await assertRotaDate(ctx.db, date);
+      }
+
+      const candidates = dates.map((date) => ({
+        date,
+        startsAt: dateAtMinute(date, input.startMinute),
+        endsAt: dateAtMinute(date, input.endMinute),
+      }));
+      const conflicts = await Promise.all(
+        candidates.map(async (candidate) => {
+          const overlap = await ctx.db.staffShift.findFirst({
+            where: {
+              staffUserId: input.staffUserId,
+              date: candidate.date,
+              startsAt: { lt: candidate.endsAt },
+              endsAt: { gt: candidate.startsAt },
+            },
+            select: { id: true },
+          });
+          return overlap ? dateKey(candidate.date) : null;
+        }),
+      );
+      const conflictDates = conflicts.filter((date): date is string => date !== null);
+      if (conflictDates.length > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Centre shifts already exist for: ${conflictDates.join(', ')}`,
+        });
+      }
+
+      const shifts = await ctx.db.$transaction(async (tx) =>
+        Promise.all(
+          candidates.map(({ date, startsAt, endsAt }) =>
+            tx.staffShift.create({
+              data: {
+                staffUserId: input.staffUserId,
+                kind: input.kind,
+                yearGroupBandId,
+                date,
+                startsAt,
+                endsAt,
+                notes: input.notes ?? null,
+              },
+              include: { yearGroupBand: { select: { name: true, colour: true } } },
+            }),
+          ),
+        ),
+      );
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'StaffShift',
+          meta: {
+            source: 'rota.createShiftBatch',
+            staffUserId: input.staffUserId,
+            repeatScope: input.repeatScope,
+            dates: candidates.map((candidate) => dateKey(candidate.date)),
+          },
+        },
+      });
+
+      return {
+        count: shifts.length,
+        dates: candidates.map((candidate) => dateKey(candidate.date)),
+        shifts: shifts.map(mapShift),
+      };
     }),
 
   createShift: adminOperationsProcedure.input(shiftInput).mutation(async ({ ctx, input }) => {

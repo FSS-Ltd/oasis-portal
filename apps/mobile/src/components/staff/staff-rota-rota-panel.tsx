@@ -6,8 +6,8 @@ import {
   parentVolunteerPlacementLabel,
   ShiftRow,
   TabButton,
+  type CombinedRotaShift,
   type ParentVolunteer,
-  type RotaShift,
 } from './staff-rota-common';
 
 export function RotaPanel({
@@ -31,7 +31,7 @@ export function RotaPanel({
   parentVolunteerError: string | undefined;
   parentVolunteerLoading: boolean;
   parentVolunteers: readonly ParentVolunteer[];
-  shifts: readonly RotaShift[];
+  shifts: readonly CombinedRotaShift[];
 }) {
   return (
     <>

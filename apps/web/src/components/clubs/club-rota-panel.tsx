@@ -38,13 +38,13 @@ function mondayFor(date: Date): Date {
   return addDays(date, diff);
 }
 
-function emptyShiftForm(club: ManagedClub, date: string): ShiftForm {
+function emptyShiftForm(_club: ManagedClub, date: string): ShiftForm {
   return {
     id: null,
     participantUserId: '',
     date,
-    startsAt: club.schedule ? toTimeValue(club.schedule.startMinute) : '15:30',
-    endsAt: club.schedule ? toTimeValue(club.schedule.endMinute) : '16:30',
+    startsAt: '08:30',
+    endsAt: '12:30',
     notes: '',
   };
 }
@@ -121,8 +121,10 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   const [weekStart, setWeekStart] = useState(initialWeek);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [shiftForm, setShiftForm] = useState<ShiftForm>(() =>
-    emptyShiftForm(club, dateKey(initialWeek)),
+    emptyShiftForm(club, dateKey(addDays(initialWeek, 1))),
   );
+  const [selectedDates, setSelectedDates] = useState<string[]>([dateKey(addDays(initialWeek, 1))]);
+  const [repeatScope, setRepeatScope] = useState<'week' | 'term'>('week');
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
@@ -143,7 +145,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
     { retry: false },
   );
   const setParticipants = api.club.setRotaParticipants.useMutation();
-  const createShift = api.club.createClubRotaShift.useMutation();
+  const createShiftBatch = api.club.createClubRotaShiftBatch.useMutation();
   const updateShift = api.club.updateClubRotaShift.useMutation();
   const deleteShift = api.club.deleteClubRotaShift.useMutation();
 
@@ -155,10 +157,18 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   const selectedDateStatus = operationalDatesQuery.data?.find(
     (status) => status.date === shiftForm.date,
   );
-  const canSchedule =
-    selectedDateStatus?.kind === 'operating' || selectedDateStatus?.kind === 'fieldTrip';
+  const operatingDays = weekDays.filter((day) => {
+    const status = operationalDatesQuery.data?.find((candidate) => candidate.date === dateKey(day));
+    return day.getUTCDay() >= 2 && day.getUTCDay() <= 5 && status?.kind === 'operating';
+  });
+  const canSchedule = shiftForm.id
+    ? selectedDateStatus?.kind === 'operating' || selectedDateStatus?.kind === 'fieldTrip'
+    : selectedDates.length > 0;
   const mutationError =
-    setParticipants.error ?? createShift.error ?? updateShift.error ?? deleteShift.error;
+    setParticipants.error ??
+    createShiftBatch.error ??
+    updateShift.error ??
+    deleteShift.error;
 
   useEffect(() => {
     if (!candidatesQuery.data) return;
@@ -209,10 +219,20 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
         await updateShift.mutateAsync({ id: shiftForm.id, ...payload });
         showSuccessToast('Club cover updated.');
       } else {
-        await createShift.mutateAsync(payload);
+        await createShiftBatch.mutateAsync({
+          clubId: club.id,
+          participantUserId: shiftForm.participantUserId,
+          dates: selectedDates,
+          startMinute: Number(shiftForm.startsAt.slice(0, 2)) * 60 + Number(shiftForm.startsAt.slice(3)),
+          endMinute: Number(shiftForm.endsAt.slice(0, 2)) * 60 + Number(shiftForm.endsAt.slice(3)),
+          repeatScope,
+          notes: shiftForm.notes || undefined,
+        });
         showSuccessToast('Club cover scheduled.');
       }
       setShiftForm(emptyShiftForm(club, shiftForm.date));
+      setSelectedDates([shiftForm.date]);
+      setRepeatScope('week');
       await refreshRota();
     } catch (error) {
       showErrorToast(error, 'Club cover could not be saved.');
@@ -309,16 +329,56 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
                 ))}
               </SelectInput>
             </Field>
-            <Field label="Date">
-              <TextInput
-                onChange={(event) => {
-                  setShiftForm((current) => ({ ...current, date: event.target.value }));
-                }}
-                required
-                type="date"
-                value={shiftForm.date}
-              />
-            </Field>
+            {shiftForm.id ? (
+              <Field label="Date">
+                <TextInput
+                  onChange={(event) => {
+                    setShiftForm((current) => ({ ...current, date: event.target.value }));
+                  }}
+                  required
+                  type="date"
+                  value={shiftForm.date}
+                />
+              </Field>
+            ) : (
+              <>
+                <Field label="Dates" hint="Tuesday to Friday">
+                  <div className="staff-rota-day-picker">
+                    {operatingDays.map((day) => {
+                      const value = dateKey(day);
+                      return (
+                        <label key={value}>
+                          <input
+                            checked={selectedDates.includes(value)}
+                            onChange={(event) => {
+                              setSelectedDates((current) =>
+                                event.target.checked
+                                  ? [...new Set([...current, value])]
+                                  : current.filter((date) => date !== value),
+                              );
+                              setShiftForm((current) => ({ ...current, date: value }));
+                            }}
+                            type="checkbox"
+                          />
+                          {dayLabels[day.getUTCDay()]} {formatDateLabel(day)}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </Field>
+                <Field label="Repeat">
+                  <SelectInput
+                    onChange={(event) => {
+                      setRepeatScope(event.target.value as 'week' | 'term');
+                    }}
+                    value={repeatScope}
+                  >
+                    <option value="week">This week</option>
+                    <option value="term">Whole term</option>
+                  </SelectInput>
+                </Field>
+              </>
+            )}
             <div className="form-grid form-grid--two rota-time-grid">
               <Field label="Start">
                 <TextInput
@@ -391,7 +451,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
               ) : null}
               <Button
                 disabled={!canSchedule}
-                pending={createShift.isPending || updateShift.isPending}
+                pending={createShiftBatch.isPending || updateShift.isPending}
                 type="submit"
               >
                 <Plus aria-hidden="true" size={14} />
@@ -441,24 +501,31 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
         {scheduleQuery.error ? (
           <p className="status--error">{friendlyErrorMessage(scheduleQuery.error)}</p>
         ) : null}
-        <div className="rota-week-grid club-rota-week-grid">
-          {weekDays.map((day) => {
+        {operatingDays.length === 0 ? <div className="empty-state">No operating days this week.</div> : null}
+        <div className="rota-week-grid rota-week-grid--operating club-rota-week-grid">
+          {operatingDays.map((day) => {
             const key = dateKey(day);
             const dayShifts = shifts.filter((shift) => shift.date === key);
-            const dateStatus = operationalDatesQuery.data?.find((status) => status.date === key);
             return (
               <article className="rota-day" key={key}>
                 <header>
                   <span>{dayLabels[day.getUTCDay()]}</span>
                   <strong>{formatDateLabel(day)}</strong>
                 </header>
-                {dateStatus?.kind === 'closed' ? (
-                  <p className="rota-day__status">{dateStatus.label}</p>
-                ) : dateStatus?.kind === 'fieldTrip' ? (
-                  <p className="rota-day__status is-field-trip">Planned field trip</p>
-                ) : null}
                 {dayShifts.length === 0 ? (
-                  <p className="muted">No cover</p>
+                  <Button
+                    onClick={() => {
+                      setShiftForm(emptyShiftForm(club, key));
+                      setSelectedDates([key]);
+                      setRepeatScope('week');
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    <Plus aria-hidden="true" size={14} />
+                    Add cover
+                  </Button>
                 ) : (
                   <div className="rota-shift-list">
                     {dayShifts.map((shift) => (

@@ -13148,6 +13148,10 @@ button.club-assignment-row {
   padding-bottom: 4px;
 }
 
+.rota-week-grid--operating {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
 .rota-availability-week-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(132px, 1fr));
@@ -13250,6 +13254,32 @@ button.club-assignment-row {
   border-color: #99f6e4;
   background: #f0fdfa;
   color: #115e59;
+}
+
+.rota-source-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.rota-source-chip.is-centre,
+.rota-availability-badge.is-parent.is-centre {
+  border-color: #b9d8f5;
+  background: #edf6ff;
+  color: #275d8c;
+}
+
+.rota-source-chip.is-clubs,
+.rota-availability-badge.is-parent.is-clubs {
+  border-color: #a7d6bb;
+  background: #edf8f0;
+  color: #0e5c3a;
 }
 
 .rota-availability-badges {

@@ -10,6 +10,9 @@ export type OperationalDateStatus = {
 };
 
 type OperationalDateDb = Pick<AppContext['db'], 'calendarEvent'>;
+type OptionalCalendarEventDb = {
+  calendarEvent?: Pick<AppContext['db']['calendarEvent'], 'findFirst'>;
+};
 
 function closedDateLabel(date: Date): string {
   const period = currentOasisAcademicPeriod(date);
@@ -24,19 +27,35 @@ export async function operationalDateStatus(
   inputDate: Date,
 ): Promise<OperationalDateStatus> {
   const date = normalizeDate(inputDate);
+  const calendarEvent = (db as OptionalCalendarEventDb).calendarEvent;
+  const halfTerm = calendarEvent
+    ? await calendarEvent.findFirst({
+        where: {
+          active: true,
+          category: 'HalfTerm',
+          startDate: { lte: date },
+          endDate: { gte: date },
+        },
+        select: { id: true },
+      })
+    : null;
+  if (halfTerm) return { date: dateKey(date), kind: 'closed', label: 'Half term' };
+
   if (isOasisOperatingDay(date)) {
     return { date: dateKey(date), kind: 'operating', label: 'Operating day' };
   }
 
-  const trip = await db.calendarEvent.findFirst({
-    where: {
-      active: true,
-      category: 'Trips',
-      startDate: { lte: date },
-      endDate: { gte: date },
-    },
-    select: { id: true },
-  });
+  const trip = calendarEvent
+    ? await calendarEvent.findFirst({
+        where: {
+          active: true,
+          category: 'Trips',
+          startDate: { lte: date },
+          endDate: { gte: date },
+        },
+        select: { id: true },
+      })
+    : null;
   if (trip) return { date: dateKey(date), kind: 'fieldTrip', label: 'Planned field trip' };
 
   return { date: dateKey(date), kind: 'closed', label: closedDateLabel(date) };

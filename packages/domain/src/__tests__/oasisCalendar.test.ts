@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   currentOasisAcademicPeriod,
   currentOasisTerm,
+  expandOasisRotaDates,
   isOasisOperatingDay,
   oasisReportTermOptions,
 } from '../oasisCalendar.js';
@@ -80,6 +81,36 @@ describe('currentOasisTerm', () => {
   it('rejects invalid reference dates', () => {
     expect(() => currentOasisTerm(new Date('not-a-date'))).toThrow(
       'referenceDate must be a valid date',
+    );
+  });
+});
+
+describe('expandOasisRotaDates', () => {
+  it('keeps only the selected operating dates for a one-week rota batch', () => {
+    expect(
+      expandOasisRotaDates(
+        [
+          new Date('2026-05-05T00:00:00.000Z'),
+          new Date('2026-05-08T00:00:00.000Z'),
+          new Date('2026-05-05T00:00:00.000Z'),
+        ],
+        'week',
+      ).map((date) => date.toISOString().slice(0, 10)),
+    ).toEqual(['2026-05-05', '2026-05-08']);
+  });
+
+  it('repeats selected weekdays for the term while excluding the published half term', () => {
+    const dates = expandOasisRotaDates(
+      [new Date('2026-05-19T00:00:00.000Z'), new Date('2026-05-21T00:00:00.000Z')],
+      'term',
+    ).map((date) => date.toISOString().slice(0, 10));
+
+    expect(dates).toContain('2026-04-14');
+    expect(dates).toContain('2026-07-16');
+    expect(dates).not.toContain('2026-05-26');
+    expect(dates).not.toContain('2026-05-28');
+    expect(dates.every((value) => [2, 4].includes(new Date(`${value}T00:00:00.000Z`).getUTCDay()))).toBe(
+      true,
     );
   });
 });

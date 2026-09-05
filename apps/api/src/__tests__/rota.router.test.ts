@@ -142,6 +142,7 @@ interface FakeDb {
   $queryRaw: ReturnType<typeof vi.fn>;
   $transaction: ReturnType<typeof vi.fn>;
   auditLog: { create: ReturnType<typeof vi.fn> };
+  calendarEvent: { findFirst: ReturnType<typeof vi.fn> };
   user: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -368,6 +369,7 @@ function makeFakeDb() {
         Array.isArray(input) ? Promise.all(input) : input(db),
     ),
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    calendarEvent: { findFirst: vi.fn().mockResolvedValue(null) },
     user: {
       findMany: vi.fn(
         ({
@@ -1595,6 +1597,30 @@ describe('parent volunteer days', () => {
 });
 
 describe('rota scheduling', () => {
+  it('creates an atomic batch of independent centre shifts with the requested default-time shape', async () => {
+    const { db, shifts } = makeFakeDb();
+
+    await expect(
+      makeCaller(headUser, db).rota.createShiftBatch({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        yearGroupBandId: 'band_lower',
+        dates: ['2026-05-05', '2026-05-08'],
+        startMinute: 510,
+        endMinute: 750,
+        repeatScope: 'week',
+      }),
+    ).resolves.toMatchObject({
+      count: 2,
+      dates: ['2026-05-05', '2026-05-08'],
+      shifts: [
+        { date: '2026-05-05', startsAt: at('2026-05-05T08:30:00.000Z') },
+        { date: '2026-05-08', endsAt: at('2026-05-08T12:30:00.000Z') },
+      ],
+    });
+    expect(shifts).toHaveLength(2);
+  });
+
   it('lists active staff candidates with decrypted display fields for full-admin users', async () => {
     const { db } = makeFakeDb();
 
