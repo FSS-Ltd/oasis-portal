@@ -1,6 +1,6 @@
 # Timetable Builder Design
 
-**Date:** 4 September 2026  
+**Date:** 4 September 2026
 **Status:** Approved
 
 ## Purpose
