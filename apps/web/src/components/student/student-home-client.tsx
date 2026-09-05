@@ -63,9 +63,7 @@ function StudentHero({
         <div>
           <p>Student Portal</p>
           <h1>Hi, {profile.firstName}</h1>
-          <span>
-            {profile.yearGroupLabel} · Age band {profile.ageBand}
-          </span>
+          <span>{profile.ageBand?.name ?? 'Age band not set'}</span>
         </div>
       </div>
       <div className="student-hero__meta">

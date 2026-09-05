@@ -21,6 +21,7 @@ import {
   canAnswerChildRegistrationPrompt,
   canManageUserAccountRole,
   canManageUserAccounts,
+  canonicalSchoolYear,
   createSubjectInput,
   createYearGroupBandInput,
   deactivateSubjectInput,
@@ -516,6 +517,63 @@ async function assertUniqueBandName(
   }
 }
 
+async function assertNoActiveAgeBandOverlap(
+  ctx: {
+    db: {
+      yearGroupBand: {
+        findMany: (args: Prisma.YearGroupBandFindManyArgs) => Promise<
+          Array<{ id: string; name: string; standardYears: string[] }>
+        >;
+      };
+    };
+  },
+  standardYears: readonly string[],
+  exceptId?: string,
+): Promise<void> {
+  const requestedYears = new Set(
+    standardYears.flatMap((year) => {
+      const canonical = canonicalSchoolYear(year);
+      return canonical ? [canonical] : [];
+    }),
+  );
+  const activeBands = await ctx.db.yearGroupBand.findMany({
+    where: { active: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+    select: { id: true, name: true, standardYears: true },
+  });
+
+  for (const band of activeBands) {
+    const overlap = band.standardYears
+      .map(canonicalSchoolYear)
+      .find((year): year is NonNullable<typeof year> => year !== null && requestedYears.has(year));
+    if (overlap) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `${overlap} is already assigned to the active ${band.name} age band`,
+      });
+    }
+  }
+}
+
+function conflictingActiveBandYears(
+  band: { active: boolean; id: string; standardYears: readonly string[] },
+  bands: readonly { active: boolean; id: string; standardYears: readonly string[] }[],
+): string[] {
+  if (!band.active) return [];
+  const yearsInOtherActiveBands = new Set(
+    bands
+      .filter((candidate) => candidate.active && candidate.id !== band.id)
+      .flatMap((candidate) => candidate.standardYears)
+      .map(canonicalSchoolYear)
+      .filter((year): year is NonNullable<typeof year> => year !== null),
+  );
+  return band.standardYears
+    .map(canonicalSchoolYear)
+    .filter(
+      (year): year is NonNullable<typeof year> =>
+        year !== null && yearsInOtherActiveBands.has(year),
+    );
+}
+
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
   let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
@@ -715,7 +773,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
   return router({
     listYearGroupBands: adminOperationsProcedure.query(async ({ ctx }) => {
-      return ctx.db.yearGroupBand.findMany({
+      const bands = await ctx.db.yearGroupBand.findMany({
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         select: {
           id: true,
@@ -728,12 +786,17 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           updatedAt: true,
         },
       });
+      return bands.map((band) => ({
+        ...band,
+        conflictingYears: conflictingActiveBandYears(band, bands),
+      }));
     }),
 
     createYearGroupBand: adminOperationsProcedure
       .input(createYearGroupBandInput)
       .mutation(async ({ ctx, input }) => {
         await assertUniqueBandName(ctx, input.name);
+        await assertNoActiveAgeBandOverlap(ctx, input.standardYears);
 
         try {
           const band = await ctx.db.yearGroupBand.create({
@@ -780,6 +843,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .mutation(async ({ ctx, input }) => {
         if (input.name !== undefined) {
           await assertUniqueBandName(ctx, input.name, input.id);
+        }
+        if (input.standardYears !== undefined) {
+          await assertNoActiveAgeBandOverlap(ctx, input.standardYears, input.id);
         }
 
         const data: Prisma.YearGroupBandUpdateInput = {};

@@ -81,7 +81,6 @@ export interface PaceProgressStatusResult {
   status: PaceProgressStatus;
   tone: PaceProgressStatusTone;
   testingLevel: number | null;
-  testingLevelLabel: string | null;
   detail: string;
 }
 
@@ -109,20 +108,17 @@ export function paceProgressStatusForYear(
       status: 'Unavailable',
       tone: 'grey',
       testingLevel: null,
-      testingLevelLabel: null,
       detail: 'Status unavailable',
     };
   }
 
-  const testingLevelLabel = `Testing at Level ${String(testingLevel)}`;
   const expectedLevel = expectedPaceLevelForYear(yearGroup);
   if (expectedLevel === null) {
     return {
       status: 'Unavailable',
       tone: 'grey',
       testingLevel,
-      testingLevelLabel,
-      detail: testingLevelLabel,
+      detail: 'Status unavailable',
     };
   }
 
@@ -131,8 +127,7 @@ export function paceProgressStatusForYear(
       status: 'Ahead',
       tone: 'green',
       testingLevel,
-      testingLevelLabel,
-      detail: testingLevelLabel,
+      detail: 'Ahead',
     };
   }
 
@@ -141,8 +136,7 @@ export function paceProgressStatusForYear(
       status: 'Behind',
       tone: 'amber',
       testingLevel,
-      testingLevelLabel,
-      detail: testingLevelLabel,
+      detail: 'Behind',
     };
   }
 
@@ -150,7 +144,6 @@ export function paceProgressStatusForYear(
     status: 'On Track',
     tone: 'blue',
     testingLevel,
-    testingLevelLabel,
-    detail: testingLevelLabel,
+    detail: 'On Track',
   };
 }

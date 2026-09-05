@@ -18,6 +18,18 @@ type RotaShift = {
   startsAt: Date;
 };
 
+type PersonalRotaShift =
+  | RotaShift & { source?: 'centre' }
+  | {
+      source: 'club';
+      id: string;
+      date: string;
+      startsAt: Date;
+      endsAt: Date;
+      notes: string | null;
+      club: { id: string; name: string };
+    };
+
 type ParentVolunteer = {
   date: string;
   id: string;
@@ -27,7 +39,7 @@ type ParentVolunteer = {
 
 type StaffRotaScheduleProps = {
   isLoading: boolean;
-  myShifts: readonly RotaShift[];
+  myShifts: readonly PersonalRotaShift[];
   onSelectDate: (date: string) => void;
   parentVolunteers: readonly ParentVolunteer[];
   queryError?: string | undefined;
@@ -36,7 +48,8 @@ type StaffRotaScheduleProps = {
   weekDays: readonly Date[];
 };
 
-function shiftLabel(shift: RotaShift): string {
+function shiftLabel(shift: PersonalRotaShift): string {
+  if (shift.source === 'club') return shift.club.name;
   return shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Unassigned band');
 }
 
@@ -57,7 +70,7 @@ function ShiftList({
   showStaff = false,
 }: {
   emptyMessage: string;
-  shifts: readonly RotaShift[];
+  shifts: readonly PersonalRotaShift[];
   showStaff?: boolean;
 }) {
   if (shifts.length === 0) return <div className="staff-rota-empty">{emptyMessage}</div>;
@@ -68,10 +81,10 @@ function ShiftList({
         <article
           className="staff-rota-shift"
           key={shift.id}
-          style={{ borderLeftColor: shift.bandColour ?? undefined }}
+          style={{ borderLeftColor: shift.source === 'club' ? '#0E5C3A' : (shift.bandColour ?? undefined) }}
         >
           <strong>
-            {showStaff && shift.staff ? `${shift.staff.fullName} · ` : null}
+            {showStaff && 'staff' in shift && shift.staff ? `${shift.staff.fullName} · ` : null}
             {shiftLabel(shift)}
           </strong>
           <span>
@@ -111,7 +124,8 @@ export function StaffRotaSchedule({
   teamShifts,
   weekDays,
 }: StaffRotaScheduleProps) {
-  const selectedDay = weekDays.find((day) => dateKey(day) === selectedDate) ?? weekDays[0];
+  const displayDays = weekDays.filter((day) => day.getUTCDay() >= 2 && day.getUTCDay() <= 5);
+  const selectedDay = displayDays.find((day) => dateKey(day) === selectedDate) ?? displayDays[0];
   const selectedDayShifts = myShifts.filter((shift) => shift.date === selectedDate);
   const selectedTeamShifts = teamShifts.filter((shift) => shift.date === selectedDate);
   const selectedVolunteers = parentVolunteers.filter(
@@ -131,7 +145,7 @@ export function StaffRotaSchedule({
       </div>
 
       <div aria-label="Choose rota day" className="staff-rota-day-picker" role="group">
-        {weekDays.map((day) => {
+        {displayDays.map((day) => {
           const dayKey = dateKey(day);
           const selected = dayKey === selectedDate;
           return (

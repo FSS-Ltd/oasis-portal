@@ -7,6 +7,7 @@ import {
   canUseAdminOperations,
   deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
+  resolveAgeBand,
   type PermissionTag,
   standardSchoolYearSchema,
 } from '@oasis/domain';
@@ -177,25 +178,6 @@ function firstNameFrom(fullName: string): string {
 
 function studentIconInitials(firstName: string): string {
   return firstName.slice(0, 2).toUpperCase();
-}
-
-function ageBandFromDob(dob: string, asOf = new Date()): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(dob);
-  if (!match) return 'Student';
-  const [, yearValue, monthValue, dayValue] = match;
-  const birthYear = Number(yearValue);
-  const birthMonth = Number(monthValue);
-  const birthDay = Number(dayValue);
-  let age = asOf.getUTCFullYear() - birthYear;
-  const month = asOf.getUTCMonth() + 1;
-  const day = asOf.getUTCDate();
-  if (month < birthMonth || (month === birthMonth && day < birthDay)) {
-    age -= 1;
-  }
-  if (age < 11) return 'Under 11';
-  if (age < 14) return '11-13';
-  if (age < 16) return '14-15';
-  return '16+';
 }
 
 function emptyMeritBalances(): MeritBalances {
@@ -505,6 +487,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       shortcuts,
       faithCorner,
       academicScreensEnabled,
+      ageBands,
     ] = await Promise.all([
       loadMeritBalances(ctx, ownStudent.id),
       loadPaceDashboard(ctx, ownStudent.id),
@@ -513,6 +496,10 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       loadShortcutDashboard(ctx, ownStudent.id),
       loadCurrentFaithCornerContent(ctx),
       canUseStudentAcademicScreens(ctx.db, student.yearGroup),
+      ctx.db.yearGroupBand.findMany({
+        where: { active: true },
+        select: { id: true, name: true, standardYears: true, colour: true, active: true },
+      }),
     ]);
     const totalMerits = totalMeritBalance(balances);
 
@@ -526,7 +513,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         childIconPhotoUrl: student.portalSettings?.childIconPhotoUrl ?? null,
         yearGroup: student.yearGroup,
         yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
-        ageBand: ageBandFromDob(dob),
+        ageBand: resolveAgeBand(student.yearGroup, ageBands),
         academicScreensEnabled,
       },
       merits: {

@@ -216,6 +216,40 @@ export function isOasisOperatingDay(date: Date): boolean {
   return day >= 2 && day <= 5;
 }
 
+export type OasisRotaRepeatScope = 'week' | 'term';
+
+/**
+ * Expands selected rota dates without creating entries for Oasis closures.
+ * Calendar-event closures are applied by the API layer because they are
+ * administrator-managed rather than published term dates.
+ */
+export function expandOasisRotaDates(
+  selectedDates: readonly Date[],
+  repeatScope: OasisRotaRepeatScope,
+): Date[] {
+  if (selectedDates.length === 0) return [];
+
+  const selectedOperatingDates = [...selectedDates]
+    .map(startOfUtcDay)
+    .filter(isOasisOperatingDay);
+
+  if (repeatScope === 'week') {
+    return [...new Map(selectedOperatingDates.map((date) => [date.toISOString(), date])).values()].sort(
+      (left, right) => left.getTime() - right.getTime(),
+    );
+  }
+
+  const referenceDate = selectedOperatingDates[0] ?? selectedDates[0];
+  if (!referenceDate) return [];
+  const term = currentOasisTerm(referenceDate);
+  const weekdays = new Set(selectedOperatingDates.map((date) => date.getUTCDay()));
+  const dates: Date[] = [];
+  for (let date = term.from; date.getTime() < term.to.getTime(); date = addUtcDays(date, 1)) {
+    if (weekdays.has(date.getUTCDay()) && isOasisOperatingDay(date)) dates.push(date);
+  }
+  return dates;
+}
+
 export function oasisReportTermOptions(referenceDate: Date = new Date()): OasisTermId[] {
   assertValidDate(referenceDate);
   const year = referenceDate.getUTCFullYear();

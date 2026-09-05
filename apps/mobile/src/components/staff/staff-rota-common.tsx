@@ -5,9 +5,16 @@ import { C } from '../core/mobile-theme';
 import { formatDate, formatTime } from './staff-rota-utils';
 
 export type RotaShift = RouterOutputs['rota']['myRota'][number];
+export type CombinedRotaShift = RouterOutputs['rota']['myCombinedSchedule'][number];
 export type ParentVolunteer = RouterOutputs['rota']['parentVolunteerSchedule'][number];
 export type SwapCandidate = RouterOutputs['rota']['swapCandidates'][number];
 export type SwapRequest = RouterOutputs['rota']['mySwapRequests'][number];
+
+function isClubRotaShift(
+  shift: RotaShift | CombinedRotaShift,
+): shift is Extract<CombinedRotaShift, { source: 'club' }> {
+  return 'source' in shift && shift.source === 'club';
+}
 
 export function parentVolunteerPlacementLabel(placement: ParentVolunteer['placement']): string {
   switch (placement) {
@@ -64,21 +71,32 @@ export function TabButton({
   );
 }
 
-export function ShiftRow({ shift }: { shift: RotaShift }) {
+export function ShiftRow({ shift }: { shift: RotaShift | CombinedRotaShift }) {
+  const isClub = isClubRotaShift(shift);
+  const title = isClub ? shift.club.name : shiftTitle(shift);
+  const colour = isClub
+    ? '#0E5C3A'
+    : shift.kind === 'Meeting'
+      ? C.success
+      : (shift.bandColour ?? C.blue);
   return (
     <View style={styles.shiftRow}>
       <View
         style={[
           styles.shiftDot,
-          { backgroundColor: shift.kind === 'Meeting' ? C.success : (shift.bandColour ?? C.blue) },
+          { backgroundColor: colour },
         ]}
       />
       <View style={styles.rowBody}>
-        <Text style={styles.rowTitle}>{shiftTitle(shift)}</Text>
+        <Text style={styles.rowTitle}>{title}</Text>
         <MutedText>{shiftDetail(shift)}</MutedText>
         {shift.notes ? <Text style={styles.note}>{shift.notes}</Text> : null}
       </View>
-      <Badge variant={shift.kind === 'Meeting' ? 'success' : 'blue'}>{shift.kind}</Badge>
+      {isClub ? (
+        <Badge variant="success">Clubs</Badge>
+      ) : (
+        <Badge variant={shift.kind === 'Meeting' ? 'success' : 'blue'}>{shift.kind}</Badge>
+      )}
     </View>
   );
 }

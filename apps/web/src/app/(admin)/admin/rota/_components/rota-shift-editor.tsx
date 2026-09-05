@@ -18,6 +18,7 @@ type RotaYearGroupBand = {
 
 type RotaShiftEditorProps = {
   activeBands: readonly RotaYearGroupBand[];
+  availableDates: readonly { label: string; value: string }[];
   dateStatus?: { kind: 'operating' | 'fieldTrip' | 'closed'; label: string } | undefined;
   errorMessage?: string | undefined;
   form: ShiftForm;
@@ -25,13 +26,18 @@ type RotaShiftEditorProps = {
   isSaving: boolean;
   onCancel: () => void;
   onChange: (nextForm: ShiftForm) => void;
+  onChangeRepeatScope: (repeatScope: 'week' | 'term') => void;
+  onChangeSelectedDates: (dates: string[]) => void;
   onDelete: () => void;
   onSubmit: () => void;
+  repeatScope: 'week' | 'term';
+  selectedDates: readonly string[];
   staff: readonly RotaStaffMember[];
 };
 
 export function RotaShiftEditor({
   activeBands,
+  availableDates,
   dateStatus,
   errorMessage,
   form,
@@ -39,11 +45,17 @@ export function RotaShiftEditor({
   isSaving,
   onCancel,
   onChange,
+  onChangeRepeatScope,
+  onChangeSelectedDates,
   onDelete,
   onSubmit,
+  repeatScope,
+  selectedDates,
   staff,
 }: RotaShiftEditorProps) {
-  const canSchedule = dateStatus?.kind === 'operating' || dateStatus?.kind === 'fieldTrip';
+  const canSchedule =
+    (dateStatus?.kind === 'operating' || dateStatus?.kind === 'fieldTrip') &&
+    (form.id !== null || selectedDates.length > 0);
   return (
     <section aria-labelledby="rota-shift-editor-title" className="panel">
       <div className="panel__body">
@@ -119,16 +131,58 @@ export function RotaShiftEditor({
               </SelectInput>
             </Field>
           ) : null}
-          <Field label="Date">
-            <TextInput
-              onChange={(event) => {
-                onChange({ ...form, date: event.target.value });
-              }}
-              required
-              type="date"
-              value={form.date}
-            />
-          </Field>
+          {form.id ? (
+            <Field label="Date">
+              <TextInput
+                onChange={(event) => {
+                  onChange({ ...form, date: event.target.value });
+                }}
+                required
+                type="date"
+                value={form.date}
+              />
+            </Field>
+          ) : (
+            <>
+              <Field label="Dates" hint="Choose one or more operating days from this week">
+                <div className="staff-rota-day-picker">
+                  {availableDates.map((date) => {
+                    const selected = selectedDates.includes(date.value);
+                    return (
+                      <label
+                        className={`staff-rota-day-picker__day${selected ? ' is-selected' : ''}`}
+                        key={date.value}
+                      >
+                        <input
+                          checked={selected}
+                          onChange={() => {
+                            onChangeSelectedDates(
+                              selected
+                                ? selectedDates.filter((value) => value !== date.value)
+                                : [...selectedDates, date.value],
+                            );
+                          }}
+                          type="checkbox"
+                        />
+                        {date.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </Field>
+              <Field label="Repeat">
+                <SelectInput
+                  onChange={(event) => {
+                    onChangeRepeatScope(event.target.value === 'term' ? 'term' : 'week');
+                  }}
+                  value={repeatScope}
+                >
+                  <option value="week">This week only</option>
+                  <option value="term">Whole term</option>
+                </SelectInput>
+              </Field>
+            </>
+          )}
           <div className="form-grid form-grid--two rota-time-grid">
             <Field label="Start time">
               <TextInput

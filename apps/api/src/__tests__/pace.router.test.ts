@@ -792,7 +792,6 @@ describe('pace.forStudent RBAC', () => {
       detail: 'Status hidden by parent setting',
       status: 'Unavailable',
       testingLevel: null,
-      testingLevelLabel: null,
       tone: 'grey',
     });
   });
@@ -912,13 +911,13 @@ describe('pace.roster access scope', () => {
       studentId: STUDENT_ID,
       studentName: 'Jane Learner',
       yearGroup: 'Year 6',
-      yearGroupLabel: 'Level 6',
+      yearGroupLabel: 'Year 6',
     });
     expect(result.students[0]?.band?.id).toBe('band_lower');
     expect(result.students[1]).toMatchObject({
       studentName: 'Secondary Learner',
       yearGroup: 'Year 8',
-      yearGroupLabel: 'Level 8',
+      yearGroupLabel: 'Year 8',
     });
     expect(result.students[1]?.band?.id).toBe('band_secondary');
     expect(db.student.findMany).toHaveBeenCalledWith(
@@ -1167,7 +1166,7 @@ describe('pace.forStudent read model', () => {
         latestCompletedAt: null,
         status: {
           status: 'Behind',
-          detail: 'Testing at Level 1',
+          detail: 'Behind',
           tone: 'amber',
         },
         recentRecords: [
@@ -1207,7 +1206,7 @@ describe('pace.forStudent read model', () => {
         latestCompletedAt: null,
         status: {
           status: 'Behind',
-          detail: 'Testing at Level 1',
+          detail: 'Behind',
           tone: 'amber',
         },
         recentRecords: [
@@ -1295,10 +1294,10 @@ describe('pace.forStudent read model', () => {
     const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
 
     expect(result.yearGroup).toBe('Year 5');
-    expect(result.yearGroupLabel).toBe('Level 5');
+    expect(result.yearGroupLabel).toBe('Year 5');
     expect(result.subjects[0]?.status).toMatchObject({
       status: 'Behind',
-      detail: 'Testing at Level 2',
+      detail: 'Behind',
       tone: 'amber',
     });
   });
