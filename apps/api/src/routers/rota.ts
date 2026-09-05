@@ -1654,7 +1654,9 @@ export const rotaRouter = router({
       return {
         count: shifts.length,
         dates: candidates.map((candidate) => dateKey(candidate.date)),
-        shifts: shifts.map((shift) => mapShift({ ...shift, yearGroupBand })),
+        shifts: shifts
+          .sort((left, right) => left.date.getTime() - right.date.getTime())
+          .map((shift) => mapShift({ ...shift, yearGroupBand })),
       };
     }),
 

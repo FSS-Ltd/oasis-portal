@@ -69,7 +69,7 @@ function subjectView(subject: {
     id: subject.id,
     code: subject.code,
     name: subject.name,
-    colour: subject.timetableColour,
+    colour: timetableColourForSubject(subject),
   };
 }
 

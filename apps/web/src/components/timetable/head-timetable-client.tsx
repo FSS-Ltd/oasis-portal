@@ -80,7 +80,10 @@ export function HeadTimetableClient() {
   const saveSchedule = api.timetable.saveSchedule.useMutation({
     async onSuccess() {
       showSuccessToast('Shared timetable times saved.');
-      await utils.timetable.headWorkspace.invalidate({ termKey, registrationLevel });
+      await Promise.all([
+        utils.timetable.headWorkspace.invalidate({ termKey, registrationLevel }),
+        utils.timetable.studentDraft.invalidate({ termKey }),
+      ]);
     },
     onError(error) {
       showErrorToast(error, 'The timetable times could not be saved.');
@@ -247,7 +250,7 @@ export function HeadTimetableClient() {
 
           <AgeGroupScheduleEditor
             initialSlots={workspace.schedule?.slots ?? workspace.defaultSlots}
-            key={`${termKey}-${registrationLevel}-${workspace.schedule?.id ?? 'defaults'}`}
+            key={`${termKey}-${registrationLevel}-${JSON.stringify(workspace.schedule?.slots ?? [])}`}
             onSave={handleScheduleSave}
             pending={saveSchedule.isPending}
             saved={Boolean(workspace.schedule)}
@@ -288,7 +291,9 @@ export function HeadTimetableClient() {
             )}
           </section>
 
-          {!workspace.schedule && selectedStudentId ? (
+          {saveSchedule.isPending ? (
+            <div className={styles.loadingCard}>Refreshing shared timetable times…</div>
+          ) : !workspace.schedule && selectedStudentId ? (
             <div className={styles.guidanceCard}>
               Save the shared {registrationLevel} times before assigning subjects.
             </div>
@@ -299,7 +304,7 @@ export function HeadTimetableClient() {
           ) : draftQuery.data && workspace.schedule ? (
             <StudentTimetableEditor
               draft={draftQuery.data}
-              key={`${termKey}-${selectedStudentId}`}
+              key={`${termKey}-${selectedStudentId}-${JSON.stringify(workspace.schedule.slots)}`}
               onAddSubject={async (name) => {
                 await createSubject.mutateAsync({ studentId: selectedStudentId, name });
               }}
