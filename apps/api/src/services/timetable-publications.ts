@@ -12,7 +12,6 @@ import type {
   TimetablePublicationEntryView,
   TimetablePublicationView,
 } from '../routers/timetable.js';
-import { registrationLevelForStudent } from './timetable-data.js';
 import { requireTeachingTerm } from './timetable-terms.js';
 
 type AuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
@@ -135,8 +134,9 @@ export async function publishStudentTimetable(
           select: {
             active: true,
             fullNameEnc: true,
-            yearGroup: true,
-            registrationProfile: { select: { registrationLevel: true } },
+            timetableAgeGroupMembership: {
+              select: { isOwnTimetable: true, registrationLevel: true },
+            },
           },
         },
         schedule: { include: { slots: { orderBy: { position: 'asc' } } } },
@@ -146,10 +146,14 @@ export async function publishStudentTimetable(
     if (!timetable || !timetable.student.active) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Student timetable not found' });
     }
-    const currentLevel = registrationLevelForStudent(
-      timetable.student.registrationProfile?.registrationLevel,
-      timetable.student.yearGroup,
-    );
+    const membership = timetable.student.timetableAgeGroupMembership;
+    if (!membership || membership.isOwnTimetable) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This child is not assigned to the Head timetable workflow.',
+      });
+    }
+    const currentLevel = membership.registrationLevel;
     if (
       currentLevel !== timetable.registrationLevel ||
       currentLevel !== timetable.schedule.registrationLevel
