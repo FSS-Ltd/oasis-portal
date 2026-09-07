@@ -20,6 +20,7 @@ import {
   loadStudentTimetableDraft,
   saveStudentTimetableDraft,
   saveTimetableSchedule,
+  setTimetableMembership,
 } from '../services/timetable-data.js';
 import {
   findPublishedTimetableForHead,
@@ -67,6 +68,22 @@ const saveScheduleInput = z
 const workspaceInput = z
   .object({ termKey: termKeySchema, registrationLevel: registrationLevelSchema })
   .strict();
+const setMembershipInput = z
+  .object({
+    studentId: z.string().trim().min(1),
+    isOwnTimetable: z.boolean(),
+    registrationLevel: registrationLevelSchema.optional(),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (!input.isOwnTimetable && !input.registrationLevel) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose a registration level',
+        path: ['registrationLevel'],
+      });
+    }
+  });
 const studentTermInput = z
   .object({ termKey: termKeySchema, studentId: z.string().trim().min(1) })
   .strict();
@@ -115,11 +132,12 @@ export interface TimetableChildSummary {
   id: string;
   latestPublicationId: string | null;
   registrationLevel: TimetableRegistrationLevel;
-  status: 'Draft' | 'Published' | 'NotStarted';
+  status: 'Draft' | 'Published' | 'NotStarted' | 'N/A';
 }
 
 export interface TimetableHeadWorkspace {
   children: TimetableChildSummary[];
+  ownTimetableChildren: TimetableChildSummary[];
   defaultSlots: readonly TimetableSlotInput[];
   progress: { done: number; total: number };
   registrationLevel: TimetableRegistrationLevel;
@@ -227,6 +245,7 @@ export interface TimetableRouterDeps {
     ctx: AuthedContext,
     input: z.infer<typeof saveScheduleInput>,
   ): Promise<TimetableScheduleView>;
+  setMembership(ctx: AuthedContext, input: z.infer<typeof setMembershipInput>): Promise<void>;
 }
 
 const defaultTimetableRouterDeps: TimetableRouterDeps = {
@@ -237,6 +256,7 @@ const defaultTimetableRouterDeps: TimetableRouterDeps = {
   saveSchedule: saveTimetableSchedule,
   saveDraft: saveStudentTimetableDraft,
   createAndAssignSubject: createAndAssignTimetableSubject,
+  setMembership: setTimetableMembership,
   publish: publishStudentTimetable,
   publishedForParent: findPublishedTimetableForParent,
   publishedForStudent: findPublishedTimetableForStudent,
@@ -266,6 +286,10 @@ export function createTimetableRouter(deps: TimetableRouterDeps = defaultTimetab
     studentDraft: roleProcedure('Head')
       .input(studentTermInput)
       .query(({ ctx, input }) => deps.loadStudentDraft(ctx, input)),
+
+    setMembership: roleProcedure('Head')
+      .input(setMembershipInput)
+      .mutation(({ ctx, input }) => deps.setMembership(ctx, input)),
 
     saveSchedule: roleProcedure('Head')
       .input(saveScheduleInput)

@@ -20,11 +20,11 @@ interface TaskUpsertInput {
 
 export interface TimetableTaskDb extends TimetableTermDb {
   personalTask: { upsert(input: TaskUpsertInput): Promise<StoredTimetableTask> };
-  student: {
+  timetableAgeGroupMembership: {
     findMany(input: {
-      select: { id: true };
-      where: { active: true };
-    }): Promise<Array<{ id: string }>>;
+      select: { studentId: true };
+      where: { isOwnTimetable: false; student: { active: true } };
+    }): Promise<Array<{ studentId: string }>>;
   };
   studentTimetablePublication: {
     findMany(input: {
@@ -55,14 +55,17 @@ export async function syncTimetableTasks({
   db: TimetableTaskDb;
   headIds?: readonly string[];
 }): Promise<TimetableTaskSyncSummary> {
-  const [terms, heads, students] = await Promise.all([
+  const [terms, heads, memberships] = await Promise.all([
     loadTeachingTerms(db),
     headIds
       ? Promise.resolve(headIds.map((id) => ({ id })))
       : db.user.findMany({ where: { role: 'Head', active: true }, select: { id: true } }),
-    db.student.findMany({ where: { active: true }, select: { id: true } }),
+    db.timetableAgeGroupMembership.findMany({
+      where: { isOwnTimetable: false, student: { active: true } },
+      select: { studentId: true },
+    }),
   ]);
-  const studentIds = students.map((student) => student.id);
+  const studentIds = memberships.map((membership) => membership.studentId);
   const publications =
     terms.length === 0 || studentIds.length === 0
       ? []

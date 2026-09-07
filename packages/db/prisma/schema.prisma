@@ -364,6 +364,7 @@ model Student {
   parentLinkRequests       StudentParentLinkRequest[]
   timetables                StudentTimetable[]
   timetablePublications     StudentTimetablePublication[]
+  timetableAgeGroupMembership TimetableAgeGroupMembership?
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -688,6 +689,19 @@ model StudentSubject {
   subject           Subject @relation(fields: [subjectId], references: [id])
 
   @@unique([studentId, subjectId])
+}
+
+model TimetableAgeGroupMembership {
+  id                String                     @id @default(cuid())
+  studentId         String                     @unique
+  registrationLevel TimetableRegistrationLevel
+  isOwnTimetable    Boolean                    @default(false)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([registrationLevel, isOwnTimetable])
 }
 
 model TimetableAgeGroupSchedule {

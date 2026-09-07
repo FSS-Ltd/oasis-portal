@@ -61,6 +61,7 @@ export function HeadTimetableClient() {
   );
   const workspace = workspaceQuery.data;
   const children = useMemo(() => workspace?.children ?? [], [workspace?.children]);
+  const ownTimetableChildren = workspace?.ownTimetableChildren ?? [];
 
   useEffect(() => {
     if (children.length === 0) {
@@ -111,6 +112,23 @@ export function HeadTimetableClient() {
     },
   });
   const publish = api.timetable.publish.useMutation();
+  const setMembership = api.timetable.setMembership.useMutation({
+    async onSuccess(_, variables) {
+      if (variables.studentId === selectedStudentId) setSelectedStudentId('');
+      showSuccessToast(
+        variables.isOwnTimetable
+          ? 'Child moved to N/A and removed from timetable tasks.'
+          : `Child returned to ${variables.registrationLevel ?? registrationLevel}.`,
+      );
+      await Promise.all([
+        utils.timetable.headWorkspace.invalidate({ termKey, registrationLevel }),
+        utils.personalTask.list.invalidate(),
+      ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'The child’s timetable status could not be changed.');
+    },
+  });
 
   async function handleScheduleSave(slots: EditableScheduleSlot[]): Promise<void> {
     await saveSchedule.mutateAsync({ termKey, registrationLevel, slots });
@@ -271,24 +289,59 @@ export function HeadTimetableClient() {
             ) : (
               <div className={styles.childPicker}>
                 {children.map((child) => (
-                  <button
-                    aria-pressed={selectedStudentId === child.id}
-                    className={selectedStudentId === child.id ? styles.selectedChild : undefined}
-                    key={child.id}
-                    onClick={() => {
-                      setSelectedStudentId(child.id);
-                    }}
-                    type="button"
-                  >
-                    <span>{child.firstName.slice(0, 1).toUpperCase()}</span>
-                    <strong>{child.firstName}</strong>
-                    <small data-status={child.status}>
-                      {child.status === 'NotStarted' ? 'Not started' : child.status}
-                    </small>
-                  </button>
+                  <div className={styles.childCard} key={child.id}>
+                    <button
+                      aria-pressed={selectedStudentId === child.id}
+                      className={selectedStudentId === child.id ? styles.selectedChild : undefined}
+                      onClick={() => {
+                        setSelectedStudentId(child.id);
+                      }}
+                      type="button"
+                    >
+                      <span>{child.firstName.slice(0, 1).toUpperCase()}</span>
+                      <strong>{child.firstName}</strong>
+                      <small data-status={child.status}>
+                        {child.status === 'NotStarted' ? 'Not started' : child.status}
+                      </small>
+                    </button>
+                    <button
+                      className={styles.naAction}
+                      disabled={setMembership.isPending}
+                      onClick={() => {
+                        setMembership.mutate({ studentId: child.id, isOwnTimetable: true });
+                      }}
+                      type="button"
+                    >
+                      Set to N/A
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
+            {ownTimetableChildren.length > 0 ? (
+              <div className={styles.ownTimetableList}>
+                <strong>N/A · own timetable</strong>
+                {ownTimetableChildren.map((child) => (
+                  <div key={child.id}>
+                    <span>{child.firstName}</span>
+                    <small>N/A</small>
+                    <button
+                      disabled={setMembership.isPending}
+                      onClick={() => {
+                        setMembership.mutate({
+                          studentId: child.id,
+                          isOwnTimetable: false,
+                          registrationLevel,
+                        });
+                      }}
+                      type="button"
+                    >
+                      Return to {registrationLevel}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           {saveSchedule.isPending ? (

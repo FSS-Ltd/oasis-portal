@@ -9,7 +9,7 @@ import {
   type TimetableColour,
   type TimetableRegistrationLevel,
 } from '@oasis/domain';
-import type { AppContext } from '../context.js';
+import type { AppContext, RlsTx } from '../context.js';
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import type {
   StudentTimetableDraftView,
@@ -77,6 +77,138 @@ function decryptedStudentName(ctx: AuthedContext, encrypted: string): string {
   return decryptRequiredText({ decrypt: ctx.db.$enc.decrypt }, encrypted, 'student name');
 }
 
+type TimetableStudentForTimetableDraft = {
+  isOwnTimetable: boolean;
+  registrationLevel: TimetableRegistrationLevel;
+  student: {
+    active: boolean;
+    fullNameEnc: string;
+    id: string;
+    subjects: Array<{
+      subject: {
+        active: boolean;
+        code: string;
+        id: string;
+        name: string;
+        timetableColour: TimetableColour;
+      };
+    }>;
+  };
+};
+
+async function loadTimetableMemberForStudent(
+  db: RlsTx,
+  studentId: string,
+): Promise<TimetableStudentForTimetableDraft> {
+  const record = await db.timetableAgeGroupMembership.findUnique({
+    where: { studentId },
+    select: {
+      isOwnTimetable: true,
+      registrationLevel: true,
+      student: {
+        select: {
+          active: true,
+          fullNameEnc: true,
+          id: true,
+          subjects: {
+            where: { subject: { active: true } },
+            orderBy: { subject: { name: 'asc' } },
+            select: {
+              subject: {
+                select: {
+                  active: true,
+                  code: true,
+                  id: true,
+                  name: true,
+                  timetableColour: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!record?.student || !record.student.active) {
+    notFound('Student not found');
+  }
+  if (record.isOwnTimetable) {
+    badRequest('This child follows their own timetable and cannot be edited here');
+  }
+
+  return {
+    isOwnTimetable: record.isOwnTimetable,
+    registrationLevel: record.registrationLevel,
+    student: {
+      active: record.student.active,
+      fullNameEnc: record.student.fullNameEnc,
+      id: record.student.id,
+      subjects: record.student.subjects,
+    },
+  };
+}
+
+type TimetableMembershipInput = {
+  isOwnTimetable: boolean;
+  registrationLevel?: TimetableRegistrationLevel;
+  studentId: string;
+};
+
+export async function setTimetableMembership(
+  ctx: AuthedContext,
+  input: TimetableMembershipInput,
+): Promise<void> {
+  if (!input.isOwnTimetable && !input.registrationLevel) {
+    badRequest('A target registration level is required to reassign a child');
+  }
+
+  return ctx.withRls(async (db) => {
+    const student = await db.student.findFirst({
+      where: { id: input.studentId, active: true },
+      select: {
+        id: true,
+        yearGroup: true,
+        registrationProfile: { select: { registrationLevel: true } },
+        timetableAgeGroupMembership: { select: { registrationLevel: true } },
+      },
+    });
+    if (!student) notFound('Student not found');
+
+    const registrationLevel =
+      input.registrationLevel ??
+      student.timetableAgeGroupMembership?.registrationLevel ??
+      registrationLevelForStudent(student.registrationProfile?.registrationLevel, student.yearGroup);
+
+    await db.timetableAgeGroupMembership.upsert({
+      where: { studentId: input.studentId },
+      create: {
+        studentId: input.studentId,
+        isOwnTimetable: input.isOwnTimetable,
+        registrationLevel,
+      },
+      update: {
+        isOwnTimetable: input.isOwnTimetable,
+        ...(input.isOwnTimetable ? {} : { registrationLevel }),
+      },
+    });
+
+    await db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'TimetableAgeGroupMembership',
+        entityId: input.studentId,
+        meta: {
+          source: 'timetable.setMembership',
+          studentId: input.studentId,
+          registrationLevel: input.isOwnTimetable ? null : registrationLevel,
+          isOwnTimetable: input.isOwnTimetable,
+        },
+      },
+    });
+  });
+}
+
 export async function loadHeadTimetableWorkspace(
   ctx: AuthedContext,
   input: { termKey: string; registrationLevel: TimetableRegistrationLevel },
@@ -92,23 +224,26 @@ export async function loadHeadTimetableWorkspace(
       },
       include: { slots: { orderBy: { position: 'asc' } } },
     });
-    const students = await db.student.findMany({
-      where: { active: true },
+    const memberships = await db.timetableAgeGroupMembership.findMany({
+      where: {
+        registrationLevel: input.registrationLevel,
+        student: { active: true },
+      },
       select: {
-        id: true,
-        fullNameEnc: true,
-        yearGroup: true,
-        registrationProfile: { select: { registrationLevel: true } },
+        isOwnTimetable: true,
+        student: {
+          select: {
+            id: true,
+            fullNameEnc: true,
+            registrationProfile: { select: { registrationLevel: true } },
+            yearGroup: true,
+          },
+        },
       },
     });
-    const matchingStudents = students.filter(
-      (student) =>
-        registrationLevelForStudent(
-          student.registrationProfile?.registrationLevel,
-          student.yearGroup,
-        ) === input.registrationLevel,
-    );
-    const studentIds = matchingStudents.map((student) => student.id);
+    const studentIds = memberships
+      .filter((membership) => !membership.isOwnTimetable)
+      .map((membership) => membership.student.id);
     const [publications, drafts] = await Promise.all([
       studentIds.length === 0
         ? Promise.resolve([])
@@ -124,7 +259,7 @@ export async function loadHeadTimetableWorkspace(
             select: { studentId: true },
           }),
     ]);
-    return { schedule, matchingStudents, publications, drafts };
+    return { schedule, memberships, publications, drafts };
   });
 
   const latestPublicationByStudent = new Map<string, string>();
@@ -134,30 +269,38 @@ export async function loadHeadTimetableWorkspace(
     }
   }
   const draftStudents = new Set(data.drafts.map((draft) => draft.studentId));
-  const children = data.matchingStudents
+  const childGroups = data.memberships;
+  const assignedStudentIds = childGroups
+    .filter((child) => !child.isOwnTimetable)
+    .map((child) => child.student.id);
+  const childSummaries = childGroups
     .map((student) => {
-      const fullName = decryptedStudentName(ctx, student.fullNameEnc);
-      const latestPublicationId = latestPublicationByStudent.get(student.id) ?? null;
+      const fullName = decryptedStudentName(ctx, student.student.fullNameEnc);
+      const latestPublicationId = latestPublicationByStudent.get(student.student.id) ?? null;
       return {
-        id: student.id,
+        id: student.student.id,
         fullName,
         firstName: firstNameFromFullName(fullName),
         registrationLevel: input.registrationLevel,
         latestPublicationId,
-        status: latestPublicationId
-          ? ('Published' as const)
-          : draftStudents.has(student.id)
-            ? ('Draft' as const)
-            : ('NotStarted' as const),
+        status: student.isOwnTimetable
+          ? ('N/A' as const)
+          : latestPublicationId
+            ? ('Published' as const)
+            : draftStudents.has(student.student.id)
+              ? ('Draft' as const)
+              : ('NotStarted' as const),
       };
     })
     .sort((left, right) => left.fullName.localeCompare(right.fullName));
+  const children = childSummaries.filter((child) => child.status !== 'N/A');
+  const ownTimetableChildren = childSummaries.filter((child) => child.status === 'N/A');
 
   return {
     term,
     registrationLevel: input.registrationLevel,
     progress: countTimetableProgress(
-      children.map((child) => child.id),
+      assignedStudentIds,
       [...latestPublicationByStudent.keys()],
     ),
     schedule: data.schedule
@@ -170,6 +313,7 @@ export async function loadHeadTimetableWorkspace(
       : null,
     defaultSlots: DEFAULT_TIMETABLE_SLOTS,
     children,
+    ownTimetableChildren,
   };
 }
 
@@ -179,21 +323,7 @@ export async function loadStudentTimetableDraft(
 ): Promise<StudentTimetableDraftView> {
   await requireTeachingTerm(ctx.db, input.termKey);
   const data = await ctx.withRls(async (db) => {
-    const student = await db.student.findFirst({
-      where: { id: input.studentId, active: true },
-      select: {
-        id: true,
-        fullNameEnc: true,
-        yearGroup: true,
-        registrationProfile: { select: { registrationLevel: true } },
-        subjects: {
-          where: { subject: { active: true } },
-          include: { subject: true },
-          orderBy: { subject: { name: 'asc' } },
-        },
-      },
-    });
-    if (!student) notFound('Student not found');
+    const membership = await loadTimetableMemberForStudent(db, input.studentId);
     const timetable = await db.studentTimetable.findUnique({
       where: { studentId_termKey: { studentId: input.studentId, termKey: input.termKey } },
       include: {
@@ -205,19 +335,16 @@ export async function loadStudentTimetableDraft(
         },
       },
     });
-    return { student, timetable };
+    return { membership, timetable };
   });
 
-  const fullName = decryptedStudentName(ctx, data.student.fullNameEnc);
+  const fullName = decryptedStudentName(ctx, data.membership.student.fullNameEnc);
   return {
     student: {
-      id: data.student.id,
+      id: data.membership.student.id,
       fullName,
       firstName: firstNameFromFullName(fullName),
-      registrationLevel: registrationLevelForStudent(
-        data.student.registrationProfile?.registrationLevel,
-        data.student.yearGroup,
-      ),
+      registrationLevel: data.membership.registrationLevel,
     },
     timetableId: data.timetable?.id ?? null,
     entries:
@@ -226,7 +353,7 @@ export async function loadStudentTimetableDraft(
         slotId: entry.slotId,
         subjectId: entry.subjectId,
       })) ?? [],
-    subjects: data.student.subjects.map(({ subject }) => subjectView(subject)),
+    subjects: data.membership.student.subjects.map(({ subject }) => subjectView(subject)),
     latestPublication: data.timetable?.publications[0] ?? null,
   };
 }
@@ -342,20 +469,9 @@ export async function saveStudentTimetableDraft(
 ) {
   await requireTeachingTerm(ctx.db, input.termKey);
   return ctx.withRls(async (db) => {
-    const student = await db.student.findFirst({
-      where: { id: input.studentId, active: true },
-      select: {
-        id: true,
-        yearGroup: true,
-        registrationProfile: { select: { registrationLevel: true } },
-        subjects: { where: { subject: { active: true } }, select: { subjectId: true } },
-      },
-    });
-    if (!student) notFound('Student not found');
-    const registrationLevel = registrationLevelForStudent(
-      student.registrationProfile?.registrationLevel,
-      student.yearGroup,
-    );
+    const membership = await loadTimetableMemberForStudent(db, input.studentId);
+    const student = membership.student;
+    const registrationLevel = membership.registrationLevel;
     const schedule = await db.timetableAgeGroupSchedule.findUnique({
       where: { termKey_registrationLevel: { termKey: input.termKey, registrationLevel } },
       include: { slots: true },
@@ -365,7 +481,7 @@ export async function saveStudentTimetableDraft(
     const lessonSlotIds = new Set(
       schedule.slots.filter((slot) => slot.kind === 'Lesson').map((slot) => slot.id),
     );
-    const assignedSubjectIds = new Set(student.subjects.map((subject) => subject.subjectId));
+    const assignedSubjectIds = new Set(student.subjects.map(({ subject }) => subject.id));
     const entryKeys = new Set<string>();
     for (const entry of input.entries) {
       if (!lessonSlotIds.has(entry.slotId)) badRequest('A selected lesson slot is unavailable');

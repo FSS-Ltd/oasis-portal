@@ -5,6 +5,7 @@ import {
   createAndAssignTimetableSubject,
   customSubjectCodeBase,
   registrationLevelForStudent,
+  setTimetableMembership,
 } from '../services/timetable-data.js';
 
 const head: SessionUser = { id: 'head_1', role: 'Head', tags: [], requires2fa: false };
@@ -60,6 +61,54 @@ describe('createAndAssignTimetableSubject', () => {
         name: 'Maths',
         timetableColour: 'Yellow',
       },
+    });
+  });
+});
+
+describe('setTimetableMembership', () => {
+  it('marks a child N/A while preserving their group, then restores them to a selected group', async () => {
+    const db = {
+      student: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'student_1',
+          yearGroup: 'Year 4',
+          registrationProfile: { registrationLevel: 'Primary' },
+          timetableAgeGroupMembership: { registrationLevel: 'Primary' },
+        }),
+      },
+      timetableAgeGroupMembership: { upsert: vi.fn().mockResolvedValue({}) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const ctx = {
+      db: {},
+      user: head,
+      withRls: (operation: (tx: never) => Promise<unknown>) => operation(db as never),
+    } as unknown as AppContext & { user: SessionUser };
+
+    await setTimetableMembership(ctx, { studentId: 'student_1', isOwnTimetable: true });
+    expect(db.timetableAgeGroupMembership.upsert).toHaveBeenLastCalledWith({
+      where: { studentId: 'student_1' },
+      create: {
+        studentId: 'student_1',
+        isOwnTimetable: true,
+        registrationLevel: 'Primary',
+      },
+      update: { isOwnTimetable: true },
+    });
+
+    await setTimetableMembership(ctx, {
+      studentId: 'student_1',
+      isOwnTimetable: false,
+      registrationLevel: 'Secondary',
+    });
+    expect(db.timetableAgeGroupMembership.upsert).toHaveBeenLastCalledWith({
+      where: { studentId: 'student_1' },
+      create: {
+        studentId: 'student_1',
+        isOwnTimetable: false,
+        registrationLevel: 'Secondary',
+      },
+      update: { isOwnTimetable: false, registrationLevel: 'Secondary' },
     });
   });
 });

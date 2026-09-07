@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import { makeTestContext } from './helpers/test-context.js';
 import { createTimetableRouter, type TimetableRouterDeps } from '../routers/timetable.js';
@@ -42,6 +42,7 @@ function dependencies(): TimetableRouterDeps {
         progress: { done: 0, total: 1 },
         schedule: null,
         defaultSlots: scheduleInput.slots,
+        ownTimetableChildren: [],
         children: [
           {
             id: 'student_1',
@@ -90,6 +91,7 @@ function dependencies(): TimetableRouterDeps {
         name: input.name,
         colour: 'Grey' as const,
       }),
+    setMembership: () => Promise.resolve(),
     publish: () => Promise.reject(new Error('not used in this test')),
     publishedForParent: () => Promise.resolve(null),
     publishedForStudent: () => Promise.resolve(null),
@@ -136,6 +138,33 @@ describe('timetable router Head workspace', () => {
     await expect(caller(supervisor).timetable.saveSchedule(scheduleInput)).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+    await expect(
+      caller(supervisor).timetable.setMembership({
+        studentId: 'student_1',
+        isOwnTimetable: true,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets Heads mark a child N/A and requires a group when restoring them', async () => {
+    const deps = dependencies();
+    const setMembership = vi.fn().mockResolvedValue(undefined);
+    deps.setMembership = setMembership;
+
+    await caller(head, deps).timetable.setMembership({
+      studentId: 'student_1',
+      isOwnTimetable: true,
+    });
+    expect(setMembership).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ studentId: 'student_1', isOwnTimetable: true }),
+    );
+    await expect(
+      caller(head, deps).timetable.setMembership({
+        studentId: 'student_1',
+        isOwnTimetable: false,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('accepts a break in any position and rejects overlapping slots', async () => {

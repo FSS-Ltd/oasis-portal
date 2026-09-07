@@ -11,7 +11,7 @@ function calendarEvent(id: string, date: string) {
 
 function fakeTaskDb() {
   const heads = [{ id: 'head_1' }, { id: 'head_2' }];
-  const students = [{ id: 'student_1' }, { id: 'student_2' }];
+  const memberships = [{ studentId: 'student_1' }, { studentId: 'student_2' }];
   const publications = [
     { studentId: 'student_1', termKey: '2026-27-term-1' },
     { studentId: 'student_1', termKey: '2026-27-term-1' },
@@ -29,7 +29,7 @@ function fakeTaskDb() {
   const db: TimetableTaskDb = {
     calendarEvent: { findMany: () => Promise.resolve(events) },
     user: { findMany: () => Promise.resolve(heads) },
-    student: { findMany: () => Promise.resolve(students) },
+    timetableAgeGroupMembership: { findMany: () => Promise.resolve(memberships) },
     studentTimetablePublication: { findMany: () => Promise.resolve(publications) },
     personalTask: {
       upsert: ({ where, create, update }) => {
@@ -41,7 +41,7 @@ function fakeTaskDb() {
       },
     },
   };
-  return { db, heads, publications, students, tasks };
+  return { db, heads, memberships, publications, tasks };
 }
 
 describe('syncTimetableTasks', () => {
@@ -77,7 +77,7 @@ describe('syncTimetableTasks', () => {
     });
     expect(fixture.tasks.get('head_1:2026-27-term-2')?.completedAt).toEqual(asOf);
 
-    fixture.students.push({ id: 'student_3' });
+    fixture.memberships.push({ studentId: 'student_3' });
     await syncTimetableTasks({ db: fixture.db, asOf: new Date('2026-09-05T09:00:00.000Z') });
     expect(fixture.tasks.get('head_1:2026-27-term-2')).toMatchObject({
       title: 'Complete Term 2 timetables · 2/3 done',
