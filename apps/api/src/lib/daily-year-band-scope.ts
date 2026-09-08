@@ -2,8 +2,6 @@ import type { Prisma } from '@oasis/db';
 import {
   canUseAllStudentSupervisorWorkflow,
   canUsePrimaryStudentSupervisorWorkflow,
-  canonicalSchoolYear,
-  schoolYearStorageAliases,
   type SessionUser,
 } from '@oasis/domain';
 
@@ -49,7 +47,7 @@ export type DailyYearBandScope = {
   assignedBands: Array<Omit<YearBandRow, 'active'>>;
   date: Date;
   dayKey: string;
-  scopedYears: string[] | null;
+  scopedBandIds: string[] | null;
 };
 
 export function normalizeDate(date: Date): Date {
@@ -92,7 +90,7 @@ export async function loadDailyYearBandScope(
       assignedBands: [],
       date: scopedDate,
       dayKey: dateKey(scopedDate),
-      scopedYears: null,
+      scopedBandIds: null,
     };
   }
 
@@ -101,7 +99,7 @@ export async function loadDailyYearBandScope(
       assignedBands: [],
       date: scopedDate,
       dayKey: dateKey(scopedDate),
-      scopedYears: null,
+      scopedBandIds: null,
     };
   }
 
@@ -134,36 +132,26 @@ export async function loadDailyYearBandScope(
     ...shifts.map((shift) => shift.yearGroupBand),
     ...primaryBands,
   ]);
-  const scopedYears = [
-    ...new Set(
-      assignedBands.flatMap((band) =>
-        band.standardYears.flatMap((year) => schoolYearStorageAliases(year)),
-      ),
-    ),
-  ];
+  const scopedBandIds = assignedBands.map((band) => band.id);
 
   return {
     assignedBands,
     date: scopedDate,
     dayKey: dateKey(scopedDate),
-    scopedYears,
+    scopedBandIds,
   };
 }
 
 export function studentWhereForDailyScope(scope: DailyYearBandScope): Prisma.StudentWhereInput {
-  if (scope.scopedYears === null) return {};
-  if (scope.scopedYears.length === 0) return { id: { in: [] } };
-  return { yearGroup: { in: scope.scopedYears } };
+  if (scope.scopedBandIds === null) return {};
+  if (scope.scopedBandIds.length === 0) return { id: { in: [] } };
+  return { ageBandId: { in: scope.scopedBandIds } };
 }
 
 export function studentMatchesDailyScope(
   scope: DailyYearBandScope,
-  student: { yearGroup: string },
+  student: { ageBandId: string | null },
 ): boolean {
-  if (scope.scopedYears === null) return true;
-  const canonical = canonicalSchoolYear(student.yearGroup);
-  return (
-    scope.scopedYears.includes(student.yearGroup) ||
-    (canonical !== null && scope.scopedYears.includes(canonical))
-  );
+  if (scope.scopedBandIds === null) return true;
+  return student.ageBandId !== null && scope.scopedBandIds.includes(student.ageBandId);
 }

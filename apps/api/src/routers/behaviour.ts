@@ -370,7 +370,7 @@ async function loadActiveScopedStudent(
 ): Promise<ActiveStudent> {
   const student = await ctx.db.student.findUnique({
     where: { id: input.studentId },
-    select: { id: true, active: true, fullNameEnc: true, yearGroup: true },
+    select: { id: true, active: true, fullNameEnc: true, yearGroup: true, ageBandId: true },
   });
   if (!student) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -573,7 +573,7 @@ async function assertDemeritStageNotes(
 
 function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser, clubId?: string) {
   if (usesClubLeadScope(user, clubId)) return {};
-  if (scope.scopedYears === null) return {};
+  if (scope.scopedBandIds === null) return {};
   return { student: studentWhereForDailyScope(scope) };
 }
 
@@ -1303,7 +1303,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
 
         const student = await ctx.db.student.findUnique({
           where: { id: input.studentId },
-          select: { id: true, active: true, fullNameEnc: true, yearGroup: true },
+          select: { id: true, active: true, fullNameEnc: true, yearGroup: true, ageBandId: true },
         });
         if (!student) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });

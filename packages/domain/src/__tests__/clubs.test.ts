@@ -72,14 +72,15 @@ describe('club eligibility', () => {
     { id: 'upper', name: 'Upper Primary', standardYears: ['Year 2', 'Year 3', 'Year 4'] },
   ];
 
-  it('matches a child against any selected year-group band', () => {
-    expect(clubMatchesYearGroupBands('Year 3', bands)).toBe(true);
-    expect(clubMatchesYearGroupBands('Y3', bands)).toBe(true);
-    expect(clubMatchesYearGroupBands('Year 7', bands)).toBe(false);
+  it('matches a child by configured age-band id', () => {
+    expect(clubMatchesYearGroupBands('upper', bands)).toBe(true);
+    expect(clubMatchesYearGroupBands('lower', bands)).toBe(true);
+    expect(clubMatchesYearGroupBands('secondary', bands)).toBe(false);
+    expect(clubMatchesYearGroupBands(null, bands)).toBe(false);
   });
 
   it('treats a club with no selected bands as unavailable', () => {
-    expect(clubMatchesYearGroupBands('Year 3', [])).toBe(false);
+    expect(clubMatchesYearGroupBands('upper', [])).toBe(false);
   });
 });
 

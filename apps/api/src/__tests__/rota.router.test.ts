@@ -365,8 +365,7 @@ function makeFakeDb() {
         return Promise.resolve(eligible ? [{ id: user.id }] : []);
       },
     ),
-    $transaction: vi.fn(
-      async (input: ((tx: FakeDb) => Promise<unknown>) | Promise<unknown>[]) =>
+    $transaction: vi.fn(async (input: ((tx: FakeDb) => Promise<unknown>) | Promise<unknown>[]) =>
         Array.isArray(input) ? Promise.all(input) : input(db),
     ),
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
@@ -747,7 +746,9 @@ function makeFakeDb() {
         }) => {
           const candidates = [...parentVolunteerDays, ...data];
           const duplicate = candidates.some((row, index) =>
-            candidates.slice(index + 1).some(
+            candidates
+              .slice(index + 1)
+              .some(
               (other) =>
                 (other.parentUserId === row.parentUserId &&
                   dateKey(other.date) === dateKey(row.date) &&
@@ -1082,7 +1083,9 @@ describe('parent volunteer days', () => {
     const { db } = makeFakeDb();
     db.$enc.decrypt.mockReturnValueOnce(null);
 
-    await expect(makeCaller(headUser, db).rota.listStaffParentVolunteerAccess()).rejects.toMatchObject({
+    await expect(
+      makeCaller(headUser, db).rota.listStaffParentVolunteerAccess(),
+    ).rejects.toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
       message: 'user PII decrypt failed',
     });
@@ -1356,6 +1359,9 @@ describe('parent volunteer days', () => {
   });
 
   it('keeps parent selections private and separates centre, Primary, and Secondary capacity', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T09:00:00.000Z'));
+    try {
     const { db, parentVolunteerDays } = makeFakeDb();
     const parentCaller = makeCaller(parentUser, db);
 
@@ -1491,6 +1497,9 @@ describe('parent volunteer days', () => {
           }),
         ]),
       );
+    }
+    } finally {
+      vi.useRealTimers();
     }
   });
 

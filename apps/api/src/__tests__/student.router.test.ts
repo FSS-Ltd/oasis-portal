@@ -59,6 +59,7 @@ interface StoredStudent {
   dobEnc: string;
   addressEnc: string | null;
   yearGroup: string;
+  ageBandId: string | null;
   enrolmentDate: Date;
   active: boolean;
   createdAt: Date;
@@ -143,6 +144,7 @@ interface StudentRow extends StoredStudent {
 }
 
 type StudentSelect = Partial<Record<keyof StoredStudent, boolean>> & {
+  ageBand?: { select: { id?: boolean; name?: boolean; colour?: boolean; active?: boolean } };
   portalSettings?: { select: { childIconPhotoUrl?: boolean } };
 };
 
@@ -256,8 +258,13 @@ function selectedStudent(
   student: StoredStudent,
   select: StudentSelect,
   portalSettings: StoredStudentPortalSettings[],
-): Partial<StoredStudent> & { portalSettings?: { childIconPhotoUrl: string | null } | null } {
+  bands: StoredYearGroupBand[],
+): Partial<StoredStudent> & {
+  ageBand?: StoredYearGroupBand | null;
+  portalSettings?: { childIconPhotoUrl: string | null } | null;
+} {
   const row: Partial<StoredStudent> & {
+    ageBand?: StoredYearGroupBand | null;
     portalSettings?: { childIconPhotoUrl: string | null } | null;
   } = {};
   if (select.id) row.id = student.id;
@@ -267,6 +274,10 @@ function selectedStudent(
   if (select.dobEnc) row.dobEnc = student.dobEnc;
   if (select.addressEnc) row.addressEnc = student.addressEnc;
   if (select.yearGroup) row.yearGroup = student.yearGroup;
+  if (select.ageBandId) row.ageBandId = student.ageBandId;
+  if (select.ageBand) {
+    row.ageBand = bands.find((band) => band.id === student.ageBandId) ?? null;
+  }
   if (select.enrolmentDate) row.enrolmentDate = student.enrolmentDate;
   if (select.active) row.active = student.active;
   if (select.createdAt) row.createdAt = student.createdAt;
@@ -423,13 +434,17 @@ function makeFakeDb(
           data,
           select,
         }: {
-          data: Omit<StoredStudent, 'id' | 'userId' | 'active' | 'createdAt' | 'updatedAt'>;
+          data: Omit<
+            StoredStudent,
+            'id' | 'userId' | 'ageBandId' | 'active' | 'createdAt' | 'updatedAt'
+          >;
           select?: { id?: boolean };
         }) => {
           const now = new Date('2026-04-27T10:00:00.000Z');
           const student: StoredStudent = {
             id: studentId,
             userId: null,
+            ageBandId: 'band_upper',
             active: true,
             createdAt: now,
             updatedAt: now,
@@ -458,6 +473,7 @@ function makeFakeDb(
         }: {
           where?: {
             active?: boolean;
+            ageBandId?: { in: string[] };
             id?: { in: string[] };
             nameBidx?: string;
             yearGroup?: { in: string[] };
@@ -466,6 +482,11 @@ function makeFakeDb(
           Promise.resolve(
             students
               .filter((student) => where?.active === undefined || student.active === where.active)
+              .filter(
+                (student) =>
+                  where?.ageBandId?.in === undefined ||
+                  (student.ageBandId !== null && where.ageBandId.in.includes(student.ageBandId)),
+              )
               .filter((student) => where?.id?.in === undefined || where.id.in.includes(student.id))
               .filter(
                 (student) => where?.nameBidx === undefined || student.nameBidx === where.nameBidx,
@@ -492,7 +513,8 @@ function makeFakeDb(
               (where.userId !== undefined && candidate.userId === where.userId),
           );
           if (!student) return Promise.resolve(null);
-          if (select) return Promise.resolve(selectedStudent(student, select, portalSettings));
+          if (select)
+            return Promise.resolve(selectedStudent(student, select, portalSettings, bands));
           return Promise.resolve(makeRow(student, assignments, subjects));
         },
       ),
@@ -521,16 +543,22 @@ function makeFakeDb(
         ({
           where,
         }: {
-          where: { active: boolean; name: { equals: string; mode: 'insensitive' } };
-          select: { standardYears: true };
+          where: {
+            id?: string;
+            active: boolean;
+            name: { equals: string; mode: 'insensitive' };
+          };
+          select: { id: true };
         }) => {
           const name = where.name.equals.toLowerCase();
           const band =
             bands.find(
               (candidate) =>
-                candidate.active === where.active && candidate.name.toLowerCase() === name,
+                candidate.active === where.active &&
+                candidate.name.toLowerCase() === name &&
+                (where.id === undefined || candidate.id === where.id),
             ) ?? null;
-          return Promise.resolve(band ? { standardYears: band.standardYears } : null);
+          return Promise.resolve(band ? { id: band.id } : null);
         },
       ),
     },
@@ -1086,6 +1114,7 @@ describe('student router CRUD', () => {
       dobEnc: 'enc:2012-02-03',
       addressEnc: null,
       yearGroup: 'Year 8',
+      ageBandId: 'band_secondary',
       enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
       active: true,
       createdAt: new Date('2026-04-28T00:00:00.000Z'),
@@ -1100,7 +1129,7 @@ describe('student router CRUD', () => {
       expect.objectContaining({
         where: {
           active: true,
-          yearGroup: { in: ['Year 5', 'Y5', 'Year 6', 'Y6'] },
+          ageBandId: { in: ['band_upper'] },
         },
       }),
     );
@@ -1209,6 +1238,7 @@ describe('student.me', () => {
     if (!storedStudent) throw new Error('test student missing');
     storedStudent.userId = studentUser.id;
     storedStudent.yearGroup = 'Year 7';
+    storedStudent.ageBandId = 'band_secondary';
 
     await expect(makeCaller(studentUser, db).student.me()).resolves.toMatchObject({
       id: studentId,

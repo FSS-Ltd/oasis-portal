@@ -99,7 +99,7 @@ function publicationView(
     termLabel: row.termLabel,
     termStartsOn: row.termStartsOn,
     termEndsOn: row.termEndsOn,
-    registrationLevel: row.registrationLevel,
+    ageBandName: row.ageBandName,
     publishedAt: row.publishedAt,
     entries: [...row.entries]
       .sort(
@@ -134,9 +134,9 @@ export async function publishStudentTimetable(
           select: {
             active: true,
             fullNameEnc: true,
-            timetableAgeGroupMembership: {
-              select: { isOwnTimetable: true, registrationLevel: true },
-            },
+            ageBandId: true,
+            followsOwnTimetable: true,
+            ageBand: { select: { active: true, name: true } },
           },
         },
         schedule: { include: { slots: { orderBy: { position: 'asc' } } } },
@@ -146,17 +146,12 @@ export async function publishStudentTimetable(
     if (!timetable || !timetable.student.active) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Student timetable not found' });
     }
-    const membership = timetable.student.timetableAgeGroupMembership;
-    if (!membership || membership.isOwnTimetable) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'This child is not assigned to the Head timetable workflow.',
-      });
-    }
-    const currentLevel = membership.registrationLevel;
+    const currentBand = timetable.student.ageBand;
     if (
-      currentLevel !== timetable.registrationLevel ||
-      currentLevel !== timetable.schedule.registrationLevel
+      !currentBand?.active ||
+      timetable.student.followsOwnTimetable ||
+      timetable.student.ageBandId !== timetable.ageBandId ||
+      timetable.student.ageBandId !== timetable.schedule.ageBandId
     ) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
@@ -192,7 +187,7 @@ export async function publishStudentTimetable(
         termLabel: term.label,
         termStartsOn: term.startsOn,
         termEndsOn: term.endsOn,
-        registrationLevel: currentLevel,
+        ageBandName: currentBand.name,
         studentFirstNameEnc: ctx.db.$enc.encrypt(firstName),
         publishedById: ctx.user.id,
         entries: { create: snapshot.entries },

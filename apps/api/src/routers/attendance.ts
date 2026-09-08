@@ -271,6 +271,7 @@ async function loadScopedActiveStudents(ctx: AuthedContext, date: Date) {
       id: true,
       fullNameEnc: true,
       yearGroup: true,
+      ageBandId: true,
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -454,10 +455,10 @@ async function assertActiveStaffUser(
 
 async function loadOwnActiveStudent(
   ctx: AuthedContext,
-): Promise<{ id: string; active: boolean; yearGroup: string }> {
+): Promise<{ id: string; active: boolean; yearGroup: string; ageBandId: string | null }> {
   const student = await ctx.db.student.findUnique({
     where: { userId: ctx.user.id },
-    select: { id: true, active: true, yearGroup: true },
+    select: { id: true, active: true, yearGroup: true, ageBandId: true },
   });
   if (!student?.active) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
@@ -492,6 +493,7 @@ export const attendanceRouter = router({
           fullNameEnc: true,
           dobEnc: true,
           yearGroup: true,
+          ageBandId: true,
           attendance: {
             where: { date },
             select: {
@@ -516,6 +518,7 @@ export const attendanceRouter = router({
         );
         return {
           dateOfBirth,
+          ageBandId: student.ageBandId,
           studentId: student.id,
           studentName,
           yearGroup: student.yearGroup,
@@ -536,6 +539,7 @@ export const attendanceRouter = router({
         })
         .map((row) => ({
           absenceReason: row.absenceReason,
+          ageBandId: row.ageBandId,
           absenceReasonLabel: row.absenceReasonLabel,
           attendanceId: row.attendanceId,
           date: row.date,
@@ -569,7 +573,7 @@ export const attendanceRouter = router({
       const scope = await loadDailyYearBandScope(ctx, date);
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
-        select: { id: true, active: true, yearGroup: true },
+        select: { id: true, active: true, yearGroup: true, ageBandId: true },
       });
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -790,7 +794,7 @@ export const attendanceRouter = router({
       const scope = await loadDailyYearBandScope(ctx, date);
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
-        select: { id: true, active: true, yearGroup: true },
+        select: { id: true, active: true, yearGroup: true, ageBandId: true },
       });
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -913,6 +917,7 @@ export const attendanceRouter = router({
           id: true,
           fullNameEnc: true,
           yearGroup: true,
+          ageBandId: true,
           active: true,
         },
       }),
@@ -1006,6 +1011,7 @@ export const attendanceRouter = router({
             id: true,
             fullNameEnc: true,
             yearGroup: true,
+            ageBandId: true,
           },
         },
       },
@@ -1112,7 +1118,7 @@ export const attendanceRouter = router({
         entity: 'attendance.studentSummary',
         studentId: student.id,
       });
-      if (!(await canUseStudentAcademicScreens(ctx.db, student.yearGroup))) {
+      if (!(await canUseStudentAcademicScreens(ctx.db, student.ageBandId))) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'attendance summary is only available to secondary students',

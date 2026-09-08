@@ -204,7 +204,7 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
     () =>
       selectedChild
         ? clubs.filter((club) =>
-            clubMatchesYearGroupBands(selectedChild.yearGroup, club.yearGroupBands),
+            clubMatchesYearGroupBands(selectedChild.ageBandId, club.yearGroupBands),
           )
         : [],
     [clubs, selectedChild],

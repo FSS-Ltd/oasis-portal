@@ -78,6 +78,7 @@ interface StoredStudent {
   fullNameEnc: string;
   dobEnc: string;
   yearGroup: string;
+  ageBandId: string | null;
   active: boolean;
   createdAt: Date;
 }
@@ -218,6 +219,7 @@ function makeFakeDb() {
       fullNameEnc: 'enc:Jane Learner',
       dobEnc: 'enc:2014-09-01',
       yearGroup: 'Year 6',
+      ageBandId: 'band_upper',
       active: true,
       createdAt: new Date('2026-04-22T09:00:00.000Z'),
     },
@@ -227,6 +229,7 @@ function makeFakeDb() {
       fullNameEnc: 'enc:Amos Scholar',
       dobEnc: 'enc:2015-09-01',
       yearGroup: 'Year 5',
+      ageBandId: 'band_upper',
       active: true,
       createdAt: new Date('2026-04-21T09:00:00.000Z'),
     },
@@ -236,6 +239,7 @@ function makeFakeDb() {
       fullNameEnc: 'enc:Former Student',
       dobEnc: 'enc:2013-09-01',
       yearGroup: 'Year 7',
+      ageBandId: 'band_secondary',
       active: false,
       createdAt: new Date('2026-04-23T09:00:00.000Z'),
     },
@@ -363,6 +367,7 @@ function makeFakeDb() {
                 fullNameEnc: student.fullNameEnc,
                 dobEnc: student.dobEnc,
                 yearGroup: student.yearGroup,
+                ageBandId: student.ageBandId,
                 active: student.active,
                 attendance: attendance
                   .filter((row) => row.studentId === student.id)
@@ -392,6 +397,7 @@ function makeFakeDb() {
           userId: student.userId,
           active: student.active,
           yearGroup: student.yearGroup,
+          ageBandId: student.ageBandId,
         });
       }),
     },
@@ -781,16 +787,22 @@ function makeFakeDb() {
         ({
           where,
         }: {
-          where: { active: boolean; name: { equals: string; mode: 'insensitive' } };
-          select: { standardYears: true };
+          where: {
+            id?: string;
+            active: boolean;
+            name: { equals: string; mode: 'insensitive' };
+          };
+          select: { id: true };
         }) => {
           const name = where.name.equals.toLowerCase();
           const band =
             yearGroupBands.find(
               (candidate) =>
-                candidate.active === where.active && candidate.name.toLowerCase() === name,
+                candidate.active === where.active &&
+                candidate.name.toLowerCase() === name &&
+                (where.id === undefined || candidate.id === where.id),
             ) ?? null;
-          return Promise.resolve(band ? { standardYears: band.standardYears } : null);
+          return Promise.resolve(band ? { id: band.id } : null);
         },
       ),
     },
@@ -1862,6 +1874,7 @@ describe('attendance.studentSummary', () => {
     const student = students.find((row) => row.id === activeStudentId);
     if (!student) throw new Error('active student missing');
     student.yearGroup = 'Year 7';
+    student.ageBandId = 'band_secondary';
     attendance.push(
       {
         id: 'ckattendanceown0000001',
@@ -1935,6 +1948,7 @@ describe('attendance.studentSummary', () => {
     const student = students.find((row) => row.id === activeStudentId);
     if (!student) throw new Error('active student missing');
     student.yearGroup = 'Year 7';
+    student.ageBandId = 'band_secondary';
 
     await expect(
       makeCaller(studentUser, db).attendance.studentSummary({
@@ -1976,6 +1990,7 @@ describe('attendance.studentSummary', () => {
     const student = students.find((row) => row.id === activeStudentId);
     if (!student) throw new Error('active student missing');
     student.yearGroup = 'Year 7';
+    student.ageBandId = 'band_secondary';
     const input = {
       from: day('2026-04-28'),
       to: day('2026-04-29'),

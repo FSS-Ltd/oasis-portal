@@ -136,7 +136,7 @@ interface FakeDb {
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
-  student: { findUnique: ReturnType<typeof vi.fn> };
+  student: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   guardian: { create: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
 }
 
@@ -145,7 +145,11 @@ function makeFakeDb(): FakeDb {
     {
       id: 'band_lower',
       name: 'Lower Primary',
-      standardYears: ['Reception', 'Year 1'],
+      standardYears: [] as string[],
+      students: [
+        { id: 'student_a', fullNameEnc: 'enc:Child A', yearGroup: 'Reception' },
+        { id: 'student_b', fullNameEnc: 'enc:Child B', yearGroup: 'Year 1' },
+      ],
       active: true,
       sortOrder: 10,
       colour: '#5B90C5',
@@ -164,9 +168,7 @@ function makeFakeDb(): FakeDb {
     yearGroupBand: {
       findMany: vi.fn(({ where }: { where?: { NOT?: { id?: string } } } = {}) =>
         Promise.resolve(
-          yearGroupBands.filter(
-            (band) => where?.NOT?.id === undefined || band.id !== where.NOT.id,
-          ),
+          yearGroupBands.filter((band) => where?.NOT?.id === undefined || band.id !== where.NOT.id),
         ),
       ),
       findFirst: vi.fn(
@@ -189,6 +191,7 @@ function makeFakeDb(): FakeDb {
           data: {
             name: string;
             standardYears: string[];
+            students: { connect: Array<{ id: string }> };
             colour: string;
             sortOrder: number;
           };
@@ -199,6 +202,11 @@ function makeFakeDb(): FakeDb {
             createdAt: new Date('2026-04-29T10:00:00.000Z'),
             updatedAt: new Date('2026-04-29T10:00:00.000Z'),
             ...data,
+            students: data.students.connect.map(({ id }) => ({
+              id,
+              fullNameEnc: `enc:${id}`,
+              yearGroup: 'Year 7',
+            })),
           };
           yearGroupBands.push(band);
           return Promise.resolve(band);
@@ -214,7 +222,19 @@ function makeFakeDb(): FakeDb {
             }),
           );
         }
-        Object.assign(band, data, { updatedAt: new Date('2026-04-29T11:00:00.000Z') });
+        const students = data.students as { set?: Array<{ id: string }> } | undefined;
+        Object.assign(band, data, {
+          ...(students?.set
+            ? {
+                students: students.set.map(({ id }) => ({
+                  id,
+                  fullNameEnc: `enc:${id}`,
+                  yearGroup: 'Year 7',
+                })),
+              }
+            : {}),
+          updatedAt: new Date('2026-04-29T11:00:00.000Z'),
+        });
         return Promise.resolve(band);
       }),
     },
@@ -260,7 +280,7 @@ function makeFakeDb(): FakeDb {
         Promise.resolve(makeInvitationRow({ id: where.id })),
       ),
     },
-    student: { findUnique: vi.fn() },
+    student: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn() },
     guardian: { create: vi.fn(), findUnique: vi.fn() },
   };
 }
@@ -358,7 +378,7 @@ describe('admin year-group bands', () => {
       expect.objectContaining({
         id: 'band_lower',
         name: 'Lower Primary',
-        standardYears: ['Reception', 'Year 1'],
+        studentIds: ['student_a', 'student_b'],
         active: true,
         sortOrder: 10,
         colour: '#5B90C5',
@@ -375,6 +395,11 @@ describe('admin year-group bands', () => {
         colour: true,
         createdAt: true,
         updatedAt: true,
+        students: {
+          where: { active: true },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, fullNameEnc: true, yearGroup: true },
+        },
       },
     });
 
@@ -391,14 +416,14 @@ describe('admin year-group bands', () => {
     await expect(
       caller.admin.createYearGroupBand({
         name: ' Secondary Prep ',
-        standardYears: ['Year 7', 'Year 8'],
+        studentIds: ['student_c', 'student_d'],
         colour: '#8a5a9e',
         sortOrder: 30,
       }),
     ).resolves.toMatchObject({
       id: 'band_2',
       name: 'Secondary Prep',
-      standardYears: ['Year 7', 'Year 8'],
+      students: [{ id: 'student_c' }, { id: 'student_d' }],
       colour: '#8A5A9E',
       active: true,
     });
@@ -417,7 +442,7 @@ describe('admin year-group bands', () => {
         entityId: 'band_2',
         meta: {
           name: 'Secondary Prep',
-          standardYears: ['Year 7', 'Year 8'],
+          studentIds: ['student_c', 'student_d'],
           sortOrder: 30,
           colour: '#8A5A9E',
         },
@@ -428,14 +453,14 @@ describe('admin year-group bands', () => {
       caller.admin.updateYearGroupBand({
         id: 'band_2',
         name: 'Secondary',
-        standardYears: ['Year 7', 'Year 8', 'Year 9'],
+        studentIds: ['student_c', 'student_d', 'student_e'],
         colour: '#8A5A9E',
         sortOrder: 35,
       }),
     ).resolves.toMatchObject({
       id: 'band_2',
       name: 'Secondary',
-      standardYears: ['Year 7', 'Year 8', 'Year 9'],
+      students: [{ id: 'student_c' }, { id: 'student_d' }, { id: 'student_e' }],
       sortOrder: 35,
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -445,9 +470,9 @@ describe('admin year-group bands', () => {
         entity: 'YearGroupBand',
         entityId: 'band_2',
         meta: {
-          fields: ['colour', 'name', 'sortOrder', 'standardYears'],
+          fields: ['colour', 'name', 'sortOrder', 'studentIds'],
           name: 'Secondary',
-          standardYears: ['Year 7', 'Year 8', 'Year 9'],
+          studentIds: ['student_c', 'student_d', 'student_e'],
           sortOrder: 35,
           colour: '#8A5A9E',
         },
@@ -474,13 +499,13 @@ describe('admin year-group bands', () => {
     });
   });
 
-  it('rejects duplicate names, empty names, invalid years, invalid colours, and non-full-admin writes', async () => {
+  it('rejects duplicate names, empty names, duplicate students, invalid colours, and non-full-admin writes', async () => {
     const { caller, db } = makeCaller(headUser);
 
     await expect(
       caller.admin.createYearGroupBand({
         name: 'lower primary',
-        standardYears: ['Year 2'],
+        studentIds: ['student_f'],
         colour: '#2F8F6B',
       }),
     ).rejects.toMatchObject({
@@ -490,22 +515,21 @@ describe('admin year-group bands', () => {
     await expect(
       caller.admin.createYearGroupBand({
         name: '',
-        standardYears: ['Year 2'],
+        studentIds: ['student_f'],
         colour: '#2F8F6B',
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
       caller.admin.createYearGroupBand({
-        name: 'Invalid Year',
-        // @ts-expect-error invalid year on purpose
-        standardYears: ['Y5'],
+        name: 'Duplicate students',
+        studentIds: ['student_f', 'student_f'],
         colour: '#2F8F6B',
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
       caller.admin.createYearGroupBand({
         name: 'Invalid Colour',
-        standardYears: ['Year 2'],
+        studentIds: ['student_f'],
         colour: 'green',
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
@@ -514,29 +538,12 @@ describe('admin year-group bands', () => {
     await expect(
       blocked.caller.admin.createYearGroupBand({
         name: 'Upper Primary',
-        standardYears: ['Year 2'],
+        studentIds: ['student_f'],
         colour: '#2F8F6B',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(blocked.db.yearGroupBand.create).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
-  });
-
-  it('rejects active age-band configurations that overlap an existing active band', async () => {
-    const { caller, db } = makeCaller(headUser);
-
-    await expect(
-      caller.admin.createYearGroupBand({
-        name: 'Conflicting primary',
-        standardYears: ['Year 1', 'Year 2'],
-        colour: '#2F8F6B',
-      }),
-    ).rejects.toMatchObject({
-      code: 'BAD_REQUEST',
-      message: 'Year 1 is already assigned to the active Lower Primary age band',
-    });
-
-    expect(db.yearGroupBand.create).not.toHaveBeenCalled();
   });
 });
 

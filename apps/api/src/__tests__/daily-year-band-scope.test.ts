@@ -45,10 +45,7 @@ const secondary: YearBandRow = {
   active: true,
 };
 
-function makeDb(input: {
-  shiftBands?: Array<YearBandRow | null>;
-  primaryBands?: YearBandRow[];
-}) {
+function makeDb(input: { shiftBands?: Array<YearBandRow | null>; primaryBands?: YearBandRow[] }) {
   return {
     staffShift: {
       findMany: vi.fn().mockResolvedValue(
@@ -77,28 +74,10 @@ describe('loadDailyYearBandScope', () => {
       'Upper Primary',
     ]);
     expect(studentWhereForDailyScope(scope)).toEqual({
-      yearGroup: {
-        in: [
-          'Reception',
-          'R',
-          'ABC',
-          'Year 1',
-          'Y1',
-          'Year 2',
-          'Y2',
-          'Year 3',
-          'Y3',
-          'Year 4',
-          'Y4',
-          'Year 5',
-          'Y5',
-          'Year 6',
-          'Y6',
-        ],
-      },
+      ageBandId: { in: ['band_lower', 'band_upper'] },
     });
-    expect(studentMatchesDailyScope(scope, { yearGroup: 'Y6' })).toBe(true);
-    expect(studentMatchesDailyScope(scope, { yearGroup: 'Year 7' })).toBe(false);
+    expect(studentMatchesDailyScope(scope, { ageBandId: 'band_upper' })).toBe(true);
+    expect(studentMatchesDailyScope(scope, { ageBandId: 'band_secondary' })).toBe(false);
     expect(db.yearGroupBand.findMany).toHaveBeenCalledWith({
       where: { active: true, name: { in: ['Lower Primary', 'Upper Primary'] } },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -116,7 +95,7 @@ describe('loadDailyYearBandScope', () => {
 
     expect(scope.assignedBands).toEqual([]);
     expect(studentWhereForDailyScope(scope)).toEqual({ id: { in: [] } });
-    expect(studentMatchesDailyScope(scope, { yearGroup: 'Year 5' })).toBe(false);
+    expect(studentMatchesDailyScope(scope, { ageBandId: 'band_upper' })).toBe(false);
   });
 
   it('combines primary access with assigned non-primary daily bands', async () => {
@@ -135,8 +114,8 @@ describe('loadDailyYearBandScope', () => {
       'Lower Primary',
       'Upper Primary',
     ]);
-    expect(studentMatchesDailyScope(scope, { yearGroup: 'Year 6' })).toBe(true);
-    expect(studentMatchesDailyScope(scope, { yearGroup: 'Year 8' })).toBe(true);
-    expect(studentMatchesDailyScope(scope, { yearGroup: 'Year 9' })).toBe(false);
+    expect(studentMatchesDailyScope(scope, { ageBandId: 'band_upper' })).toBe(true);
+    expect(studentMatchesDailyScope(scope, { ageBandId: 'band_secondary' })).toBe(true);
+    expect(studentMatchesDailyScope(scope, { ageBandId: null })).toBe(false);
   });
 });

@@ -2,11 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, Filter, UserPlus, X } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import {
-  STANDARD_SCHOOL_YEARS,
-  displaySchoolYearLabel,
-  type StandardSchoolYear,
-} from '@oasis/domain';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -365,7 +361,7 @@ function StudentPortalTable({
 
 export function StudentPortalReadinessClient() {
   const [status, setStatus] = useState<ReportStatus>('All');
-  const [ageBand, setAgeBand] = useState<StandardSchoolYear | 'All'>('All');
+  const [ageBand, setAgeBand] = useState<string>('All');
   const [selectedStudent, setSelectedStudent] = useState<ReportRow | null>(null);
   const input = useMemo(
     () => ({
@@ -375,6 +371,7 @@ export function StudentPortalReadinessClient() {
     [ageBand, status],
   );
   const report = api.studentSettings.adminReadinessReport.useQuery(input, { retry: false });
+  const bands = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
 
   return (
     <div className="student-registration-admin-page">
@@ -408,14 +405,14 @@ export function StudentPortalReadinessClient() {
           <Field label="Age band">
             <SelectInput
               onChange={(event) => {
-                setAgeBand(event.target.value as StandardSchoolYear | 'All');
+                setAgeBand(event.target.value);
               }}
               value={ageBand}
             >
               <option value="All">All</option>
-              {STANDARD_SCHOOL_YEARS.map((year) => (
-                <option key={year} value={year}>
-                  {displaySchoolYearLabel(year)}
+              {(bands.data ?? []).map((band) => (
+                <option key={band.id} value={band.id}>
+                  {band.name}
                 </option>
               ))}
             </SelectInput>

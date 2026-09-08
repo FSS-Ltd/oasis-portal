@@ -94,6 +94,7 @@ interface StoredStudent {
   userId: string | null;
   fullNameEnc: string;
   yearGroup: string;
+  ageBandId: string | null;
   active: boolean;
 }
 
@@ -463,6 +464,7 @@ function makeStudent(
   return {
     userId: null,
     yearGroup: 'Year 7',
+    ageBandId: secondaryBand.id,
     active: true,
     ...input,
   };
@@ -973,6 +975,7 @@ function makeFakeDb(
               id: student.id,
               fullNameEnc: student.fullNameEnc,
               yearGroup: student.yearGroup,
+              ageBandId: student.ageBandId,
             })),
         ),
       ),
@@ -1055,6 +1058,7 @@ function makeFakeDb(
                     id: student.id,
                     fullNameEnc: student.fullNameEnc,
                     yearGroup: student.yearGroup,
+                    ageBandId: student.ageBandId,
                   },
                 };
               }
@@ -1476,7 +1480,14 @@ describe('club.linkedChildSignupContext', () => {
     await expect(
       makeCaller(parentUser, db).caller.club.linkedChildSignupContext(),
     ).resolves.toEqual({
-      children: [{ id: linkedStudentId, fullName: 'Linked Learner', yearGroup: 'Year 7' }],
+      children: [
+        {
+          id: linkedStudentId,
+          fullName: 'Linked Learner',
+          yearGroup: 'Year 7',
+          ageBandId: secondaryBand.id,
+        },
+      ],
       clubs: [
         expect.objectContaining({
           id: defaultClubId,
@@ -1566,7 +1577,12 @@ describe('club.linkedChildClubDetail', () => {
     expect(result.club.activeSignupCount).toBe(2);
     expect(result.club.signedUpStudentIds).toEqual([linkedStudentId]);
     expect(result.signedUpChildren).toEqual([
-      { id: linkedStudentId, fullName: 'Linked Learner', yearGroup: 'Year 7' },
+      {
+        id: linkedStudentId,
+        fullName: 'Linked Learner',
+        yearGroup: 'Year 7',
+        ageBandId: secondaryBand.id,
+      },
     ]);
     expect(result.attendance).toEqual([
       {
@@ -1976,6 +1992,7 @@ describe('club.signUp', () => {
           fullNameEnc: encrypt('Linked Learner'),
           userId: studentUser.id,
           yearGroup: 'Year 2',
+          ageBandId: null,
         }),
       ],
     });
@@ -1987,7 +2004,7 @@ describe('club.signUp', () => {
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'club is not available to this student year group',
+      message: 'club is not available to this student age band',
     });
   });
 });

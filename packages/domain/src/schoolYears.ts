@@ -110,26 +110,27 @@ const colourSchema = z
   .regex(/^#[0-9a-fA-F]{6}$/u, 'colour must be a #RRGGBB hex value')
   .transform((value) => value.toUpperCase());
 
-const standardYearsSchema = z
-  .array(standardSchoolYearSchema)
-  .min(1)
-  .superRefine((years, ctx) => {
-    const seen = new Set<StandardSchoolYear>();
-    for (const year of years) {
-      if (seen.has(year)) {
+const studentIdsSchema = z
+  .array(z.string().trim().min(1))
+  .max(500)
+  .default([])
+  .superRefine((studentIds, ctx) => {
+    const seen = new Set<string>();
+    for (const studentId of studentIds) {
+      if (seen.has(studentId)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'standardYears must not contain duplicates',
+          message: 'studentIds must not contain duplicates',
         });
         return;
       }
-      seen.add(year);
+      seen.add(studentId);
     }
   });
 
 export const createYearGroupBandInput = z.object({
   name: trimmedNameSchema,
-  standardYears: standardYearsSchema,
+  studentIds: studentIdsSchema,
   colour: colourSchema,
   sortOrder: z.number().int().min(0).default(0),
 });
@@ -139,14 +140,14 @@ export const updateYearGroupBandInput = z
   .object({
     id: z.string().min(1),
     name: trimmedNameSchema.optional(),
-    standardYears: standardYearsSchema.optional(),
+    studentIds: studentIdsSchema.optional(),
     colour: colourSchema.optional(),
     sortOrder: z.number().int().min(0).optional(),
   })
   .refine(
     (input) =>
       input.name !== undefined ||
-      input.standardYears !== undefined ||
+      input.studentIds !== undefined ||
       input.colour !== undefined ||
       input.sortOrder !== undefined,
     { message: 'at least one field must be provided' },

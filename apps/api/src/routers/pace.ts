@@ -12,9 +12,7 @@ import {
   paceRecordInput,
   paceUpdateRecordInput,
   requireSelfStudent,
-  resolveAgeBand,
   rowsForMerit,
-  schoolYearStorageAliases,
   type PaceProgressStatusResult,
   type SessionUser,
 } from '@oasis/domain';
@@ -255,7 +253,7 @@ type PaceScope = {
   dayKey: string;
   fullAccess: boolean;
   rowBands: PaceBand[];
-  scopedYears: Set<string> | null;
+  scopedBandIds: Set<string> | null;
   selectedDate: Date;
 };
 
@@ -273,17 +271,6 @@ function uniqueBands(bands: readonly (PaceBand & { active?: boolean })[]): PaceB
     });
   }
   return result;
-}
-
-function bandForYear(yearGroup: string, bands: readonly PaceBand[]): PaceBand | null {
-  const canonical = canonicalSchoolYear(yearGroup);
-  return (
-    bands.find(
-      (band) =>
-        band.standardYears.includes(yearGroup) ||
-        (canonical !== null && band.standardYears.includes(canonical)),
-    ) ?? null
-  );
 }
 
 function effectivePaceRecordTime(record: { completedAt: Date | null; createdAt: Date }): number {
@@ -584,7 +571,7 @@ async function loadPaceScope(
       dayKey: dateKey(selectedDate),
       fullAccess,
       rowBands,
-      scopedYears: null,
+      scopedBandIds: null,
       selectedDate,
     };
   }
@@ -624,11 +611,7 @@ async function loadPaceScope(
     dayKey: dateKey(selectedDate),
     fullAccess,
     rowBands,
-    scopedYears: new Set(
-      scopedBands.flatMap((band) =>
-        band.standardYears.flatMap((year) => schoolYearStorageAliases(year)),
-      ),
-    ),
+    scopedBandIds: new Set(scopedBands.map((band) => band.id)),
     selectedDate,
   };
 }
@@ -636,15 +619,10 @@ async function loadPaceScope(
 async function assertStudentInPaceScope(
   ctx: AuthedContext,
   scope: PaceScope,
-  student: { id: string; yearGroup: string },
+  student: { ageBandId: string | null; id: string; yearGroup: string },
   entity: string,
 ): Promise<void> {
-  const canonicalYearGroup = canonicalSchoolYear(student.yearGroup);
-  if (
-    scope.fullAccess ||
-    scope.scopedYears?.has(student.yearGroup) ||
-    (canonicalYearGroup !== null && scope.scopedYears?.has(canonicalYearGroup))
-  ) {
+  if (scope.fullAccess || (student.ageBandId && scope.scopedBandIds?.has(student.ageBandId))) {
     return;
   }
 
@@ -659,7 +637,7 @@ async function assertStudentInPaceScope(
 async function loadPaceScopeForStudentRead(
   ctx: AuthedContext,
   inputDate: Date | undefined,
-  student: { id: string; userId: string | null; yearGroup: string },
+  student: { ageBandId: string | null; id: string; userId: string | null; yearGroup: string },
   entity: string,
 ): Promise<PaceScope> {
   if (ctx.user.role !== 'Student') {
@@ -692,7 +670,7 @@ async function loadPaceScopeForStudentRead(
     dayKey: dateKey(today),
     fullAccess: false,
     rowBands: [],
-    scopedYears: null,
+    scopedBandIds: null,
     selectedDate: today,
   };
 }
@@ -700,36 +678,37 @@ async function loadPaceScopeForStudentRead(
 export const paceRouter = router({
   roster: authedProcedure.input(paceRosterInput).query(async ({ ctx, input }) => {
     const scope = await loadPaceScope(ctx, input?.date, 'pace.roster');
-    const scopedYears = scope.scopedYears ? [...scope.scopedYears] : null;
+    const scopedBandIds = scope.scopedBandIds ? [...scope.scopedBandIds] : null;
     const students =
-      scopedYears && scopedYears.length === 0
+      scopedBandIds && scopedBandIds.length === 0
         ? []
         : await ctx.db.student.findMany({
             where: {
               active: true,
-              ...(scopedYears ? { yearGroup: { in: scopedYears } } : {}),
+              ...(scopedBandIds ? { ageBandId: { in: scopedBandIds } } : {}),
             },
             orderBy: { createdAt: 'desc' },
             select: {
               id: true,
               fullNameEnc: true,
               yearGroup: true,
+              ageBandId: true,
+              ageBand: { select: { id: true, name: true, colour: true } },
             },
           });
 
     const rows = students.map((student) => {
-      const band = bandForYear(student.yearGroup, scope.rowBands);
       const canonicalYearGroup = canonicalSchoolYear(student.yearGroup) ?? student.yearGroup;
       return {
         studentId: student.id,
         studentName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student'),
         yearGroup: canonicalYearGroup,
         yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
-        band: band
+        band: student.ageBand
           ? {
-              id: band.id,
-              name: band.name,
-              colour: band.colour,
+              id: student.ageBand.id,
+              name: student.ageBand.name,
+              colour: student.ageBand.colour,
             }
           : null,
       };
@@ -767,6 +746,8 @@ export const paceRouter = router({
         active: true,
         fullNameEnc: true,
         yearGroup: true,
+        ageBandId: true,
+        ageBand: { select: { id: true, name: true, colour: true } },
         subjects: {
           include: { subject: true },
           orderBy: { subject: { code: 'asc' } },
@@ -788,7 +769,7 @@ export const paceRouter = router({
     if (
       ctx.user.role === 'Student' &&
       student.userId === ctx.user.id &&
-      !(await canUseStudentAcademicScreens(ctx.db, student.yearGroup))
+      !(await canUseStudentAcademicScreens(ctx.db, student.ageBandId))
     ) {
       throw new TRPCError({
         code: 'FORBIDDEN',
@@ -1029,10 +1010,7 @@ export const paceRouter = router({
       studentName,
       yearGroup: canonicalSchoolYear(student.yearGroup) ?? student.yearGroup,
       yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
-      ageBand: resolveAgeBand(
-        student.yearGroup,
-        scope.rowBands.map((band) => ({ ...band, active: true })),
-      ),
+      ageBand: student.ageBand,
       paceStatusVisible,
       subjects,
       today: {
@@ -1063,7 +1041,7 @@ export const paceRouter = router({
     // Validate active student
     const student = await ctx.db.student.findUnique({
       where: { id: studentId },
-      select: { id: true, active: true, yearGroup: true },
+      select: { id: true, active: true, yearGroup: true, ageBandId: true },
     });
     if (!student) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -1406,7 +1384,7 @@ export const paceRouter = router({
         paceTestScore: true,
         completedAt: true,
         createdAt: true,
-        student: { select: { id: true, active: true, yearGroup: true } },
+        student: { select: { id: true, active: true, yearGroup: true, ageBandId: true } },
         subject: { select: { id: true, active: true } },
       },
     });
@@ -1741,7 +1719,7 @@ export const paceRouter = router({
           completedAt: true,
           createdAt: true,
           advancementApproval: { select: { id: true } },
-          student: { select: { id: true, active: true, yearGroup: true } },
+          student: { select: { id: true, active: true, yearGroup: true, ageBandId: true } },
           subject: { select: { id: true, active: true } },
         },
       });
@@ -1897,7 +1875,7 @@ export const paceRouter = router({
           completedAt: true,
           createdAt: true,
           advancementApproval: { select: { id: true } },
-          student: { select: { id: true, active: true, yearGroup: true } },
+          student: { select: { id: true, active: true, yearGroup: true, ageBandId: true } },
           subject: { select: { id: true, active: true } },
         },
       });

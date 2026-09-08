@@ -89,6 +89,7 @@ interface StoredStudent {
   active: boolean;
   fullNameEnc: string;
   yearGroup: string;
+  ageBandId: string | null;
 }
 
 interface StoredUser {
@@ -263,18 +264,26 @@ function makeFakeDb(
 ) {
   const supervisorHasShift = options.supervisorHasShift ?? true;
   const students: StoredStudent[] = [
-    { id: activeStudentId, active: true, fullNameEnc: 'enc:Jane Learner', yearGroup: 'Year 6' },
+    {
+      id: activeStudentId,
+      active: true,
+      fullNameEnc: 'enc:Jane Learner',
+      yearGroup: 'Year 6',
+      ageBandId: 'band_upper',
+    },
     {
       id: inactiveStudentId,
       active: false,
       fullNameEnc: 'enc:Former Student',
       yearGroup: 'Year 6',
+      ageBandId: 'band_upper',
     },
     {
       id: secondaryStudentId,
       active: true,
       fullNameEnc: 'enc:Secondary Student',
       yearGroup: 'Year 8',
+      ageBandId: null,
     },
   ];
   const bands = [
@@ -320,6 +329,7 @@ function makeFakeDb(
               };
             };
             id?: { in: string[] };
+            ageBandId?: { in: string[] };
             yearGroup?: { in: string[] };
           };
         } = {}) =>
@@ -327,6 +337,12 @@ function makeFakeDb(
             students.filter((student) => {
               if (where?.active !== undefined && student.active !== where.active) return false;
               if (where?.id?.in !== undefined && !where.id.in.includes(student.id)) return false;
+              if (
+                where?.ageBandId?.in !== undefined &&
+                (student.ageBandId === null || !where.ageBandId.in.includes(student.ageBandId))
+              ) {
+                return false;
+              }
               if (
                 where?.yearGroup?.in !== undefined &&
                 !where.yearGroup.in.includes(student.yearGroup)

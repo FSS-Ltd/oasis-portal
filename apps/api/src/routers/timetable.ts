@@ -1,14 +1,12 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
-  REGISTRATION_LEVELS,
   TIMETABLE_COLOURS,
   TIMETABLE_DAYS,
   TIMETABLE_SLOT_KINDS,
   findScheduleIssues,
   type TimetableColour,
   type TimetableDay,
-  type TimetableRegistrationLevel,
   type TimetableSlotInput,
 } from '@oasis/domain';
 import { Buffer } from 'node:buffer';
@@ -20,7 +18,6 @@ import {
   loadStudentTimetableDraft,
   saveStudentTimetableDraft,
   saveTimetableSchedule,
-  setTimetableMembership,
 } from '../services/timetable-data.js';
 import {
   findPublishedTimetableForHead,
@@ -36,7 +33,7 @@ import {
 import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 const termKeySchema = z.string().regex(/^\d{4}-\d{2}-term-[1-6]$/u, 'Choose a valid term');
-const registrationLevelSchema = z.enum(REGISTRATION_LEVELS);
+const ageBandIdSchema = z.string().trim().min(1);
 const slotSchema = z
   .object({
     id: z.string().trim().min(1).optional(),
@@ -49,7 +46,7 @@ const slotSchema = z
 const saveScheduleInput = z
   .object({
     termKey: termKeySchema,
-    registrationLevel: registrationLevelSchema,
+    ageBandId: ageBandIdSchema,
     slots: z.array(slotSchema).min(1, 'Add at least one timetable slot').max(16),
   })
   .strict()
@@ -65,25 +62,7 @@ const saveScheduleInput = z
       });
     }
   });
-const workspaceInput = z
-  .object({ termKey: termKeySchema, registrationLevel: registrationLevelSchema })
-  .strict();
-const setMembershipInput = z
-  .object({
-    studentId: z.string().trim().min(1),
-    isOwnTimetable: z.boolean(),
-    registrationLevel: registrationLevelSchema.optional(),
-  })
-  .strict()
-  .superRefine((input, context) => {
-    if (!input.isOwnTimetable && !input.registrationLevel) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Choose a registration level',
-        path: ['registrationLevel'],
-      });
-    }
-  });
+const workspaceInput = z.object({ termKey: termKeySchema, ageBandId: ageBandIdSchema }).strict();
 const studentTermInput = z
   .object({ termKey: termKeySchema, studentId: z.string().trim().min(1) })
   .strict();
@@ -121,7 +100,7 @@ export interface TimetableScheduleSlotView extends TimetableSlotInput {
 
 export interface TimetableScheduleView {
   id: string;
-  registrationLevel: TimetableRegistrationLevel;
+  ageBandId: string;
   slots: TimetableScheduleSlotView[];
   termKey: string;
 }
@@ -131,16 +110,16 @@ export interface TimetableChildSummary {
   fullName: string;
   id: string;
   latestPublicationId: string | null;
-  registrationLevel: TimetableRegistrationLevel;
+  ageBandId: string;
   status: 'Draft' | 'Published' | 'NotStarted' | 'N/A';
 }
 
 export interface TimetableHeadWorkspace {
+  ageBand: { colour: string; id: string; name: string };
   children: TimetableChildSummary[];
   ownTimetableChildren: TimetableChildSummary[];
   defaultSlots: readonly TimetableSlotInput[];
   progress: { done: number; total: number };
-  registrationLevel: TimetableRegistrationLevel;
   schedule: TimetableScheduleView | null;
   term: TeachingTerm;
 }
@@ -159,7 +138,7 @@ export interface StudentTimetableDraftView {
     firstName: string;
     fullName: string;
     id: string;
-    registrationLevel: TimetableRegistrationLevel;
+    ageBandId: string;
   };
   subjects: TimetableSubjectView[];
   timetableId: string | null;
@@ -181,7 +160,7 @@ export interface TimetablePublicationView {
   entries: TimetablePublicationEntryView[];
   id: string;
   publishedAt: Date;
-  registrationLevel: TimetableRegistrationLevel;
+  ageBandName: string;
   studentFirstName: string;
   studentId: string;
   termEndsOn: Date;
@@ -245,7 +224,10 @@ export interface TimetableRouterDeps {
     ctx: AuthedContext,
     input: z.infer<typeof saveScheduleInput>,
   ): Promise<TimetableScheduleView>;
-  setMembership(ctx: AuthedContext, input: z.infer<typeof setMembershipInput>): Promise<void>;
+  setOwnTimetable(
+    ctx: AuthedContext,
+    input: { followsOwnTimetable: boolean; studentId: string },
+  ): Promise<void>;
 }
 
 const defaultTimetableRouterDeps: TimetableRouterDeps = {
@@ -256,7 +238,6 @@ const defaultTimetableRouterDeps: TimetableRouterDeps = {
   saveSchedule: saveTimetableSchedule,
   saveDraft: saveStudentTimetableDraft,
   createAndAssignSubject: createAndAssignTimetableSubject,
-  setMembership: setTimetableMembership,
   publish: publishStudentTimetable,
   publishedForParent: findPublishedTimetableForParent,
   publishedForStudent: findPublishedTimetableForStudent,
@@ -273,11 +254,39 @@ const defaultTimetableRouterDeps: TimetableRouterDeps = {
       mimeType: pdf.mimeType,
     };
   },
+  setOwnTimetable: async (ctx, input) => {
+    await ctx.withRls(async (db) => {
+      const student = await db.student.update({
+        where: { id: input.studentId, active: true },
+        data: { followsOwnTimetable: input.followsOwnTimetable },
+        select: { id: true },
+      });
+      await db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'Student',
+          entityId: student.id,
+          meta: { source: 'timetable.setOwnTimetable', ...input },
+        },
+      });
+    });
+  },
 };
 
 export function createTimetableRouter(deps: TimetableRouterDeps = defaultTimetableRouterDeps) {
   return router({
     terms: authedProcedure.query(({ ctx }) => deps.loadTeachingTerms(ctx.db)),
+
+    bands: roleProcedure('Head').query(({ ctx }) =>
+      ctx.withRls((db) =>
+        db.yearGroupBand.findMany({
+          where: { active: true },
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true, colour: true },
+        }),
+      ),
+    ),
 
     headWorkspace: roleProcedure('Head')
       .input(workspaceInput)
@@ -287,9 +296,13 @@ export function createTimetableRouter(deps: TimetableRouterDeps = defaultTimetab
       .input(studentTermInput)
       .query(({ ctx, input }) => deps.loadStudentDraft(ctx, input)),
 
-    setMembership: roleProcedure('Head')
-      .input(setMembershipInput)
-      .mutation(({ ctx, input }) => deps.setMembership(ctx, input)),
+    setOwnTimetable: roleProcedure('Head')
+      .input(
+        z
+          .object({ studentId: z.string().trim().min(1), followsOwnTimetable: z.boolean() })
+          .strict(),
+      )
+      .mutation(({ ctx, input }) => deps.setOwnTimetable(ctx, input)),
 
     saveSchedule: roleProcedure('Head')
       .input(saveScheduleInput)

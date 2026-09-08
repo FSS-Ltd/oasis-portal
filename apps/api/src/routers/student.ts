@@ -7,7 +7,6 @@ import {
   canUseAdminOperations,
   deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
-  resolveAgeBand,
   type PermissionTag,
   standardSchoolYearSchema,
 } from '@oasis/domain';
@@ -418,6 +417,8 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         userId: true,
         fullNameEnc: true,
         yearGroup: true,
+          ageBandId: true,
+          ageBand: { select: { id: true, name: true, colour: true } },
         enrolmentDate: true,
         active: true,
       },
@@ -428,7 +429,10 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
 
     const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
     if (!fullName) {
-      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'student PII decrypt failed',
+        });
     }
 
     await auditDecryptPii(ctx, { count: 1, source: 'student.me' }, ownStudent.id);
@@ -440,7 +444,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       yearGroup: student.yearGroup,
       enrolmentDate: student.enrolmentDate,
       active: ownStudent.active,
-      academicScreensEnabled: await canUseStudentAcademicScreens(ctx.db, student.yearGroup),
+        academicScreensEnabled: await canUseStudentAcademicScreens(ctx.db, student.ageBandId),
     };
   }),
 
@@ -457,7 +461,10 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
 
   dashboard: roleProcedure('Student').query(async ({ ctx }) => {
     const ownStudent = await loadOwnActiveStudent(ctx);
-    await assertStudentPortalAccess(ctx, { entity: 'student.dashboard', studentId: ownStudent.id });
+      await assertStudentPortalAccess(ctx, {
+        entity: 'student.dashboard',
+        studentId: ownStudent.id,
+      });
 
     const student = await ctx.db.student.findUnique({
       where: { id: ownStudent.id },
@@ -466,6 +473,8 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         fullNameEnc: true,
         dobEnc: true,
         yearGroup: true,
+          ageBandId: true,
+          ageBand: { select: { id: true, name: true, colour: true, active: true } },
         portalSettings: { select: { childIconPhotoUrl: true } },
       },
     });
@@ -476,7 +485,10 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
     const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
     const dob = ctx.db.$enc.decrypt(student.dobEnc);
     if (!fullName || !dob) {
-      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'student PII decrypt failed',
+        });
     }
     const firstName = firstNameFrom(fullName);
     const [
@@ -487,7 +499,6 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       shortcuts,
       faithCorner,
       academicScreensEnabled,
-      ageBands,
     ] = await Promise.all([
       loadMeritBalances(ctx, ownStudent.id),
       loadPaceDashboard(ctx, ownStudent.id),
@@ -495,11 +506,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       ctx.withRls((tx) => loadStudentNotificationPreview(tx, ownStudent.id)),
       loadShortcutDashboard(ctx, ownStudent.id),
       loadCurrentFaithCornerContent(ctx),
-      canUseStudentAcademicScreens(ctx.db, student.yearGroup),
-      ctx.db.yearGroupBand.findMany({
-        where: { active: true },
-        select: { id: true, name: true, standardYears: true, colour: true, active: true },
-      }),
+        canUseStudentAcademicScreens(ctx.db, student.ageBandId),
     ]);
     const totalMerits = totalMeritBalance(balances);
 
@@ -513,7 +520,13 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         childIconPhotoUrl: student.portalSettings?.childIconPhotoUrl ?? null,
         yearGroup: student.yearGroup,
         yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
-        ageBand: resolveAgeBand(student.yearGroup, ageBands),
+          ageBand: student.ageBand
+            ? {
+                id: student.ageBand.id,
+                name: student.ageBand.name,
+                colour: student.ageBand.colour,
+              }
+            : null,
         academicScreensEnabled,
       },
       merits: {

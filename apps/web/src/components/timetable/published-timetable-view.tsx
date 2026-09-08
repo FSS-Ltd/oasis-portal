@@ -50,7 +50,7 @@ export function PublishedTimetableView({ publication }: PublishedTimetableViewPr
         </div>
         <div className={styles.publishedMeta}>
           <strong>{publication.termLabel}</strong>
-          <span>{publication.registrationLevel}</span>
+          <span>{publication.ageBandName}</span>
           <small>{formatTermDates(publication.termStartsOn, publication.termEndsOn)}</small>
         </div>
       </header>

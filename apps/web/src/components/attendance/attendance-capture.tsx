@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Download, RefreshCw, RotateCcw } from 'lucide-react';
-import { canonicalSchoolYear, displaySchoolYearLabel } from '@oasis/domain';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import {
@@ -32,6 +32,7 @@ type AttendanceRow = {
   studentId: string;
   studentName: string;
   yearGroup: string;
+  ageBandId: string | null;
   date: string;
   status: AttendanceStatus | null;
   absenceReason: AbsenceReason | null;
@@ -42,7 +43,6 @@ type AttendanceRow = {
 type Band = {
   id: string;
   name: string;
-  standardYears: string[];
   colour: string;
 };
 
@@ -63,15 +63,8 @@ function asDate(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
 }
 
-function bandForRow(row: Pick<AttendanceRow, 'yearGroup'>, bands: readonly Band[]): Band | null {
-  const canonical = canonicalSchoolYear(row.yearGroup);
-  return (
-    bands.find(
-      (band) =>
-        band.standardYears.includes(row.yearGroup) ||
-        (canonical !== null && band.standardYears.includes(canonical)),
-    ) ?? null
-  );
+function bandForRow(row: Pick<AttendanceRow, 'ageBandId'>, bands: readonly Band[]): Band | null {
+  return bands.find((band) => band.id === row.ageBandId) ?? null;
 }
 
 function withoutRecordKey<T>(record: Record<string, T>, keyToRemove: string): Record<string, T> {

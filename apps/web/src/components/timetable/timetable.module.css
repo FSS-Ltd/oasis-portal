@@ -416,14 +416,6 @@
   cursor: pointer;
 }
 
-.childCard .naAction:hover,
-.childCard .naAction:focus-visible,
-.ownTimetableList button:hover,
-.ownTimetableList button:focus-visible {
-  border-color: var(--oasis-navy);
-  color: var(--oasis-navy);
-}
-
 .ownTimetableList {
   display: grid;
   gap: 8px;
@@ -431,27 +423,11 @@
   border-top: 1px solid var(--oasis-border-light);
 }
 
-.ownTimetableList > strong {
-  color: var(--oasis-text-secondary);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
 .ownTimetableList > div {
   display: grid;
   grid-template-columns: minmax(120px, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-}
-
-.ownTimetableList small {
-  color: var(--oasis-text-muted);
-  font-weight: 800;
-}
-
-.ownTimetableList button {
-  padding: 0 10px;
 }
 
 .subjectLegend {

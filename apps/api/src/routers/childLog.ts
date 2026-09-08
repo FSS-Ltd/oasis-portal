@@ -1287,6 +1287,7 @@ export const childLogRouter = router({
         active: true,
         fullNameEnc: true,
         yearGroup: true,
+        ageBandId: true,
         subjects: {
           include: { subject: true },
           orderBy: { subject: { code: 'asc' } },

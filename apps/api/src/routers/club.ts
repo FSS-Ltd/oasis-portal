@@ -71,6 +71,7 @@ interface LinkedStudentRow {
     id: string;
     fullNameEnc: string;
     yearGroup: string;
+    ageBandId: string | null;
   };
 }
 
@@ -240,7 +241,10 @@ const createClubRotaShiftBatchInput = z
   .object({
     clubId: stringIdInput,
     participantUserId: z.string().min(1),
-    dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/u)).min(1).max(4),
+    dates: z
+      .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/u))
+      .min(1)
+      .max(4),
     startMinute: z.number().int().min(0).max(1439),
     endMinute: z.number().int().min(1).max(1440),
     repeatScope: z.enum(['week', 'term']),
@@ -252,7 +256,11 @@ const createClubRotaShiftBatchInput = z
   })
   .superRefine((input, ctx) => {
     if (new Set(input.dates).size !== input.dates.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Choose each date only once', path: ['dates'] });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose each date only once',
+        path: ['dates'],
+      });
     }
   });
 
@@ -613,12 +621,12 @@ function mapClub(
   };
 }
 
-function clubIsAvailableToYearGroup(
+function clubIsAvailableToAgeBand(
   club: Pick<ClubRow, 'yearGroupBands'>,
-  yearGroup: string,
+  ageBandId: string | null,
 ): boolean {
   return clubMatchesYearGroupBands(
-    yearGroup,
+    ageBandId,
     club.yearGroupBands.map(({ yearGroupBand }) => yearGroupBand),
   );
 }
@@ -647,6 +655,7 @@ function mapLinkedStudent(
     id: row.student.id,
     fullName: decryptRequired(decrypt, row.student.fullNameEnc, 'student PII'),
     yearGroup: row.student.yearGroup,
+    ageBandId: row.student.ageBandId,
   };
 }
 
@@ -856,7 +865,7 @@ async function loadLinkedActiveStudents(
     where: { userId: ctx.user.id, student: { active: true } },
     select: {
       student: {
-        select: { id: true, fullNameEnc: true, yearGroup: true },
+        select: { id: true, fullNameEnc: true, yearGroup: true, ageBandId: true },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -911,10 +920,10 @@ async function assertFullAdminActiveStudent(
 
 async function loadOwnActiveStudent(
   ctx: AuthedContext,
-): Promise<{ id: string; active: boolean; yearGroup: string }> {
+): Promise<{ id: string; active: boolean; yearGroup: string; ageBandId: string | null }> {
   const student = await ctx.db.student.findUnique({
     where: { userId: ctx.user.id },
-    select: { id: true, active: true, yearGroup: true },
+    select: { id: true, active: true, yearGroup: true, ageBandId: true },
   });
   if (!student?.active) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
@@ -940,13 +949,13 @@ async function assertActiveClubYearGroupBands(
   return uniqueIds;
 }
 
-async function loadActiveStudentYearGroup(
+async function loadActiveStudentAgeBand(
   db: Pick<AuthedContext['db'], 'student'>,
   studentId: string,
-): Promise<string> {
+): Promise<string | null> {
   const student = await db.student.findUnique({
     where: { id: studentId },
-    select: { active: true, yearGroup: true },
+    select: { active: true, ageBandId: true },
   });
   if (!student) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -954,14 +963,14 @@ async function loadActiveStudentYearGroup(
   if (!student.active) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
   }
-  return student.yearGroup;
+  return student.ageBandId;
 }
 
-function assertClubEligibilityForYearGroup(club: ClubRow, yearGroup: string): void {
-  if (!clubIsAvailableToYearGroup(club, yearGroup)) {
+function assertClubEligibilityForAgeBand(club: ClubRow, ageBandId: string | null): void {
+  if (!clubIsAvailableToAgeBand(club, ageBandId)) {
     throw new TRPCError({
       code: 'BAD_REQUEST',
-      message: 'club is not available to this student year group',
+      message: 'club is not available to this student age band',
     });
   }
 }
@@ -1356,7 +1365,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       });
       const visibleClubs = clubs.filter(
         (club) =>
-          clubIsAvailableToYearGroup(club, student.yearGroup) ||
+          clubIsAvailableToAgeBand(club, student.ageBandId) ||
           club.signups.some(
             (signup) =>
               signup.studentId === student.id &&
@@ -1466,7 +1475,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             signup.studentId === student.id &&
             (signup.status === 'Active' || signup.status === 'Pending'),
         );
-        if (!clubIsAvailableToYearGroup(club, student.yearGroup) && !ownSignup) {
+        if (!clubIsAvailableToAgeBand(club, student.ageBandId) && !ownSignup) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
         }
 
@@ -2320,7 +2329,10 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         }
         const dates = expandOasisRotaDates(selectedDates, input.repeatScope);
         if (dates.length === 0) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose Tuesday to Friday operating dates' });
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Choose Tuesday to Friday operating dates',
+          });
         }
 
         const candidates = dates.map((date) => ({
@@ -2758,7 +2770,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             if (!club.active) {
               throw new TRPCError({ code: 'BAD_REQUEST', message: 'club is inactive' });
             }
-            assertClubEligibilityForYearGroup(club, student.yearGroup);
+            assertClubEligibilityForAgeBand(club, student.ageBandId);
             const activeSignupCount = club.signups.filter(
               (signup) => signup.status === 'Active',
             ).length;
@@ -2853,8 +2865,8 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             } else {
               await assertFullAdminActiveStudent(tx, input.studentId);
             }
-            const studentYearGroup = await loadActiveStudentYearGroup(tx, input.studentId);
-            assertClubEligibilityForYearGroup(club, studentYearGroup);
+            const studentAgeBandId = await loadActiveStudentAgeBand(tx, input.studentId);
+            assertClubEligibilityForAgeBand(club, studentAgeBandId);
 
             const signupCheckInput = {
               currentActiveSignups: club.signups.length,

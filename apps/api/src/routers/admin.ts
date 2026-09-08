@@ -21,7 +21,6 @@ import {
   canAnswerChildRegistrationPrompt,
   canManageUserAccountRole,
   canManageUserAccounts,
-  canonicalSchoolYear,
   createSubjectInput,
   createYearGroupBandInput,
   deactivateSubjectInput,
@@ -517,63 +516,6 @@ async function assertUniqueBandName(
   }
 }
 
-async function assertNoActiveAgeBandOverlap(
-  ctx: {
-    db: {
-      yearGroupBand: {
-        findMany: (args: Prisma.YearGroupBandFindManyArgs) => Promise<
-          Array<{ id: string; name: string; standardYears: string[] }>
-        >;
-      };
-    };
-  },
-  standardYears: readonly string[],
-  exceptId?: string,
-): Promise<void> {
-  const requestedYears = new Set(
-    standardYears.flatMap((year) => {
-      const canonical = canonicalSchoolYear(year);
-      return canonical ? [canonical] : [];
-    }),
-  );
-  const activeBands = await ctx.db.yearGroupBand.findMany({
-    where: { active: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
-    select: { id: true, name: true, standardYears: true },
-  });
-
-  for (const band of activeBands) {
-    const overlap = band.standardYears
-      .map(canonicalSchoolYear)
-      .find((year): year is NonNullable<typeof year> => year !== null && requestedYears.has(year));
-    if (overlap) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: `${overlap} is already assigned to the active ${band.name} age band`,
-      });
-    }
-  }
-}
-
-function conflictingActiveBandYears(
-  band: { active: boolean; id: string; standardYears: readonly string[] },
-  bands: readonly { active: boolean; id: string; standardYears: readonly string[] }[],
-): string[] {
-  if (!band.active) return [];
-  const yearsInOtherActiveBands = new Set(
-    bands
-      .filter((candidate) => candidate.active && candidate.id !== band.id)
-      .flatMap((candidate) => candidate.standardYears)
-      .map(canonicalSchoolYear)
-      .filter((year): year is NonNullable<typeof year> => year !== null),
-  );
-  return band.standardYears
-    .map(canonicalSchoolYear)
-    .filter(
-      (year): year is NonNullable<typeof year> =>
-        year !== null && yearsInOtherActiveBands.has(year),
-    );
-}
-
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
   let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
@@ -784,11 +726,35 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           colour: true,
           createdAt: true,
           updatedAt: true,
+          students: {
+            where: { active: true },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, fullNameEnc: true, yearGroup: true },
+          },
         },
       });
       return bands.map((band) => ({
         ...band,
-        conflictingYears: conflictingActiveBandYears(band, bands),
+        studentIds: band.students.map((student) => student.id),
+        students: band.students.map((student) => ({
+          id: student.id,
+          fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII'),
+          yearGroup: student.yearGroup,
+        })),
+      }));
+    }),
+
+    listAgeBandStudents: adminOperationsProcedure.query(async ({ ctx }) => {
+      const students = await ctx.db.student.findMany({
+        where: { active: true },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, fullNameEnc: true, yearGroup: true, ageBandId: true },
+      });
+      return students.map((student) => ({
+        id: student.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII'),
+        yearGroup: student.yearGroup,
+        ageBandId: student.ageBandId,
       }));
     }),
 
@@ -796,11 +762,15 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .input(createYearGroupBandInput)
       .mutation(async ({ ctx, input }) => {
         await assertUniqueBandName(ctx, input.name);
-        await assertNoActiveAgeBandOverlap(ctx, input.standardYears);
 
         try {
+          const { studentIds, ...bandInput } = input;
           const band = await ctx.db.yearGroupBand.create({
-            data: input,
+            data: {
+              ...bandInput,
+              standardYears: [],
+              students: { connect: studentIds.map((id) => ({ id })) },
+            },
             select: {
               id: true,
               name: true,
@@ -808,6 +778,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
               active: true,
               sortOrder: true,
               colour: true,
+              students: { select: { id: true } },
             },
           });
 
@@ -819,7 +790,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
               entityId: band.id,
               meta: {
                 name: band.name,
-                standardYears: band.standardYears,
+                studentIds: band.students.map((student) => student.id),
                 sortOrder: band.sortOrder,
                 colour: band.colour,
               },
@@ -844,13 +815,11 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         if (input.name !== undefined) {
           await assertUniqueBandName(ctx, input.name, input.id);
         }
-        if (input.standardYears !== undefined) {
-          await assertNoActiveAgeBandOverlap(ctx, input.standardYears, input.id);
-        }
-
         const data: Prisma.YearGroupBandUpdateInput = {};
         if (input.name !== undefined) data.name = input.name;
-        if (input.standardYears !== undefined) data.standardYears = input.standardYears;
+        if (input.studentIds !== undefined) {
+          data.students = { set: input.studentIds.map((id) => ({ id })) };
+        }
         if (input.colour !== undefined) data.colour = input.colour;
         if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
 
@@ -865,6 +834,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
               active: true,
               sortOrder: true,
               colour: true,
+              students: { select: { id: true } },
             },
           });
 
@@ -875,9 +845,11 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
               entity: 'YearGroupBand',
               entityId: band.id,
               meta: {
-                fields: Object.keys(data).sort(),
+                fields: Object.keys(data)
+                  .map((field) => (field === 'students' ? 'studentIds' : field))
+                  .sort(),
                 name: band.name,
-                standardYears: band.standardYears,
+                studentIds: band.students.map((student) => student.id),
                 sortOrder: band.sortOrder,
                 colour: band.colour,
               },
@@ -905,7 +877,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         try {
           const band = await ctx.db.yearGroupBand.update({
             where: { id: input.id },
-            data: { active: false },
+            data: { active: false, students: { set: [] } },
             select: { id: true, name: true, active: true },
           });
 
@@ -939,7 +911,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       });
     }),
 
-    createSubject: adminOperationsProcedure.input(createSubjectInput).mutation(async ({ ctx, input }) => {
+    createSubject: adminOperationsProcedure
+      .input(createSubjectInput)
+      .mutation(async ({ ctx, input }) => {
       try {
         const subject = await ctx.db.subject.create({
           data: { code: input.code, name: input.name },
@@ -968,7 +942,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       }
     }),
 
-    updateSubject: adminOperationsProcedure.input(updateSubjectInput).mutation(async ({ ctx, input }) => {
+    updateSubject: adminOperationsProcedure
+      .input(updateSubjectInput)
+      .mutation(async ({ ctx, input }) => {
       try {
         const subject = await ctx.db.subject.update({
           where: { id: input.id },
@@ -1398,7 +1374,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    searchParents: adminOperationsProcedure.input(searchParentsInput).query(async ({ ctx, input }) => {
+    searchParents: adminOperationsProcedure
+      .input(searchParentsInput)
+      .query(async ({ ctx, input }) => {
       const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
       if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
 
@@ -1622,7 +1600,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         return { id: storedInvitation.id, deleted: true };
       }),
 
-    linkGuardian: adminOperationsProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {
+    linkGuardian: adminOperationsProcedure
+      .input(linkGuardianInput)
+      .mutation(async ({ ctx, input }) => {
       const [targetUser, student] = await Promise.all([
         ctx.db.user.findUnique({
           where: { id: input.userId },

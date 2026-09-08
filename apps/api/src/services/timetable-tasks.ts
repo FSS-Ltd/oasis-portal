@@ -20,11 +20,11 @@ interface TaskUpsertInput {
 
 export interface TimetableTaskDb extends TimetableTermDb {
   personalTask: { upsert(input: TaskUpsertInput): Promise<StoredTimetableTask> };
-  timetableAgeGroupMembership: {
+  student: {
     findMany(input: {
-      select: { studentId: true };
-      where: { isOwnTimetable: false; student: { active: true } };
-    }): Promise<Array<{ studentId: string }>>;
+      select: { id: true };
+      where: { active: true; ageBandId: { not: null }; followsOwnTimetable: false };
+    }): Promise<Array<{ id: string }>>;
   };
   studentTimetablePublication: {
     findMany(input: {
@@ -55,17 +55,17 @@ export async function syncTimetableTasks({
   db: TimetableTaskDb;
   headIds?: readonly string[];
 }): Promise<TimetableTaskSyncSummary> {
-  const [terms, heads, memberships] = await Promise.all([
+  const [terms, heads, students] = await Promise.all([
     loadTeachingTerms(db),
     headIds
       ? Promise.resolve(headIds.map((id) => ({ id })))
       : db.user.findMany({ where: { role: 'Head', active: true }, select: { id: true } }),
-    db.timetableAgeGroupMembership.findMany({
-      where: { isOwnTimetable: false, student: { active: true } },
-      select: { studentId: true },
+    db.student.findMany({
+      where: { active: true, ageBandId: { not: null }, followsOwnTimetable: false },
+      select: { id: true },
     }),
   ]);
-  const studentIds = memberships.map((membership) => membership.studentId);
+  const studentIds = students.map((student) => student.id);
   const publications =
     terms.length === 0 || studentIds.length === 0
       ? []
