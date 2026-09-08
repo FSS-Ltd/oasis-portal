@@ -159,7 +159,7 @@ export function MobilePublishedTimetableScreen({
               <View>
                 <Text style={styles.studentName}>{publication.studentFirstName}</Text>
                 <MutedText>
-                  {publication.termLabel} · {publication.registrationLevel}
+                  {publication.termLabel} · {publication.ageBandName}
                 </MutedText>
               </View>
               <Badge variant="success">Published</Badge>

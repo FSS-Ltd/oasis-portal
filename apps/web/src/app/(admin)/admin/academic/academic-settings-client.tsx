@@ -3,31 +3,23 @@
 import { Save, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import type { StandardSchoolYear } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
-import {
-  PacePolicyPanel,
-  StandardYearsPanel,
-  type PolicyForm,
-} from './_components/academic-panels';
-import {
-  formatSchoolYearList,
-  standardSchoolYearOptions,
-  standardSchoolYearsFrom,
-} from './_components/school-year-options';
+import { PacePolicyPanel, type PolicyForm } from './_components/academic-panels';
 
 type YearGroupBand = {
   active: boolean;
   colour: string;
-  conflictingYears: string[];
   id: string;
   name: string;
   sortOrder: number;
-  standardYears: string[];
+  studentIds: string[];
+  students: Array<{ fullName: string; id: string; yearGroup: string }>;
 };
+
+type AgeBandStudent = { ageBandId: string | null; fullName: string; id: string; yearGroup: string };
 
 type Subject = {
   active: boolean;
@@ -40,14 +32,14 @@ type BandForm = {
   name: string;
   colour: string;
   sortOrder: string;
-  standardYears: StandardSchoolYear[];
+  studentIds: string[];
 };
 
 const emptyBandForm: BandForm = {
   name: '',
   colour: '#5B90C5',
   sortOrder: '0',
-  standardYears: [],
+  studentIds: [],
 };
 
 const defaultPolicyForm: PolicyForm = {
@@ -57,8 +49,10 @@ const defaultPolicyForm: PolicyForm = {
   passThreshold: '80',
 };
 
-function toggleYear(years: StandardSchoolYear[], year: StandardSchoolYear) {
-  return years.includes(year) ? years.filter((item) => item !== year) : [...years, year];
+function toggleStudent(studentIds: string[], studentId: string) {
+  return studentIds.includes(studentId)
+    ? studentIds.filter((item) => item !== studentId)
+    : [...studentIds, studentId];
 }
 
 function normaliseColour(value: string) {
@@ -70,7 +64,7 @@ function parseBandForm(form: BandForm) {
     name: form.name,
     colour: normaliseColour(form.colour),
     sortOrder: Number(form.sortOrder),
-    standardYears: form.standardYears,
+    studentIds: form.studentIds,
   };
 }
 
@@ -85,6 +79,7 @@ function checkboxCardClass(checked: boolean): string {
 export function AcademicSettingsClient() {
   const utils = api.useUtils();
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
+  const bandStudentsQuery = api.admin.listAgeBandStudents.useQuery(undefined, { retry: false });
   const subjectsQuery = api.admin.listSubjects.useQuery(undefined, { retry: false });
   const policyQuery = api.admin.getPacePolicy.useQuery(undefined, { retry: false });
 
@@ -98,6 +93,10 @@ export function AcademicSettingsClient() {
   const [policyForm, setPolicyForm] = useState<PolicyForm>(defaultPolicyForm);
 
   const bands = useMemo<YearGroupBand[]>(() => bandsQuery.data ?? [], [bandsQuery.data]);
+  const bandStudents = useMemo<AgeBandStudent[]>(
+    () => bandStudentsQuery.data ?? [],
+    [bandStudentsQuery.data],
+  );
   const subjects = useMemo<Subject[]>(() => subjectsQuery.data ?? [], [subjectsQuery.data]);
 
   const activeSubjects = useMemo<Subject[]>(() => subjects.filter(subjectIsActive), [subjects]);
@@ -110,7 +109,10 @@ export function AcademicSettingsClient() {
     async onSuccess() {
       setBandForm(emptyBandForm);
       showSuccessToast('Band saved.');
-      await utils.admin.listYearGroupBands.invalidate();
+      await Promise.all([
+        utils.admin.listYearGroupBands.invalidate(),
+        utils.admin.listAgeBandStudents.invalidate(),
+      ]);
     },
     onError(error) {
       showErrorToast(error, 'Band could not be saved.');
@@ -120,7 +122,10 @@ export function AcademicSettingsClient() {
     async onSuccess() {
       setEditingBandId(null);
       showSuccessToast('Band updated.');
-      await utils.admin.listYearGroupBands.invalidate();
+      await Promise.all([
+        utils.admin.listYearGroupBands.invalidate(),
+        utils.admin.listAgeBandStudents.invalidate(),
+      ]);
     },
     onError(error) {
       showErrorToast(error, 'Band could not be updated.');
@@ -129,7 +134,10 @@ export function AcademicSettingsClient() {
   const deactivateBand = api.admin.deactivateYearGroupBand.useMutation({
     async onSuccess() {
       showSuccessToast('Band deactivated.');
-      await utils.admin.listYearGroupBands.invalidate();
+      await Promise.all([
+        utils.admin.listYearGroupBands.invalidate(),
+        utils.admin.listAgeBandStudents.invalidate(),
+      ]);
     },
     onError(error) {
       showErrorToast(error, 'Band could not be deactivated.');
@@ -198,12 +206,10 @@ export function AcademicSettingsClient() {
 
   return (
     <div className="settings-grid">
-      <StandardYearsPanel yearCount={standardSchoolYearOptions.length} />
-
       <section className="panel">
         <div className="panel__body">
           <div className="section-title">
-            <h2>Year-group bands</h2>
+            <h2>Age bands</h2>
           </div>
           <form
             className="form-grid"
@@ -248,23 +254,23 @@ export function AcademicSettingsClient() {
                 value={bandForm.sortOrder}
               />
             </Field>
-            <div className="checkbox-grid" aria-label="Band school years">
-              {standardSchoolYearOptions.map(({ label, year }) => (
+            <div className="checkbox-grid" aria-label="Students in this band">
+              {bandStudents.map((student) => (
                 <label
-                  className={checkboxCardClass(bandForm.standardYears.includes(year))}
-                  key={year}
+                  className={checkboxCardClass(bandForm.studentIds.includes(student.id))}
+                  key={student.id}
                 >
                   <input
-                    checked={bandForm.standardYears.includes(year)}
+                    checked={bandForm.studentIds.includes(student.id)}
                     onChange={() => {
                       setBandForm({
                         ...bandForm,
-                        standardYears: toggleYear(bandForm.standardYears, year),
+                        studentIds: toggleStudent(bandForm.studentIds, student.id),
                       });
                     }}
                     type="checkbox"
                   />
-                  {label}
+                  {student.fullName} · {student.yearGroup}
                 </label>
               ))}
             </div>
@@ -291,11 +297,6 @@ export function AcademicSettingsClient() {
           <div className="academic-list">
             {bands.map((band: YearGroupBand) => (
               <div className="academic-row academic-row--stack" key={band.id}>
-                {band.conflictingYears.length > 0 ? (
-                  <p className="status--warning" role="alert">
-                    Resolve duplicate active age-band years: {band.conflictingYears.join(', ')}.
-                  </p>
-                ) : null}
                 {editingBandId === band.id ? (
                   <form
                     className="form-grid"
@@ -349,25 +350,25 @@ export function AcademicSettingsClient() {
                         value={editingBandForm.sortOrder}
                       />
                     </Field>
-                    <div className="checkbox-grid" aria-label={`${band.name} school years`}>
-                      {standardSchoolYearOptions.map(({ label, year }) => (
+                    <div className="checkbox-grid" aria-label={`Students in ${band.name}`}>
+                      {bandStudents.map((student) => (
                         <label
                           className={checkboxCardClass(
-                            editingBandForm.standardYears.includes(year),
+                            editingBandForm.studentIds.includes(student.id),
                           )}
-                          key={year}
+                          key={student.id}
                         >
                           <input
-                            checked={editingBandForm.standardYears.includes(year)}
+                            checked={editingBandForm.studentIds.includes(student.id)}
                             onChange={() => {
                               setEditingBandForm({
                                 ...editingBandForm,
-                                standardYears: toggleYear(editingBandForm.standardYears, year),
+                                studentIds: toggleStudent(editingBandForm.studentIds, student.id),
                               });
                             }}
                             type="checkbox"
                           />
-                          {label}
+                          {student.fullName} · {student.yearGroup}
                         </label>
                       ))}
                     </div>
@@ -394,7 +395,11 @@ export function AcademicSettingsClient() {
                   <>
                     <div>
                       <strong>{band.name}</strong>
-                      <span>{formatSchoolYearList(band.standardYears)}</span>
+                      <span>
+                        {band.students.length === 0
+                          ? 'No students assigned'
+                          : band.students.map((student) => student.fullName).join(', ')}
+                      </span>
                     </div>
                     <span
                       className="colour-pill"
@@ -413,7 +418,7 @@ export function AcademicSettingsClient() {
                             name: band.name,
                             colour: band.colour,
                             sortOrder: String(band.sortOrder),
-                            standardYears: standardSchoolYearsFrom(band.standardYears),
+                            studentIds: band.studentIds,
                           });
                         }}
                         size="sm"

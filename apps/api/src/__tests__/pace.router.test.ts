@@ -203,6 +203,8 @@ const defaultStudent = {
   active: true,
   fullNameEnc: 'enc:Jane Learner',
   yearGroup: 'Year 6',
+  ageBandId: 'band_lower',
+  ageBand: { id: 'band_lower', name: 'Lower Primary', colour: '#5B90C5' },
   subjects: defaultAssignments,
 };
 
@@ -245,6 +247,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         id: record.studentId,
         active: defaultStudent.active,
         yearGroup: defaultStudent.yearGroup,
+        ageBandId: defaultStudent.ageBandId,
       },
       subject: { id: record.subjectId, active: true },
     });
@@ -620,7 +623,10 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       createMany: createLedgerRows,
     },
     student: {
-      findMany: vi.fn(({ where }: { where?: { yearGroup?: { in: string[] } } } = {}) => {
+      findMany: vi.fn(
+        ({
+          where,
+        }: { where?: { ageBandId?: { in: string[] }; yearGroup?: { in: string[] } } } = {}) => {
         const students = [
           defaultStudent,
           {
@@ -628,14 +634,25 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
             active: true,
             fullNameEnc: 'enc:Secondary Learner',
             yearGroup: 'Year 8',
+              ageBandId: 'band_secondary',
+              ageBand: { id: 'band_secondary', name: 'Secondary', colour: '#7D1C2C' },
           },
         ];
         return Promise.resolve(
-          where?.yearGroup?.in
-            ? students.filter((student) => where.yearGroup?.in.includes(student.yearGroup))
-            : students,
+            students
+              .filter(
+                (student) =>
+                  where?.ageBandId?.in === undefined ||
+                  where.ageBandId.in.includes(student.ageBandId),
+              )
+              .filter(
+                (student) =>
+                  where?.yearGroup?.in === undefined ||
+                  where.yearGroup.in.includes(student.yearGroup),
+              ),
         );
-      }),
+        },
+      ),
       findUnique: vi.fn().mockResolvedValue(defaultStudent),
     },
     studentPortalSettings: {
@@ -678,16 +695,22 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         ({
           where,
         }: {
-          where: { active: boolean; name: { equals: string; mode: 'insensitive' } };
-          select: { standardYears: true };
+          where: {
+            id?: string;
+            active: boolean;
+            name: { equals: string; mode: 'insensitive' };
+          };
+          select: { id: true };
         }) => {
           const name = where.name.equals.toLowerCase();
           const band =
             defaultBands.find(
               (candidate) =>
-                candidate.active === where.active && candidate.name.toLowerCase() === name,
+                candidate.active === where.active &&
+                candidate.name.toLowerCase() === name &&
+                (where.id === undefined || candidate.id === where.id),
             ) ?? null;
-          return Promise.resolve(band ? { standardYears: band.standardYears } : null);
+          return Promise.resolve(band ? { id: band.id } : null);
         },
       ),
     },
@@ -765,7 +788,11 @@ describe('pace.forStudent RBAC', () => {
 
   it('allows a linked Student to read their own PACE progress', async () => {
     const db = makeFakeDb();
-    db.student.findUnique.mockResolvedValue({ ...defaultStudent, yearGroup: 'Year 8' });
+    db.student.findUnique.mockResolvedValue({
+      ...defaultStudent,
+      yearGroup: 'Year 8',
+      ageBandId: 'band_secondary',
+    });
     const { caller } = makeCaller(studentUser, db);
     const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
 
@@ -781,6 +808,7 @@ describe('pace.forStudent RBAC', () => {
     db.student.findUnique.mockResolvedValue({
       ...defaultStudent,
       yearGroup: 'Year 8',
+      ageBandId: 'band_secondary',
       portalSettings: { paceStatusVisible: false },
     });
     const { caller } = makeCaller(studentUser, db);
@@ -827,6 +855,7 @@ describe('pace.forStudent RBAC', () => {
     db.student.findUnique.mockResolvedValue({
       ...defaultStudent,
       yearGroup: 'Year 8',
+      ageBandId: 'band_secondary',
       subjects: [],
     });
     const { caller } = makeCaller(studentUser, db);
@@ -942,7 +971,7 @@ describe('pace.roster access scope', () => {
     });
     expect(db.student.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { active: true, yearGroup: { in: ['Year 5', 'Y5', 'Year 6', 'Y6'] } },
+        where: { active: true, ageBandId: { in: ['band_lower'] } },
       }),
     );
   });
@@ -980,7 +1009,7 @@ describe('pace.roster access scope', () => {
     });
     expect(db.student.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { active: true, yearGroup: { in: ['Year 5', 'Y5', 'Year 6', 'Y6'] } },
+        where: { active: true, ageBandId: { in: ['band_lower'] } },
       }),
     );
   });
@@ -1002,7 +1031,7 @@ describe('pace.roster access scope', () => {
       expect.objectContaining({
         where: {
           active: true,
-          yearGroup: { in: ['Year 7', 'Y7', 'Year 8', 'Y8', 'Year 5', 'Y5', 'Year 6', 'Y6'] },
+          ageBandId: { in: ['band_secondary', 'band_lower'] },
         },
       }),
     );
@@ -1360,6 +1389,7 @@ describe('pace.record RBAC', () => {
     db.student.findUnique.mockResolvedValue({
       ...defaultStudent,
       yearGroup: 'Year 8',
+      ageBandId: 'band_secondary',
     });
     const { caller } = makeCaller(supervisorUser, db);
 

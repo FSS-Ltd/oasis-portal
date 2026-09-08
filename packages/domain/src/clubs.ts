@@ -12,7 +12,6 @@ import {
   requireClubsAdminOrFullAdmin,
   type SessionUser,
 } from './rbac.js';
-import { schoolYearStorageAliases } from './schoolYears.js';
 
 export interface ClubDraft {
   name: string;
@@ -104,11 +103,10 @@ export function formatClubSchedule(schedule: ClubScheduleDraft | null | undefine
 }
 
 export function clubMatchesYearGroupBands(
-  yearGroup: string,
+  ageBandId: string | null,
   bands: readonly ClubYearGroupBand[],
 ): boolean {
-  const aliases = new Set(schoolYearStorageAliases(yearGroup));
-  return bands.some((band) => band.standardYears.some((year) => aliases.has(year)));
+  return ageBandId !== null && bands.some((band) => band.id === ageBandId);
 }
 
 export interface SignupCheckInput {

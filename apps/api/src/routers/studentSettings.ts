@@ -1064,7 +1064,7 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
         const now = new Date();
         const ageBand = input?.ageBand;
         const students = await ctx.db.student.findMany({
-          where: { active: true, ...(ageBand ? { yearGroup: ageBand } : {}) },
+          where: { active: true, ...(ageBand ? { ageBandId: ageBand } : {}) },
           select: adminReadinessStudentSelect,
           orderBy: { createdAt: 'desc' },
         });

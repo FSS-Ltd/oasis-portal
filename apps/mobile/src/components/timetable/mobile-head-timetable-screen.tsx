@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { REGISTRATION_LEVELS, type TimetableRegistrationLevel } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -58,20 +57,26 @@ function confirmOpenLessons(message: string): Promise<boolean> {
 export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenProps) {
   const utils = api.useUtils();
   const [termKey, setTermKey] = useState('');
-  const [level, setLevel] = useState<TimetableRegistrationLevel>('ABC');
+  const [ageBandId, setAgeBandId] = useState('');
   const [studentId, setStudentId] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const termsQuery = api.timetable.terms.useQuery(undefined, { retry: false });
+  const bandsQuery = api.timetable.bands.useQuery(undefined, { retry: false });
   const terms = termsQuery.data ?? [];
+  const bands = bandsQuery.data ?? [];
 
   useEffect(() => {
     if (!termKey && terms.length > 0) setTermKey(currentTermKey(terms));
   }, [termKey, terms]);
 
+  useEffect(() => {
+    if (!ageBandId && bands.length > 0) setAgeBandId(bands[0]?.id ?? '');
+  }, [ageBandId, bands]);
+
   const workspace = api.timetable.headWorkspace.useQuery(
-    { registrationLevel: level, termKey },
-    { enabled: termKey.length > 0, retry: false },
+    { ageBandId, termKey },
+    { enabled: termKey.length > 0 && ageBandId.length > 0, retry: false },
   );
   const children = useMemo(() => workspace.data?.children ?? [], [workspace.data?.children]);
 
@@ -115,8 +120,8 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
     setError(null);
     setStatus(null);
     try {
-      await saveSchedule.mutateAsync({ registrationLevel: level, termKey, slots: slotsInput });
-      await utils.timetable.headWorkspace.invalidate({ registrationLevel: level, termKey });
+      await saveSchedule.mutateAsync({ ageBandId, termKey, slots: slotsInput });
+      await utils.timetable.headWorkspace.invalidate({ ageBandId, termKey });
       setStatus('Shared lesson and break times saved.');
     } catch (mutationError) {
       setError(errorMessage(mutationError));
@@ -137,7 +142,7 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
       await saveDraft.mutateAsync({ entries, studentId, termKey });
       await Promise.all([
         utils.timetable.studentDraft.invalidate({ studentId, termKey }),
-        utils.timetable.headWorkspace.invalidate({ registrationLevel: level, termKey }),
+        utils.timetable.headWorkspace.invalidate({ ageBandId, termKey }),
       ]);
       setStatus('Timetable draft saved.');
     } catch (mutationError) {
@@ -163,7 +168,7 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
     const result = await publish.mutateAsync({ acknowledgeUnassigned, studentId, termKey });
     await Promise.all([
       utils.timetable.studentDraft.invalidate({ studentId, termKey }),
-      utils.timetable.headWorkspace.invalidate({ registrationLevel: level, termKey }),
+      utils.timetable.headWorkspace.invalidate({ ageBandId, termKey }),
       utils.personalTask.list.invalidate(),
     ]);
     setStatus(`${result.publication.studentFirstName}’s timetable is published.`);
@@ -268,27 +273,24 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
             ))}
           </ScrollView>
           <View style={styles.levelTabs}>
-            {REGISTRATION_LEVELS.map((registrationLevel) => (
+            {bands.map((band) => (
               <Pressable
                 accessibilityRole="tab"
-                accessibilityState={{ selected: registrationLevel === level }}
-                key={registrationLevel}
+                accessibilityState={{ selected: band.id === ageBandId }}
+                key={band.id}
                 onPress={() => {
-                  setLevel(registrationLevel);
+                  setAgeBandId(band.id);
                   setStudentId('');
                 }}
-                style={[
-                  styles.levelTab,
-                  registrationLevel === level ? styles.levelTabActive : null,
-                ]}
+                style={[styles.levelTab, band.id === ageBandId ? styles.levelTabActive : null]}
               >
                 <Text
                   style={[
                     styles.levelTabText,
-                    registrationLevel === level ? styles.levelTabTextActive : null,
+                    band.id === ageBandId ? styles.levelTabTextActive : null,
                   ]}
                 >
-                  {registrationLevel}
+                  {band.name}
                 </Text>
               </Pressable>
             ))}
@@ -316,7 +318,7 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
           <>
             <Card style={styles.progressCard}>
               <View style={styles.progressHeading}>
-                <SectionTitle>{level}</SectionTitle>
+                <SectionTitle>{workspace.data.ageBand.name}</SectionTitle>
                 <Badge variant="success">
                   {String(workspace.data.progress.done)}/{String(workspace.data.progress.total)}{' '}
                   done
@@ -328,7 +330,7 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
             </Card>
             <MobileScheduleEditor
               initialSlots={workspace.data.schedule?.slots ?? workspace.data.defaultSlots}
-              key={`${termKey}-${level}-${workspace.data.schedule?.id ?? 'defaults'}`}
+              key={`${termKey}-${ageBandId}-${workspace.data.schedule?.id ?? 'defaults'}`}
               onSave={handleSaveSchedule}
               pending={saveSchedule.isPending}
               saved={Boolean(workspace.data.schedule)}
@@ -363,9 +365,11 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
           </>
         ) : null}
 
-        {studentId && !workspace.data?.schedule ? (
+        {studentId && workspace.data && !workspace.data.schedule ? (
           <Card>
-            <MutedText>Save the shared {level} times before assigning subjects.</MutedText>
+            <MutedText>
+              Save the shared {workspace.data.ageBand.name} times before assigning subjects.
+            </MutedText>
           </Card>
         ) : null}
         {draft.isLoading ? <InlineSpinner label="Loading child timetable" /> : null}

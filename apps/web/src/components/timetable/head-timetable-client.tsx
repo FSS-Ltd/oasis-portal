@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarRange, CheckCircle2, UsersRound } from 'lucide-react';
-import { REGISTRATION_LEVELS, type TimetableRegistrationLevel } from '@oasis/domain';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -46,21 +45,28 @@ function scheduleSlots(workspace: Workspace): TimetableGridSlot[] {
 export function HeadTimetableClient() {
   const utils = api.useUtils();
   const termsQuery = api.timetable.terms.useQuery(undefined, { retry: false });
+  const bandsQuery = api.timetable.bands.useQuery(undefined, { retry: false });
   const terms = termsQuery.data ?? [];
+  const bands = bandsQuery.data ?? [];
   const [termKey, setTermKey] = useState('');
-  const [registrationLevel, setRegistrationLevel] = useState<TimetableRegistrationLevel>('ABC');
+  const [ageBandId, setAgeBandId] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
 
   useEffect(() => {
     if (!termKey && terms.length > 0) setTermKey(preferredTermKey(terms));
   }, [termKey, terms]);
 
+  useEffect(() => {
+    if (!ageBandId && bands.length > 0) setAgeBandId(bands[0]?.id ?? '');
+  }, [ageBandId, bands]);
+
   const workspaceQuery = api.timetable.headWorkspace.useQuery(
-    { termKey, registrationLevel },
-    { enabled: termKey.length > 0, retry: false },
+    { termKey, ageBandId },
+    { enabled: termKey.length > 0 && ageBandId.length > 0, retry: false },
   );
   const workspace = workspaceQuery.data;
   const children = useMemo(() => workspace?.children ?? [], [workspace?.children]);
+  const ownTimetableChildren = workspace?.ownTimetableChildren ?? [];
 
   useEffect(() => {
     if (children.length === 0) {
@@ -81,7 +87,7 @@ export function HeadTimetableClient() {
     async onSuccess() {
       showSuccessToast('Shared timetable times saved.');
       await Promise.all([
-        utils.timetable.headWorkspace.invalidate({ termKey, registrationLevel }),
+        utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
         utils.timetable.studentDraft.invalidate({ termKey }),
       ]);
     },
@@ -94,7 +100,7 @@ export function HeadTimetableClient() {
       showSuccessToast('Timetable draft saved.');
       await Promise.all([
         utils.timetable.studentDraft.invalidate({ studentId: selectedStudentId, termKey }),
-        utils.timetable.headWorkspace.invalidate({ termKey, registrationLevel }),
+        utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
       ]);
     },
     onError(error) {
@@ -111,9 +117,26 @@ export function HeadTimetableClient() {
     },
   });
   const publish = api.timetable.publish.useMutation();
+  const setOwnTimetable = api.timetable.setOwnTimetable.useMutation({
+    async onSuccess(_, variables) {
+      if (variables.studentId === selectedStudentId) setSelectedStudentId('');
+      showSuccessToast(
+        variables.followsOwnTimetable
+          ? 'Child moved to N/A and removed from timetable tasks.'
+          : 'Child returned to the shared timetable workflow.',
+      );
+      await Promise.all([
+        utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
+        utils.personalTask.list.invalidate(),
+      ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'The child’s timetable status could not be changed.');
+    },
+  });
 
   async function handleScheduleSave(slots: EditableScheduleSlot[]): Promise<void> {
-    await saveSchedule.mutateAsync({ termKey, registrationLevel, slots });
+    await saveSchedule.mutateAsync({ termKey, ageBandId, slots });
   }
 
   async function handlePublish(): Promise<void> {
@@ -152,7 +175,7 @@ export function HeadTimetableClient() {
     showSuccessToast(`${firstName}’s timetable is published.`);
     await Promise.all([
       utils.timetable.studentDraft.invalidate({ studentId: selectedStudentId, termKey }),
-      utils.timetable.headWorkspace.invalidate({ termKey, registrationLevel }),
+      utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
       utils.personalTask.list.invalidate(),
     ]);
   }
@@ -212,19 +235,19 @@ export function HeadTimetableClient() {
         </div>
       </header>
 
-      <nav aria-label="Age groups" className={styles.ageTabs}>
-        {REGISTRATION_LEVELS.map((level) => (
+      <nav aria-label="Age bands" className={styles.ageTabs}>
+        {bands.map((band) => (
           <button
-            aria-current={registrationLevel === level ? 'page' : undefined}
-            className={registrationLevel === level ? styles.activeAgeTab : undefined}
-            key={level}
+            aria-current={ageBandId === band.id ? 'page' : undefined}
+            className={ageBandId === band.id ? styles.activeAgeTab : undefined}
+            key={band.id}
             onClick={() => {
-              setRegistrationLevel(level);
+              setAgeBandId(band.id);
               setSelectedStudentId('');
             }}
             type="button"
           >
-            {level}
+            {band.name}
           </button>
         ))}
       </nav>
@@ -232,7 +255,7 @@ export function HeadTimetableClient() {
       {workspaceQuery.error ? (
         <div className={styles.errorCard}>{friendlyErrorMessage(workspaceQuery.error)}</div>
       ) : workspaceQuery.isLoading || !workspace ? (
-        <div className={styles.loadingCard}>Preparing {registrationLevel}…</div>
+        <div className={styles.loadingCard}>Preparing age band…</div>
       ) : (
         <>
           <div className={styles.progressStrip}>
@@ -244,13 +267,13 @@ export function HeadTimetableClient() {
             </span>
             <span>
               <UsersRound aria-hidden="true" size={18} />
-              {String(workspace.children.length)} children in {registrationLevel}
+              {String(workspace.children.length)} children in {workspace.ageBand.name}
             </span>
           </div>
 
           <AgeGroupScheduleEditor
             initialSlots={workspace.schedule?.slots ?? workspace.defaultSlots}
-            key={`${termKey}-${registrationLevel}-${JSON.stringify(workspace.schedule?.slots ?? [])}`}
+            key={`${termKey}-${ageBandId}-${JSON.stringify(workspace.schedule?.slots ?? [])}`}
             onSave={handleScheduleSave}
             pending={saveSchedule.isPending}
             saved={Boolean(workspace.schedule)}
@@ -265,16 +288,16 @@ export function HeadTimetableClient() {
             </div>
             {children.length === 0 ? (
               <EmptyState
-                detail={`No active children are currently assigned to ${registrationLevel}.`}
+                detail={`No active children are currently assigned to ${workspace.ageBand.name}.`}
                 title="No children in this age group"
               />
             ) : (
               <div className={styles.childPicker}>
                 {children.map((child) => (
+                  <div className={styles.childCard} key={child.id}>
                   <button
                     aria-pressed={selectedStudentId === child.id}
                     className={selectedStudentId === child.id ? styles.selectedChild : undefined}
-                    key={child.id}
                     onClick={() => {
                       setSelectedStudentId(child.id);
                     }}
@@ -286,16 +309,53 @@ export function HeadTimetableClient() {
                       {child.status === 'NotStarted' ? 'Not started' : child.status}
                     </small>
                   </button>
+                    <button
+                      className={styles.naAction}
+                      disabled={setOwnTimetable.isPending}
+                      onClick={() => {
+                        setOwnTimetable.mutate({
+                          studentId: child.id,
+                          followsOwnTimetable: true,
+                        });
+                      }}
+                      type="button"
+                    >
+                      Set to N/A
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
+            {ownTimetableChildren.length > 0 ? (
+              <div className={styles.ownTimetableList}>
+                <strong>N/A · own timetable</strong>
+                {ownTimetableChildren.map((child) => (
+                  <div key={child.id}>
+                    <span>{child.firstName}</span>
+                    <small>N/A</small>
+                    <button
+                      disabled={setOwnTimetable.isPending}
+                      onClick={() => {
+                        setOwnTimetable.mutate({
+                          studentId: child.id,
+                          followsOwnTimetable: false,
+                        });
+                      }}
+                      type="button"
+                    >
+                      Return to {workspace.ageBand.name}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           {saveSchedule.isPending ? (
             <div className={styles.loadingCard}>Refreshing shared timetable times…</div>
           ) : !workspace.schedule && selectedStudentId ? (
             <div className={styles.guidanceCard}>
-              Save the shared {registrationLevel} times before assigning subjects.
+              Save the shared {workspace.ageBand.name} times before assigning subjects.
             </div>
           ) : draftQuery.error ? (
             <div className={styles.errorCard}>{friendlyErrorMessage(draftQuery.error)}</div>

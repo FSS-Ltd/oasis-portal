@@ -4,26 +4,9 @@ import type { AppContext } from '../context.js';
 import {
   createAndAssignTimetableSubject,
   customSubjectCodeBase,
-  registrationLevelForStudent,
 } from '../services/timetable-data.js';
 
 const head: SessionUser = { id: 'head_1', role: 'Head', tags: [], requires2fa: false };
-
-describe('registrationLevelForStudent', () => {
-  it('uses a valid registration profile before the year-group fallback', () => {
-    expect(registrationLevelForStudent('ABC', 'Year 8')).toBe('ABC');
-    expect(registrationLevelForStudent('Primary', 'Year 8')).toBe('Primary');
-    expect(registrationLevelForStudent('Secondary', 'Reception')).toBe('Secondary');
-  });
-
-  it('maps legacy year groups when a registration profile is missing', () => {
-    expect(registrationLevelForStudent(null, 'Nursery')).toBe('ABC');
-    expect(registrationLevelForStudent(undefined, 'Reception')).toBe('ABC');
-    expect(registrationLevelForStudent('', 'Year 6')).toBe('Primary');
-    expect(registrationLevelForStudent('Legacy', 'Y7')).toBe('Secondary');
-    expect(registrationLevelForStudent(null, 'Level 11')).toBe('Secondary');
-  });
-});
 
 describe('customSubjectCodeBase', () => {
   it('creates a stable catalogue code that fits the existing 20-character boundary', () => {

@@ -348,7 +348,12 @@
   gap: 9px;
 }
 
-.childPicker button {
+.childCard {
+  display: grid;
+  gap: 6px;
+}
+
+.childCard > button:first-child {
   display: grid;
   grid-template-columns: 34px 1fr;
   gap: 1px 9px;
@@ -364,7 +369,7 @@
   cursor: pointer;
 }
 
-.childPicker button > span {
+.childCard > button:first-child > span {
   display: grid;
   grid-row: 1 / 3;
   width: 34px;
@@ -377,25 +382,52 @@
   font-weight: 850;
 }
 
-.childPicker button > strong {
+.childCard > button:first-child > strong {
   align-self: end;
   font-size: 0.8rem;
 }
 
-.childPicker button > small {
+.childCard > button:first-child > small {
   align-self: start;
   color: var(--oasis-text-muted);
   font-size: 0.65rem;
 }
 
-.childPicker button > small[data-status='Published'] {
+.childCard > button:first-child > small[data-status='Published'] {
   color: var(--oasis-success);
 }
 
-.childPicker .selectedChild {
+.childCard > .selectedChild {
   border-color: var(--oasis-navy);
   background: #f5f7fc;
   box-shadow: inset 0 0 0 1px var(--oasis-navy);
+}
+
+.childCard .naAction,
+.ownTimetableList button {
+  min-height: 30px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ownTimetableList {
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.ownTimetableList > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
 }
 
 .subjectLegend {

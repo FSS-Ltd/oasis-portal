@@ -42,10 +42,10 @@ async function requireChildNoteWorkflow(ctx: AuthedContext, entity: string): Pro
 async function assertActiveStudent(
   ctx: AuthedContext,
   studentId: string,
-): Promise<{ id: string; yearGroup: string }> {
+): Promise<{ id: string; yearGroup: string; ageBandId: string | null }> {
   const student = await ctx.db.student.findUnique({
     where: { id: studentId },
-    select: { id: true, active: true, yearGroup: true },
+    select: { id: true, active: true, yearGroup: true, ageBandId: true },
   });
   if (!student) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -76,7 +76,7 @@ async function denyOutOfChildNoteScope(
 async function requireStudentInChildNoteScope(
   ctx: AuthedContext,
   entity: string,
-  student: { id: string; yearGroup: string },
+  student: { id: string; yearGroup: string; ageBandId: string | null },
 ): Promise<void> {
   const scope = await loadDailyYearBandScope(ctx, new Date());
   if (studentMatchesDailyScope(scope, student)) {

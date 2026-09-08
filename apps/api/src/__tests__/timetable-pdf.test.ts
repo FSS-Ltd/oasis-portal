@@ -11,7 +11,7 @@ const publication: TimetablePublicationView = {
   termLabel: 'Term 1',
   termStartsOn: new Date('2026-09-08T00:00:00.000Z'),
   termEndsOn: new Date('2026-10-16T00:00:00.000Z'),
-  registrationLevel: 'Primary',
+  ageBandName: 'Primary',
   publishedAt: new Date('2026-09-04T20:00:00.000Z'),
   entries: ['Tuesday', 'Wednesday', 'Thursday', 'Friday'].flatMap((day) => [
     {

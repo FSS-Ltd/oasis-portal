@@ -1,12 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import {
-  isFullAdmin,
-  rowsForMerit,
-  schoolYearStorageAliases,
-  type SessionUser,
-} from '@oasis/domain';
+import { isFullAdmin, rowsForMerit, type SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import {
@@ -60,6 +55,7 @@ interface HomeworkSubmissionRow {
     active: boolean;
     fullNameEnc: string;
     yearGroup: string;
+    ageBandId: string | null;
   };
 }
 
@@ -84,6 +80,7 @@ interface ActiveStudentRow {
   userId: string | null;
   fullNameEnc: string;
   yearGroup: string;
+  ageBandId: string | null;
   active: boolean;
   createdAt?: Date;
 }
@@ -302,19 +299,15 @@ function validateUploadedAssignmentImage(
   return image;
 }
 
-function yearAliases(yearGroup: string): string[] {
-  return schoolYearStorageAliases(yearGroup);
-}
-
 function studentMatchesAssignment(
   student: ActiveStudentRow,
   assignment: HomeworkAssignmentRow,
 ): boolean {
   if (!assignment.active || !student.active) return false;
   if (assignment.allYearGroupBands) return true;
-  const aliases = yearAliases(student.yearGroup);
-  return (assignment.bands ?? []).some((band) =>
-    band.yearGroupBand.standardYears.some((year) => aliases.includes(year)),
+  return (
+    student.ageBandId !== null &&
+    (assignment.bands ?? []).some((band) => band.yearGroupBand.id === student.ageBandId)
   );
 }
 
@@ -378,7 +371,14 @@ function studentName(ctx: Pick<AppContext, 'db'>, student: Pick<ActiveStudentRow
 async function loadOwnActiveStudent(ctx: AuthedContext): Promise<ActiveStudentRow> {
   const student = await ctx.db.student.findUnique({
     where: { userId: ctx.user.id },
-    select: { id: true, userId: true, fullNameEnc: true, yearGroup: true, active: true },
+    select: {
+      id: true,
+      userId: true,
+      fullNameEnc: true,
+      yearGroup: true,
+      ageBandId: true,
+      active: true,
+    },
   });
   if (!student?.active) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
@@ -394,6 +394,7 @@ async function loadActiveStudent(ctx: AuthedContext, studentId: string): Promise
       userId: true,
       fullNameEnc: true,
       yearGroup: true,
+      ageBandId: true,
       active: true,
       createdAt: true,
     },
@@ -637,6 +638,7 @@ export const homeworkRouter = router({
           userId: true,
           fullNameEnc: true,
           yearGroup: true,
+          ageBandId: true,
           active: true,
           createdAt: true,
         },
@@ -968,7 +970,7 @@ export const homeworkRouter = router({
         }
         const student = await ctx.db.student.findUnique({
           where: { userId: ctx.user.id },
-          select: { id: true, active: true, yearGroup: true },
+          select: { id: true, active: true, yearGroup: true, ageBandId: true },
         });
         if (
           !student?.active ||

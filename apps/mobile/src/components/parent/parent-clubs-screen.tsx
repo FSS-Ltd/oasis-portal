@@ -184,7 +184,7 @@ export function ParentClubsScreen({
   const eligibleClubs = useMemo(
     () =>
       child
-        ? clubs.filter((club) => clubMatchesYearGroupBands(child.yearGroup, club.yearGroupBands))
+        ? clubs.filter((club) => clubMatchesYearGroupBands(child.ageBandId, club.yearGroupBands))
         : [],
     [child, clubs],
   );

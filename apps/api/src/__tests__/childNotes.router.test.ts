@@ -106,6 +106,7 @@ interface StoredStudent {
   active: boolean;
   fullNameEnc: string;
   yearGroup: string;
+  ageBandId: string | null;
   enrolmentDate: Date;
   createdAt: Date;
   subjects: Array<{
@@ -118,6 +119,7 @@ interface StoredStudent {
 interface StudentFindManyInput {
   where?: {
     active?: boolean;
+    ageBandId?: { in: string[] };
     id?: { in: string[] };
     yearGroup?: { in: string[] };
   };
@@ -255,6 +257,7 @@ function makeOutOfBandStudent(): StoredStudent {
     active: true,
     fullNameEnc: 'enc:Secondary Learner',
     yearGroup: 'Year 9',
+    ageBandId: null,
     enrolmentDate: day('2024-09-01'),
     createdAt: day('2024-09-02'),
     subjects: [],
@@ -291,6 +294,7 @@ function makeFakeDb(options: FakeDbOptions = {}) {
       active: true,
       fullNameEnc: 'enc:Jane Learner',
       yearGroup: 'Year 6',
+      ageBandId: 'band_lower',
       enrolmentDate: day('2024-09-01'),
       createdAt: day('2024-09-01'),
       subjects: [
@@ -502,6 +506,12 @@ function makeFakeDb(options: FakeDbOptions = {}) {
         Promise.resolve(
           students.filter((student) => {
             if (where?.active !== undefined && student.active !== where.active) return false;
+            if (
+              where?.ageBandId !== undefined &&
+              (student.ageBandId === null || !where.ageBandId.in.includes(student.ageBandId))
+            ) {
+              return false;
+            }
             if (where?.id && !where.id.in.includes(student.id)) return false;
             if (where?.yearGroup && !where.yearGroup.in.includes(student.yearGroup)) return false;
             return true;
@@ -1281,6 +1291,9 @@ describe('childLog.snapshot', () => {
   it('allows primary-tagged Supervisors to write primary notes without exposing secondary students', async () => {
     const { db, staffShifts, students } = makeFakeDb();
     staffShifts.length = 0;
+    const primaryStudent = students[0];
+    if (!primaryStudent) throw new Error('primary student missing');
+    primaryStudent.ageBandId = 'band_upper_primary';
     students.push(makeOutOfBandStudent());
 
     await expect(
@@ -1532,6 +1545,7 @@ describe('childLog.snapshot', () => {
       active: true,
       fullNameEnc: 'enc:Unlinked Learner',
       yearGroup: 'Year 7',
+      ageBandId: null,
       enrolmentDate: day('2024-09-01'),
       createdAt: day('2024-09-01'),
       subjects: [],

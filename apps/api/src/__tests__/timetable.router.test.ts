@@ -24,7 +24,7 @@ const term = {
 
 const scheduleInput = {
   termKey: term.key,
-  registrationLevel: 'Primary' as const,
+  ageBandId: 'band_primary',
   slots: [
     { kind: 'Break' as const, label: 'Morning break', startMinutes: 540, endMinutes: 555 },
     { kind: 'Lesson' as const, label: 'Lesson 1', startMinutes: 555, endMinutes: 600 },
@@ -38,8 +38,9 @@ function dependencies(): TimetableRouterDeps {
     loadHeadWorkspace: () =>
       Promise.resolve({
         term,
-        registrationLevel: 'Primary',
+        ageBand: { id: 'band_primary', name: 'Primary', colour: '#2F8F6B' },
         progress: { done: 0, total: 1 },
+        ownTimetableChildren: [],
         schedule: null,
         defaultSlots: scheduleInput.slots,
         children: [
@@ -47,7 +48,7 @@ function dependencies(): TimetableRouterDeps {
             id: 'student_1',
             firstName: 'Taleyah',
             fullName: 'Taleyah Dolphy',
-            registrationLevel: 'Primary',
+            ageBandId: 'band_primary',
             status: 'Draft' as const,
             latestPublicationId: null,
           },
@@ -57,7 +58,7 @@ function dependencies(): TimetableRouterDeps {
       Promise.resolve({
         id: 'schedule_1',
         termKey: input.termKey,
-        registrationLevel: input.registrationLevel,
+        ageBandId: input.ageBandId,
         slots: input.slots.map((slot, position) => ({
           ...slot,
           id: `slot_${String(position)}`,
@@ -70,7 +71,7 @@ function dependencies(): TimetableRouterDeps {
           id: 'student_1',
           firstName: 'Taleyah',
           fullName: 'Taleyah Dolphy',
-          registrationLevel: 'Primary',
+          ageBandId: 'band_primary',
         },
         timetableId: null,
         entries: [],
@@ -95,6 +96,7 @@ function dependencies(): TimetableRouterDeps {
     publishedForStudent: () => Promise.resolve(null),
     publicationForHead: () => Promise.resolve(null),
     downloadPdf: () => Promise.reject(new Error('not used in this test')),
+    setOwnTimetable: () => Promise.resolve(),
   };
 }
 
@@ -129,13 +131,25 @@ describe('timetable router Head workspace', () => {
     await expect(
       caller(head).timetable.headWorkspace({
         termKey: term.key,
-        registrationLevel: 'Primary',
+        ageBandId: 'band_primary',
       }),
     ).resolves.toMatchObject({ children: [{ firstName: 'Taleyah' }] });
 
     await expect(caller(supervisor).timetable.saveSchedule(scheduleInput)).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('lets only Heads exclude a child from the timetable workflow', async () => {
+    await expect(
+      caller(head).timetable.setOwnTimetable({ studentId: 'student_1', followsOwnTimetable: true }),
+    ).resolves.toBeUndefined();
+    await expect(
+      caller(supervisor).timetable.setOwnTimetable({
+        studentId: 'student_1',
+        followsOwnTimetable: true,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('accepts a break in any position and rejects overlapping slots', async () => {

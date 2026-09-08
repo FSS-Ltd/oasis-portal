@@ -13,8 +13,8 @@ export default async function AcademicSettingsPage() {
           <p>Academic setup</p>
           <h1>Academic settings</h1>
           <p>
-            Configure school years, centre groups, subjects, and PACE test rules used across the
-            portal.
+            Configure student age bands, centre groups, subjects, and PACE test rules used across
+            the portal.
           </p>
         </div>
         <span className="badge badge--blue">

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   syncTimetableTasks,
   type StoredTimetableTask,
@@ -26,10 +26,11 @@ function fakeTaskDb() {
     calendarEvent('calendar-2026-27-term-2-end', '2026-12-18'),
   ];
 
+  const studentFindMany = vi.fn().mockResolvedValue(students);
   const db: TimetableTaskDb = {
     calendarEvent: { findMany: () => Promise.resolve(events) },
     user: { findMany: () => Promise.resolve(heads) },
-    student: { findMany: () => Promise.resolve(students) },
+    student: { findMany: studentFindMany },
     studentTimetablePublication: { findMany: () => Promise.resolve(publications) },
     personalTask: {
       upsert: ({ where, create, update }) => {
@@ -41,7 +42,7 @@ function fakeTaskDb() {
       },
     },
   };
-  return { db, heads, publications, students, tasks };
+  return { db, heads, publications, studentFindMany, students, tasks };
 }
 
 describe('syncTimetableTasks', () => {
@@ -82,6 +83,16 @@ describe('syncTimetableTasks', () => {
     expect(fixture.tasks.get('head_1:2026-27-term-2')).toMatchObject({
       title: 'Complete Term 2 timetables · 2/3 done',
       completedAt: null,
+    });
+  });
+
+  it('uses only band-assigned children who do not follow their own timetable', async () => {
+    const fixture = fakeTaskDb();
+    await syncTimetableTasks({ db: fixture.db });
+
+    expect(fixture.studentFindMany).toHaveBeenCalledWith({
+      where: { active: true, ageBandId: { not: null }, followsOwnTimetable: false },
+      select: { id: true },
     });
   });
 });

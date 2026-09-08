@@ -35,6 +35,7 @@ interface StoredStudent {
   userId: string | null;
   fullNameEnc: string;
   yearGroup: string;
+  ageBandId: string | null;
   active: boolean;
   createdAt: Date;
 }
@@ -215,6 +216,7 @@ const defaultStudents: StoredStudent[] = [
     userId: primaryStudentUser.id,
     fullNameEnc: encrypt('Primary Student'),
     yearGroup: 'Year 6',
+    ageBandId: lowerBandId,
     active: true,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
   },
@@ -223,6 +225,7 @@ const defaultStudents: StoredStudent[] = [
     userId: secondaryStudentUser.id,
     fullNameEnc: encrypt('Secondary Student'),
     yearGroup: 'Year 8',
+    ageBandId: secondaryBandId,
     active: true,
     createdAt: new Date('2026-01-02T00:00:00.000Z'),
   },

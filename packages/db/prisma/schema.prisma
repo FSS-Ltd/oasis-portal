@@ -312,6 +312,8 @@ model Student {
   addressEnc    String?
   // --- operational ---
   yearGroup     String
+  ageBandId           String?
+  followsOwnTimetable Boolean  @default(false)
   enrolmentDate DateTime
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -364,8 +366,10 @@ model Student {
   parentLinkRequests       StudentParentLinkRequest[]
   timetables                StudentTimetable[]
   timetablePublications     StudentTimetablePublication[]
+  ageBand                   YearGroupBand?                @relation(fields: [ageBandId], references: [id], onDelete: SetNull)
 
   @@index([yearGroup])
+  @@index([ageBandId, active])
   @@index([nameBidx])
 }
 
@@ -662,7 +666,6 @@ model HomeworkAssignmentImage {
   @@index([uploadedById, createdAt])
 }
 
-
 model Subject {
   id                   String                    @id @default(cuid())
   code                 String                    @unique // e.g. "MATH", "ENG", "SOC"
@@ -693,7 +696,8 @@ model StudentSubject {
 model TimetableAgeGroupSchedule {
   id                String                     @id @default(cuid())
   termKey           String
-  registrationLevel TimetableRegistrationLevel
+  registrationLevel TimetableRegistrationLevel @default(Primary)
+  ageBandId         String?
   updatedById       String
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
@@ -701,8 +705,9 @@ model TimetableAgeGroupSchedule {
   updatedBy  User                    @relation("TimetableSchedulesUpdated", fields: [updatedById], references: [id])
   slots      TimetableScheduleSlot[]
   timetables StudentTimetable[]
+  ageBand    YearGroupBand?          @relation(fields: [ageBandId], references: [id], onDelete: Cascade)
 
-  @@unique([termKey, registrationLevel])
+  @@unique([termKey, ageBandId])
   @@index([updatedById, updatedAt])
 }
 
@@ -728,7 +733,8 @@ model StudentTimetable {
   id                String                     @id @default(cuid())
   studentId         String
   termKey           String
-  registrationLevel TimetableRegistrationLevel
+  registrationLevel TimetableRegistrationLevel @default(Primary)
+  ageBandId         String?
   scheduleId        String
   updatedById       String
   createdAt         DateTime                   @default(now())
@@ -739,6 +745,7 @@ model StudentTimetable {
   updatedBy    User                          @relation("StudentTimetablesUpdated", fields: [updatedById], references: [id])
   entries      StudentTimetableEntry[]
   publications StudentTimetablePublication[]
+  ageBand      YearGroupBand?                @relation(fields: [ageBandId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, termKey])
   @@index([scheduleId])
@@ -771,7 +778,8 @@ model StudentTimetablePublication {
   termLabel           String
   termStartsOn        DateTime                   @db.Date
   termEndsOn          DateTime                   @db.Date
-  registrationLevel   TimetableRegistrationLevel
+  registrationLevel   TimetableRegistrationLevel @default(Primary)
+  ageBandName         String                     @default("")
   studentFirstNameEnc String
   publishedById       String
   publishedAt         DateTime                   @default(now())
@@ -816,6 +824,9 @@ model YearGroupBand {
   staffShifts   StaffShift[]
   homeworkAssignments HomeworkAssignmentBand[]
   clubAssignments     ClubYearGroupBand[]
+  students            Student[]
+  timetableSchedules  TimetableAgeGroupSchedule[]
+  studentTimetables   StudentTimetable[]
 
   @@index([active, sortOrder])
 }

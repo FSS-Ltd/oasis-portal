@@ -23,7 +23,7 @@ export interface TimetableTaskDb extends TimetableTermDb {
   student: {
     findMany(input: {
       select: { id: true };
-      where: { active: true };
+      where: { active: true; ageBandId: { not: null }; followsOwnTimetable: false };
     }): Promise<Array<{ id: string }>>;
   };
   studentTimetablePublication: {
@@ -60,7 +60,10 @@ export async function syncTimetableTasks({
     headIds
       ? Promise.resolve(headIds.map((id) => ({ id })))
       : db.user.findMany({ where: { role: 'Head', active: true }, select: { id: true } }),
-    db.student.findMany({ where: { active: true }, select: { id: true } }),
+    db.student.findMany({
+      where: { active: true, ageBandId: { not: null }, followsOwnTimetable: false },
+      select: { id: true },
+    }),
   ]);
   const studentIds = students.map((student) => student.id);
   const publications =

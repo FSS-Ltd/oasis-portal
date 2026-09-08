@@ -121,7 +121,7 @@ async function drawHeader(
   );
   drawCentredText(
     page,
-    `${publication.termLabel} · ${publication.registrationLevel} · ${formatDate(publication.termStartsOn)} – ${formatDate(publication.termEndsOn)}`,
+    `${publication.termLabel} · ${publication.ageBandName} · ${formatDate(publication.termStartsOn)} – ${formatDate(publication.termEndsOn)}`,
     MARGIN,
     PAGE_WIDTH - MARGIN * 2,
     PAGE_HEIGHT - 116,

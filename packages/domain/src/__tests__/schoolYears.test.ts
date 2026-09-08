@@ -111,55 +111,53 @@ describe('resolveAgeBand', () => {
     expect(
       resolveAgeBand('Year 3', [
         ...bands,
-        { id: 'duplicate', name: 'Duplicate', colour: '#FFFFFF', active: true, standardYears: ['Year 3'] },
+        {
+          id: 'duplicate',
+          name: 'Duplicate',
+          colour: '#FFFFFF',
+          active: true,
+          standardYears: ['Year 3'],
+        },
       ]),
     ).toBeNull();
   });
 });
 
 describe('year-group band schemas', () => {
-  it('trims names, uppercases colours, and rejects invalid years', () => {
+  it('trims names, uppercases colours, and accepts explicit student membership', () => {
     expect(
       createYearGroupBandInput.parse({
         name: ' Lower Primary ',
-        standardYears: ['Reception', 'Year 1'],
+        studentIds: ['student_a', 'student_b'],
         colour: '#5b90c5',
       }),
     ).toEqual({
       name: 'Lower Primary',
-      standardYears: ['Reception', 'Year 1'],
+      studentIds: ['student_a', 'student_b'],
       colour: '#5B90C5',
       sortOrder: 0,
     });
-
-    expect(() =>
-      createYearGroupBandInput.parse({
-        name: 'Invalid',
-        standardYears: ['Y5'],
-        colour: '#5B90C5',
-      }),
-    ).toThrow();
   });
 
-  it('rejects empty names, duplicate year selections, invalid colours, and empty updates', () => {
+  it('rejects empty names, duplicate student selections, invalid colours, and empty updates', () => {
     expect(() =>
       createYearGroupBandInput.parse({
         name: ' ',
-        standardYears: ['Year 2'],
+        studentIds: [],
         colour: '#5B90C5',
       }),
     ).toThrow();
     expect(() =>
       createYearGroupBandInput.parse({
         name: 'Duplicate',
-        standardYears: ['Year 2', 'Year 2'],
+        studentIds: ['student_a', 'student_a'],
         colour: '#5B90C5',
       }),
     ).toThrow();
     expect(() =>
       createYearGroupBandInput.parse({
         name: 'Bad Colour',
-        standardYears: ['Year 2'],
+        studentIds: [],
         colour: 'blue',
       }),
     ).toThrow();
