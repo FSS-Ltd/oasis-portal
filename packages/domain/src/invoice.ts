@@ -487,7 +487,7 @@ function schoolFeeDiscountChildIndex(discount: SchoolFeeDiscountInput): number |
   const code = discount.presetCode;
   if (!code?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)) return null;
   const rawIndex = code.slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length).split('|', 1)[0];
-  if (!/^[0-9]+$/u.test(rawIndex)) return null;
+  if (!rawIndex || !/^[0-9]+$/u.test(rawIndex)) return null;
   const index = Number(rawIndex);
   return Number.isSafeInteger(index) ? index : null;
 }
