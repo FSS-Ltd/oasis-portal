@@ -108,7 +108,7 @@ export function HeadTimetableClient() {
       .sort((left, right) => right.publishedAt.getTime() - left.publishedAt.getTime())
       .map((publication, index) => ({
         ...publication,
-        label: `V${versions.length - index}`,
+        label: `V${String(versions.length - index)}`,
       }));
   }, [draftQuery.data?.publishedVersions]);
   const selectedPublication = publishedVersions.find(
@@ -389,11 +389,16 @@ export function HeadTimetableClient() {
               </div>
             </div>
 
-            <nav aria-label="Timetable editor mode" className={`${styles.ageTabs} ${styles.modeTabs}`}>
+            <nav
+              aria-label="Timetable editor mode"
+              className={[styles.ageTabs, styles.modeTabs].filter((item): item is string => item !== undefined).join(' ')}
+            >
               <button
                 aria-current={!isPublishedMode ? 'page' : undefined}
                 className={!isPublishedMode ? styles.activeAgeTab : undefined}
-                onClick={() => setEditorMode('draft')}
+                onClick={() => {
+                  setEditorMode('draft');
+                }}
                 type="button"
               >
                 Draft timetables
@@ -401,7 +406,9 @@ export function HeadTimetableClient() {
               <button
                 aria-current={isPublishedMode ? 'page' : undefined}
                 className={isPublishedMode ? styles.activeAgeTab : undefined}
-                onClick={() => setEditorMode('published')}
+                onClick={() => {
+                  setEditorMode('published');
+                }}
                 type="button"
               >
                 Published timetables
@@ -413,10 +420,13 @@ export function HeadTimetableClient() {
                 <div className={styles.versionList}>
                   {publishedVersions.map((publication) => {
                     const selected = publication.id === selectedPublicationId;
+                    const label = publication.label;
                     return (
                       <article
-                        className={`${styles.versionItem} ${selected ? styles.selectedVersionItem : ''}`}
-                        key={`${publication.id}-${publication.label}`}
+                        className={[styles.versionItem, selected ? styles.selectedVersionItem : undefined]
+                          .filter((item): item is string => item !== undefined)
+                          .join(' ')}
+                        key={`${publication.id}-${label}`}
                       >
                         <button
                           aria-pressed={selected}
