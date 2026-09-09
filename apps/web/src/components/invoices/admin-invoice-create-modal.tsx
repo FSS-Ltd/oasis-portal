@@ -339,7 +339,7 @@ function childIndexFromPresetCode(presetCode: string | null): number | null {
   const rawIndex = presetCode
     .slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length)
     .split('|', 1)[0];
-  if (!/^[0-9]+$/u.test(rawIndex)) return null;
+  if (!rawIndex || !/^[0-9]+$/u.test(rawIndex)) return null;
   return Number(rawIndex);
 }
 
