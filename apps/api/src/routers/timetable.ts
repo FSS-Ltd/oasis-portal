@@ -133,6 +133,7 @@ export interface TimetableSubjectView {
 
 export interface StudentTimetableDraftView {
   entries: Array<{ day: TimetableDay; slotId: string; subjectId: string }>;
+  publishedVersions: Array<{ id: string; publishedAt: Date }>;
   latestPublication: { id: string; publishedAt: Date } | null;
   student: {
     firstName: string;

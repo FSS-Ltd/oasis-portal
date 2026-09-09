@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarRange, CheckCircle2, UsersRound } from 'lucide-react';
+import { CalendarRange, CheckCircle2, Download, UsersRound } from 'lucide-react';
+import { type TimetableDay, type TimetableSlotKind } from '@oasis/domain';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -14,6 +15,7 @@ import styles from './timetable.module.css';
 
 type TeachingTerm = RouterOutputs['timetable']['terms'][number];
 type Workspace = RouterOutputs['timetable']['headWorkspace'];
+type EditorMode = 'draft' | 'published';
 
 function preferredTermKey(terms: readonly TeachingTerm[], now = new Date()): string {
   const timestamp = now.getTime();
@@ -29,7 +31,7 @@ function preferredTermKey(terms: readonly TeachingTerm[], now = new Date()): str
   );
 }
 
-function scheduleSlots(workspace: Workspace): TimetableGridSlot[] {
+function scheduledSlots(workspace: Workspace): TimetableGridSlot[] {
   return (
     workspace.schedule?.slots.map((slot) => ({
       id: slot.id,
@@ -42,6 +44,22 @@ function scheduleSlots(workspace: Workspace): TimetableGridSlot[] {
   );
 }
 
+function formatVersionDate(value: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value);
+}
+
+function isLessonCell(
+  kind: TimetableSlotKind,
+): kind is Extract<TimetableSlotKind, 'Lesson'> {
+  return kind === 'Lesson';
+}
+
 export function HeadTimetableClient() {
   const utils = api.useUtils();
   const termsQuery = api.timetable.terms.useQuery(undefined, { retry: false });
@@ -51,6 +69,8 @@ export function HeadTimetableClient() {
   const [termKey, setTermKey] = useState('');
   const [ageBandId, setAgeBandId] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedPublicationId, setSelectedPublicationId] = useState('');
+  const [editorMode, setEditorMode] = useState<EditorMode>('draft');
 
   useEffect(() => {
     if (!termKey && terms.length > 0) setTermKey(preferredTermKey(terms));
@@ -82,6 +102,63 @@ export function HeadTimetableClient() {
     { studentId: selectedStudentId, termKey },
     { enabled: Boolean(workspace?.schedule && selectedStudentId && termKey), retry: false },
   );
+  const publishedVersions = useMemo(() => {
+    const versions = [...(draftQuery.data?.publishedVersions ?? [])];
+    return versions
+      .sort((left, right) => right.publishedAt.getTime() - left.publishedAt.getTime())
+      .map((publication, index) => ({
+        ...publication,
+        label: `V${versions.length - index}`,
+      }));
+  }, [draftQuery.data?.publishedVersions]);
+  const selectedPublication = publishedVersions.find(
+    (publication) => publication.id === selectedPublicationId,
+  );
+
+  const publicationVersionIds = useMemo(
+    () => publishedVersions.map((publication) => publication.id).join('|'),
+    [publishedVersions],
+  );
+  const hasPublishedVersions = publishedVersions.length > 0;
+  const isPublishedMode = editorMode === 'published';
+
+  useEffect(() => {
+    if (!selectedStudentId) {
+      setSelectedPublicationId('');
+      return;
+    }
+    if (!isPublishedMode) return;
+    if (hasPublishedVersions && !publishedVersions.some((publication) => publication.id === selectedPublicationId)) {
+      setSelectedPublicationId(publishedVersions[0]?.id ?? '');
+    }
+  }, [
+    hasPublishedVersions,
+    isPublishedMode,
+    publishedVersions,
+    publicationVersionIds,
+    selectedPublicationId,
+    selectedStudentId,
+  ]);
+
+  const publicationQuery = api.timetable.publicationForHead.useQuery(
+    { publicationId: selectedPublicationId },
+    { enabled: isPublishedMode && selectedPublicationId.length > 0, retry: false },
+  );
+
+  const draftWithPublishedEntries = useMemo(() => {
+    if (!draftQuery.data) return null;
+    if (!isPublishedMode || !publicationQuery.data || !workspace?.schedule) return draftQuery.data;
+    const slotIdByPosition = new Map<number, string>(
+      scheduledSlots(workspace).map((slot) => [slot.position, slot.id]),
+    );
+    const publishedEntries = publicationQuery.data.entries.flatMap((entry) => {
+      if (!isLessonCell(entry.slotKind) || !entry.subjectId) return [];
+      const slotId = slotIdByPosition.get(entry.slotPosition);
+      if (!slotId) return [];
+      return [{ day: entry.day, slotId, subjectId: entry.subjectId }];
+    });
+    return { ...draftQuery.data, entries: publishedEntries };
+  }, [draftQuery.data, isPublishedMode, publicationQuery.data, workspace]);
 
   const saveSchedule = api.timetable.saveSchedule.useMutation({
     async onSuccess() {
@@ -139,8 +216,8 @@ export function HeadTimetableClient() {
     await saveSchedule.mutateAsync({ termKey, ageBandId, slots });
   }
 
-  async function handlePublish(): Promise<void> {
-    if (!selectedStudentId) return;
+  async function handlePublishTimetable(): Promise<string | null> {
+    if (!selectedStudentId) return null;
     try {
       const result = await publish.mutateAsync({
         studentId: selectedStudentId,
@@ -148,16 +225,17 @@ export function HeadTimetableClient() {
         acknowledgeUnassigned: false,
       });
       await afterPublish(result.publication.studentFirstName);
+      return result.publication.id;
     } catch (error) {
       const message = friendlyErrorMessage(error, 'The timetable could not be published.');
       if (!message.includes('lesson periods have no subject')) {
         showErrorToast(error, 'The timetable could not be published.');
-        return;
+        return null;
       }
       const acknowledgeUnassigned = window.confirm(
         `${message}\n\nMissing subjects are only a suggestion. Publish anyway?`,
       );
-      if (!acknowledgeUnassigned) return;
+      if (!acknowledgeUnassigned) return null;
       try {
         const result = await publish.mutateAsync({
           studentId: selectedStudentId,
@@ -165,8 +243,10 @@ export function HeadTimetableClient() {
           acknowledgeUnassigned,
         });
         await afterPublish(result.publication.studentFirstName);
+        return result.publication.id;
       } catch (retryError) {
         showErrorToast(retryError, 'The timetable could not be published.');
+        return null;
       }
     }
   }
@@ -178,6 +258,27 @@ export function HeadTimetableClient() {
       utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
       utils.personalTask.list.invalidate(),
     ]);
+  }
+
+  async function handleSaveTimetable(
+    entries: Array<{ day: TimetableDay; slotId: string; subjectId: string }>,
+  ): Promise<void> {
+    if (!selectedStudentId) return;
+    await saveDraft.mutateAsync({ studentId: selectedStudentId, termKey, entries });
+    if (!isPublishedMode) return;
+    const publicationId = await handlePublishTimetable();
+    if (publicationId) setSelectedPublicationId(publicationId);
+  } 
+
+  function pendingAction():
+    | 'subject'
+    | 'save'
+    | 'publish'
+    | null {
+    if (createSubject.isPending) return 'subject';
+    if (saveDraft.isPending || (isPublishedMode && publish.isPending)) return 'save';
+    if (publish.isPending) return 'publish';
+    return null;
   }
 
   if (termsQuery.isLoading) {
@@ -284,9 +385,64 @@ export function HeadTimetableClient() {
               <div>
                 <p>Child timetables</p>
                 <h2>Choose a child</h2>
+                <span>Switch to Published to inspect and version history.</span>
               </div>
             </div>
-            {children.length === 0 ? (
+
+            <nav aria-label="Timetable editor mode" className={`${styles.ageTabs} ${styles.modeTabs}`}>
+              <button
+                aria-current={!isPublishedMode ? 'page' : undefined}
+                className={!isPublishedMode ? styles.activeAgeTab : undefined}
+                onClick={() => setEditorMode('draft')}
+                type="button"
+              >
+                Draft timetables
+              </button>
+              <button
+                aria-current={isPublishedMode ? 'page' : undefined}
+                className={isPublishedMode ? styles.activeAgeTab : undefined}
+                onClick={() => setEditorMode('published')}
+                type="button"
+              >
+                Published timetables
+              </button>
+            </nav>
+
+            {isPublishedMode ? (
+              hasPublishedVersions ? (
+                <div className={styles.versionList}>
+                  {publishedVersions.map((publication) => {
+                    const selected = publication.id === selectedPublicationId;
+                    return (
+                      <article
+                        className={`${styles.versionItem} ${selected ? styles.selectedVersionItem : ''}`}
+                        key={`${publication.id}-${publication.label}`}
+                      >
+                        <button
+                          aria-pressed={selected}
+                          className={styles.versionSelector}
+                          onClick={() => {
+                            setSelectedPublicationId(publication.id);
+                          }}
+                          type="button"
+                        >
+                          <strong>{publication.label}</strong>
+                          <span>Published {formatVersionDate(publication.publishedAt)}</span>
+                        </button>
+                        <a className={styles.downloadButton} href={`/api/timetables/${publication.id}/pdf`}>
+                          <Download aria-hidden="true" size={16} /> Download PDF
+                        </a>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState
+                  detail="Publish this child’s timetable at least once to begin versioning."
+                  title="No published timetables yet"
+                />
+              )
+            ) : children.length === 0 ? (
               <EmptyState
                 detail={`No active children are currently assigned to ${workspace.ageBand.name}.`}
                 title="No children in this age group"
@@ -357,32 +513,38 @@ export function HeadTimetableClient() {
             <div className={styles.guidanceCard}>
               Save the shared {workspace.ageBand.name} times before assigning subjects.
             </div>
+          ) : isPublishedMode && publicationQuery.isLoading && selectedPublicationId ? (
+            <div className={styles.loadingCard}>Loading published timetable…</div>
+          ) : isPublishedMode && publicationQuery.error ? (
+            <div className={styles.errorCard}>{friendlyErrorMessage(publicationQuery.error)}</div>
           ) : draftQuery.error ? (
             <div className={styles.errorCard}>{friendlyErrorMessage(draftQuery.error)}</div>
-          ) : draftQuery.isLoading && selectedStudentId ? (
+          ) : isPublishedMode && !hasPublishedVersions ? null : draftQuery.isLoading && selectedStudentId ? (
             <div className={styles.loadingCard}>Loading this child’s timetable…</div>
-          ) : draftQuery.data && workspace.schedule ? (
+          ) : draftWithPublishedEntries && workspace.schedule ? (
             <StudentTimetableEditor
-              draft={draftQuery.data}
-              key={`${termKey}-${selectedStudentId}-${JSON.stringify(workspace.schedule.slots)}`}
+              draft={draftWithPublishedEntries}
+              key={`${termKey}-${selectedStudentId}-${isPublishedMode ? selectedPublicationId : 'draft'}-${JSON.stringify(workspace.schedule.slots)}`}
+              mode={editorMode}
               onAddSubject={async (name) => {
                 await createSubject.mutateAsync({ studentId: selectedStudentId, name });
               }}
-              onPublish={handlePublish}
-              onSave={async (entries) => {
-                await saveDraft.mutateAsync({ studentId: selectedStudentId, termKey, entries });
+              onPublish={() => {
+                if (!selectedStudentId) return Promise.resolve();
+                return handlePublishTimetable().then((publicationId) => {
+                  if (publicationId) setSelectedPublicationId(publicationId);
+                });
               }}
-              pendingAction={
-                createSubject.isPending
-                  ? 'subject'
-                  : saveDraft.isPending
-                    ? 'save'
-                    : publish.isPending
-                      ? 'publish'
-                      : null
+              onSave={async (entries) => {
+                await handleSaveTimetable(entries);
+              }}
+              pendingAction={pendingAction()}
+              publicationId={
+                isPublishedMode
+                  ? selectedPublication?.id ?? draftWithPublishedEntries.latestPublication?.id ?? null
+                  : draftWithPublishedEntries.latestPublication?.id ?? null
               }
-              publicationId={draftQuery.data.latestPublication?.id ?? null}
-              slots={scheduleSlots(workspace)}
+              slots={scheduledSlots(workspace)}
             />
           ) : null}
         </>
