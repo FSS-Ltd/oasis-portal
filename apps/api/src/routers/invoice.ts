@@ -21,6 +21,7 @@ import {
   SCHOOL_FEE_BILLING_CADENCES,
   SCHOOL_FEE_DISCOUNT_EXPLANATION,
   SCHOOL_FEE_DISCOUNT_KINDS,
+  SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX,
   SCHOOL_FEE_DISCOUNT_PRESETS,
   SCHOOL_FEE_SIBLING_DISCOUNT_CODE,
   schoolFeeBillingCycle,
@@ -2043,9 +2044,12 @@ function normalizeDiscountInput(
   if (studentIds && selectedChildIndex < 0) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'select a child for every discount' });
   }
-  const presetCode = studentIds
-    ? schoolFeeDiscountChildScopedPresetCode(selectedChildIndex, input.presetCode ?? null)
+  const sourcePresetCode = input.presetCode?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)
+    ? (input.presetCode.split('|', 2)[1] ?? null)
     : (input.presetCode ?? null);
+  const presetCode = studentIds
+    ? schoolFeeDiscountChildScopedPresetCode(selectedChildIndex, sourcePresetCode)
+    : sourcePresetCode;
 
   if (input.kind === 'ManualFixed') {
     if (!input.amountPence || input.amountPence <= 0) {
