@@ -192,7 +192,6 @@ export async function loadStudentTimetableDraft(
         publications: {
           select: { id: true, publishedAt: true },
           orderBy: { publishedAt: 'desc' },
-          take: 1,
         },
       },
     });
@@ -214,6 +213,7 @@ export async function loadStudentTimetableDraft(
         slotId: entry.slotId,
         subjectId: entry.subjectId,
       })) ?? [],
+    publishedVersions: data.timetable?.publications ?? [],
     subjects: data.student.subjects.map(({ subject }) => subjectView(subject)),
     latestPublication: data.timetable?.publications[0] ?? null,
   };

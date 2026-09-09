@@ -75,6 +75,7 @@ function dependencies(): TimetableRouterDeps {
         },
         timetableId: null,
         entries: [],
+        publishedVersions: [],
         subjects: [],
         latestPublication: null,
       }),

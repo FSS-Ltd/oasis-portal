@@ -22,6 +22,7 @@ interface StudentTimetableEditorProps {
   pendingAction: 'subject' | 'save' | 'publish' | null;
   publicationId: string | null;
   slots: readonly TimetableGridSlot[];
+  mode?: 'draft' | 'published';
 }
 
 export function StudentTimetableEditor({
@@ -32,6 +33,7 @@ export function StudentTimetableEditor({
   pendingAction,
   publicationId,
   slots,
+  mode = 'draft',
 }: StudentTimetableEditorProps) {
   const [entries, setEntries] = useState<TimetableGridEntry[]>(draft.entries);
   const [subjectName, setSubjectName] = useState('');
@@ -173,18 +175,21 @@ export function StudentTimetableEditor({
           type="button"
           variant="secondary"
         >
-          <Save aria-hidden="true" size={16} /> Save draft
+          <Save aria-hidden="true" size={16} />
+          {mode === 'published' ? 'Save timetable version' : 'Save draft'}
         </Button>
-        <Button
-          disabled={busy}
-          onClick={() => {
-            void publishCurrentDraft().catch(() => undefined);
-          }}
-          pending={publishing || pendingAction === 'publish'}
-          type="button"
-        >
-          <Send aria-hidden="true" size={16} /> Publish timetable
-        </Button>
+        {mode === 'draft' ? (
+          <Button
+            disabled={busy}
+            onClick={() => {
+              void publishCurrentDraft().catch(() => undefined);
+            }}
+            pending={publishing || pendingAction === 'publish'}
+            type="button"
+          >
+            <Send aria-hidden="true" size={16} /> Publish timetable
+          </Button>
+        ) : null}
         {publicationId ? (
           <a className={styles.downloadButton} href={`/api/timetables/${publicationId}/pdf`}>
             <Download aria-hidden="true" size={16} /> Download PDF
