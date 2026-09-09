@@ -1112,6 +1112,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Church leader + Member',
           kind: 'ManualFixed',
+          studentId: linkedStudentId,
           presetCode: schoolFeeDiscountChildIndexPresetCode(0),
           percentBps: null,
           amountPence: 5513,
@@ -1119,6 +1120,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Sibling, Leader & Member',
           kind: 'ManualFixed',
+          studentId: otherStudentId,
           presetCode: schoolFeeDiscountChildIndexPresetCode(1),
           percentBps: null,
           amountPence: 7963,
@@ -1492,6 +1494,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Sibling discount',
           kind: 'Preset',
+          studentId: otherStudentId,
           presetCode: 'sibling',
           percentBps: 2500,
           amountPence: null,
@@ -1499,6 +1502,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Church Leaders / Oasis Supervisors',
           kind: 'Preset',
+          studentId: linkedStudentId,
           presetCode: 'church-leader',
           percentBps: 2000,
           amountPence: null,
@@ -1511,9 +1515,9 @@ describe('invoiceRouter', () => {
       otherStudentId,
     ]);
     expect(created.subtotalAmountPence).toBe(49000);
-    expect(created.discountAmountPence).toBe(12250);
-    expect(created.totalAmountPence).toBe(36750);
-    expect(created.discounts.map((discount) => discount.appliedAmountPence)).toEqual([6125, 6125]);
+    expect(created.discountAmountPence).toBe(11025);
+    expect(created.totalAmountPence).toBe(37975);
+    expect(created.discounts.map((discount) => discount.appliedAmountPence)).toEqual([6125, 4900]);
     expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('School Fee Invoice');
     expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain(
       'Invoice for Learning Centre Fees',
@@ -1522,7 +1526,7 @@ describe('invoiceRouter', () => {
       created.discountBreakdowns.map((child) =>
         child.discounts.map((discount) => discount.appliedAmountPence),
       ),
-    ).toEqual([[4900], [6125, 1225]]);
+    ).toEqual([[4900], [6125]]);
     expect(fakeDb.invoiceStudents).toEqual([
       { invoiceId: created.id, studentId: linkedStudentId, position: 1 },
       { invoiceId: created.id, studentId: otherStudentId, position: 2 },
@@ -1999,6 +2003,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Sibling discount',
           kind: 'Preset',
+          studentId: otherStudentId,
           presetCode: 'sibling',
           percentBps: 2500,
           amountPence: null,
@@ -2006,6 +2011,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Church Leaders / Oasis Supervisors',
           kind: 'Preset',
+          studentId: linkedStudentId,
           presetCode: 'church-leader',
           percentBps: 2000,
           amountPence: null,
@@ -2013,6 +2019,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Fountain Church Volunteers / Oasis Parent Volunteers / Tithers',
           kind: 'Preset',
+          studentId: thirdStudentId,
           presetCode: 'volunteer-tither',
           percentBps: 1500,
           amountPence: null,
@@ -2020,6 +2027,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Fountain Church Member',
           kind: 'Preset',
+          studentId: fourthStudentId,
           presetCode: 'church-member',
           percentBps: 1000,
           amountPence: null,
@@ -2028,13 +2036,13 @@ describe('invoiceRouter', () => {
     });
 
     expect(created.subtotalAmountPence).toBe(686000);
-    expect(created.discountAmountPence).toBe(156493);
-    expect(created.totalAmountPence).toBe(529507);
+    expect(created.discountAmountPence).toBe(102900);
+    expect(created.totalAmountPence).toBe(583100);
     expect(created.discounts.map((discount) => discount.appliedAmountPence)).toEqual([
-      85750, 51450, 19293, 0,
+      42875, 34300, 25725, 0,
     ]);
     expect(created.discountBreakdowns.map((child) => child.totalAmountPence)).toEqual([
-      130769, 113619, 113619, 171500,
+      137200, 128625, 145775, 171500,
     ]);
   });
 
@@ -2059,6 +2067,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Manual bursary',
           kind: 'ManualFixed',
+          studentId: otherStudentId,
           presetCode: schoolFeeDiscountChildIndexPresetCode(1),
           percentBps: null,
           amountPence: 5000,
@@ -2125,6 +2134,7 @@ describe('invoiceRouter', () => {
           {
             label: 'Sibling discount',
             kind: 'Preset',
+            studentId: linkedStudentId,
             presetCode: 'sibling',
             percentBps: 2500,
             amountPence: null,
@@ -2719,6 +2729,7 @@ describe('invoiceRouter', () => {
         {
           label: 'Sibling discount',
           kind: 'Preset',
+          studentId: otherStudentId,
           presetCode: 'sibling',
           percentBps: 2500,
           amountPence: null,
