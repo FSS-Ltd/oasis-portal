@@ -23,6 +23,7 @@ import {
   SCHOOL_FEE_DISCOUNT_PRESETS,
   SCHOOL_FEE_SIBLING_DISCOUNT_CODE,
   schoolFeeBillingCycle,
+  schoolFeeDiscountChildScopedPresetCode,
   schoolFeeStudentProratedFees,
   schoolFeeInvoiceDisplayStatus,
   type ParsedSchoolFeeInvoice,
@@ -389,6 +390,7 @@ const invoiceLineInput = z.object({
 const invoiceDiscountInput = z.object({
   label: z.string().trim().min(1).max(160),
   kind: z.enum(SCHOOL_FEE_DISCOUNT_KINDS),
+  studentId: z.string().cuid().optional(),
   presetCode: z.string().trim().min(1).max(80).nullable().optional(),
   percentBps: z.number().int().min(0).max(10_000).nullable().optional(),
   amountPence: z.number().int().min(0).max(5_000_000).nullable().optional(),
@@ -2087,7 +2089,16 @@ async function loadSchoolFeeConfig(
 
 function normalizeDiscountInput(
   input: z.infer<typeof invoiceDiscountInput>,
+  studentIds?: readonly string[],
 ): SchoolFeeDiscountInput {
+  const selectedChildIndex = studentIds?.indexOf(input.studentId ?? '') ?? -1;
+  if (studentIds && selectedChildIndex < 0) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'select a child for every discount' });
+  }
+  const presetCode = studentIds
+    ? schoolFeeDiscountChildScopedPresetCode(selectedChildIndex, input.presetCode ?? null)
+    : (input.presetCode ?? null);
+
   if (input.kind === 'ManualFixed') {
     if (!input.amountPence || input.amountPence <= 0) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'fixed discounts need an amount' });
@@ -2095,7 +2106,7 @@ function normalizeDiscountInput(
     return {
       label: input.label,
       kind: input.kind,
-      presetCode: input.presetCode ?? null,
+      presetCode,
       percentBps: null,
       amountPence: input.amountPence,
     };
@@ -2108,7 +2119,7 @@ function normalizeDiscountInput(
   return {
     label: input.label,
     kind: input.kind,
-    presetCode: input.presetCode ?? null,
+    presetCode,
     percentBps,
     amountPence: null,
   };
@@ -2118,9 +2129,15 @@ function discountCreateData(
   ctx: AuthedContext,
   discounts: readonly z.infer<typeof invoiceDiscountInput>[],
   subtotalAmountPence: number,
-  childScope?: { studentCount: number; childLineAmountsPence: readonly number[] },
+  childScope?: {
+    studentIds: readonly string[];
+    studentCount: number;
+    childLineAmountsPence: readonly number[];
+  },
 ) {
-  const normalized = discounts.map(normalizeDiscountInput);
+  const normalized = discounts.map((discount) =>
+    normalizeDiscountInput(discount, childScope?.studentIds),
+  );
   const calculation = childScope
     ? calculateSchoolFeeFamilyDiscounts({
         subtotalAmountPence,
@@ -2642,6 +2659,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
       const discountData = (() => {
         try {
           return discountCreateData(ctx, input.discounts, subtotalAmountPence, {
+            studentIds,
             studentCount: studentIds.length,
             childLineAmountsPence: childAmounts,
           });
@@ -2742,6 +2760,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         const discountData = (() => {
           try {
             return discountCreateData(ctx, input.discounts, subtotalAmountPence, {
+              studentIds: input.studentIds,
               studentCount: input.studentIds.length,
               childLineAmountsPence: childAmounts,
             });
@@ -2880,6 +2899,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         const discountData = (() => {
           try {
             return discountCreateData(ctx, input.discounts, subtotalAmountPence, {
+              studentIds: input.studentIds,
               studentCount: input.studentIds.length,
               childLineAmountsPence: childAmounts,
             });

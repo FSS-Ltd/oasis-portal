@@ -7,6 +7,7 @@ import {
   SCHOOL_FEE_DISCOUNT_EXPLANATION,
   calculateSchoolFeeFamilyDiscounts,
   displaySchoolYearLabel,
+  schoolFeeDiscountChildScopedPresetCode,
   schoolFeeDiscountChildIndexPresetCode,
   type SchoolFeeDiscountInput,
 } from '@oasis/domain';
@@ -36,6 +37,11 @@ interface ManualDiscountForm {
   value: string;
 }
 
+interface PresetDiscountForm {
+  code: string;
+  studentId: string;
+}
+
 const cadenceLabels = {
   Annual: 'Annual',
   Term: 'Term',
@@ -45,10 +51,6 @@ const siblingDiscountCode = 'sibling';
 
 type BillableStudent = BillableFamily['students'][number];
 type StudentYearSummary = BillableFamily['yearSummary']['children'][number];
-
-function withoutSiblingDiscountPreset(codes: readonly string[]): string[] {
-  return codes.filter((code) => code !== siblingDiscountCode);
-}
 
 function studentYearSummary(
   family: BillableFamily | undefined,
@@ -195,12 +197,11 @@ function selectedStudentsForFamily(
     .filter((student): student is BillableStudent => Boolean(student));
 }
 
-function manualDiscountPresetCode(
-  discount: ManualDiscountForm,
+function discountPresetCodeForStudent(
+  studentId: string,
   selectedStudents: readonly BillableStudent[],
 ): string | null {
-  if (!discount.studentId) return null;
-  const childIndex = selectedStudents.findIndex((student) => student.id === discount.studentId);
+  const childIndex = selectedStudents.findIndex((student) => student.id === studentId);
   return childIndex >= 0 ? schoolFeeDiscountChildIndexPresetCode(childIndex) : null;
 }
 
@@ -248,25 +249,23 @@ function parsedLineItemsForForms(lines: readonly LineForm[]) {
 function discountInputsForForm({
   manualDiscounts,
   presets,
-  selectedPresetCodes,
+  selectedPresetDiscounts,
   selectedStudents,
 }: {
   manualDiscounts: readonly ManualDiscountForm[];
   presets: readonly DiscountPreset[];
-  selectedPresetCodes: readonly string[];
+  selectedPresetDiscounts: readonly PresetDiscountForm[];
   selectedStudents: readonly BillableStudent[];
 }): SchoolFeeDiscountInput[] {
-  const studentCount = selectedStudents.length;
-  const presetCodes =
-    studentCount <= 1 ? withoutSiblingDiscountPreset(selectedPresetCodes) : selectedPresetCodes;
   const presetDiscounts: SchoolFeeDiscountInput[] = [];
-  presetCodes.forEach((code) => {
-    const preset = presets.find((candidate) => candidate.code === code);
-    if (preset) {
+  selectedPresetDiscounts.forEach((selection) => {
+    const preset = presets.find((candidate) => candidate.code === selection.code);
+    const childIndex = selectedStudents.findIndex((student) => student.id === selection.studentId);
+    if (preset && childIndex >= 0) {
       presetDiscounts.push({
         label: preset.label,
         kind: 'Preset' as const,
-        presetCode: preset.code,
+        presetCode: schoolFeeDiscountChildScopedPresetCode(childIndex, preset.code),
         percentBps: preset.percentBps,
         amountPence: null,
       });
@@ -276,7 +275,7 @@ function discountInputsForForm({
   const manual: SchoolFeeDiscountInput[] = [];
   manualDiscounts.forEach((discount) => {
     if (!discount.label.trim()) return;
-    const presetCode = manualDiscountPresetCode(discount, selectedStudents);
+    const presetCode = discountPresetCodeForStudent(discount.studentId, selectedStudents);
     if (discount.type === 'percent') {
       const percentBps = parsePercentBps(discount.value);
       if (percentBps !== null) {
@@ -330,27 +329,38 @@ function lineFormsForInvoice(invoice: InvoiceDto | undefined): LineForm[] {
   }));
 }
 
-function selectedPresetCodesForInvoice(
+function sourcePresetCode(presetCode: string | null): string | null {
+  if (!presetCode?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)) return presetCode;
+  return presetCode.split('|', 2)[1] ?? null;
+}
+
+function selectedPresetDiscountsForInvoice(
   invoice: InvoiceDto | undefined,
   presets: readonly DiscountPreset[],
-): string[] {
+): PresetDiscountForm[] {
   if (!invoice) return [];
   const presetCodes = new Set<string>(presets.map((preset) => preset.code));
   return invoice.discounts
-    .filter(
-      (discount) =>
-        !discount.optedOut &&
-        discount.kind === 'Preset' &&
-        discount.presetCode &&
-        presetCodes.has(discount.presetCode),
-    )
-    .map((discount) => discount.presetCode)
-    .filter((code): code is string => code !== null);
+    .flatMap((discount) => {
+      const presetCode = sourcePresetCode(discount.presetCode);
+      if (
+        discount.optedOut ||
+        discount.kind !== 'Preset' ||
+        !presetCode ||
+        !presetCodes.has(presetCode)
+      ) {
+        return [];
+      }
+      const childIndex = childIndexFromPresetCode(discount.presetCode);
+      return [{ code: presetCode, studentId: invoice.students[childIndex ?? -1]?.id ?? '' }];
+    });
 }
 
 function childIndexFromPresetCode(presetCode: string | null): number | null {
   if (!presetCode?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)) return null;
-  const rawIndex = presetCode.slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length);
+  const rawIndex = presetCode
+    .slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length)
+    .split('|', 1)[0];
   if (!/^[0-9]+$/u.test(rawIndex)) return null;
   return Number(rawIndex);
 }
@@ -366,8 +376,8 @@ function manualDiscountFormsForInvoice(
       (discount) =>
         !(
           discount.kind === 'Preset' &&
-          discount.presetCode &&
-          presetCodes.has(discount.presetCode)
+          sourcePresetCode(discount.presetCode) &&
+          presetCodes.has(sourcePresetCode(discount.presetCode) ?? '')
         ),
     )
     .map((discount) => {
@@ -487,8 +497,8 @@ function AdminInvoiceFormModal({
     initialInvoice?.students.map((student) => student.id) ?? [],
   );
   const [lineItems, setLineItems] = useState<LineForm[]>(lineFormsForInvoice(initialInvoice));
-  const [selectedPresetCodes, setSelectedPresetCodes] = useState<string[]>(
-    selectedPresetCodesForInvoice(initialInvoice, presets),
+  const [selectedPresetDiscounts, setSelectedPresetDiscounts] = useState<PresetDiscountForm[]>(
+    selectedPresetDiscountsForInvoice(initialInvoice, presets),
   );
   const [manualDiscounts, setManualDiscounts] = useState<ManualDiscountForm[]>(
     manualDiscountFormsForInvoice(initialInvoice, presets),
@@ -519,8 +529,8 @@ function AdminInvoiceFormModal({
       }, 0),
     [lineItems],
   );
-  const discountBreakdownPreview = useMemo(() => {
-    if (!selectedFamily || selectedStudentIds.length === 0) return [];
+  const discountCalculationPreview = useMemo(() => {
+    if (!selectedFamily || selectedStudentIds.length === 0) return null;
     const previewLines = parsedLineItemsForForms(
       lineFormsForSelectedStudents(
         lineItems,
@@ -530,14 +540,14 @@ function AdminInvoiceFormModal({
         billingCadence,
       ),
     );
-    if (previewLines.length < selectedStudentIds.length) return [];
+    if (previewLines.length < selectedStudentIds.length) return null;
     const discounts = discountInputsForForm({
       manualDiscounts,
       presets,
-      selectedPresetCodes,
+      selectedPresetDiscounts,
       selectedStudents: selectedFormStudents,
     });
-    if (discounts.length === 0) return [];
+    if (discounts.length === 0) return null;
     const childLineAmountsPence = previewLines
       .slice(0, selectedStudentIds.length)
       .map((line) => line.quantity * line.unitAmountPence);
@@ -550,9 +560,9 @@ function AdminInvoiceFormModal({
         studentCount: selectedStudentIds.length,
         childLineAmountsPence,
         discounts,
-      }).childBreakdowns;
+      });
     } catch {
-      return [];
+      return null;
     }
   }, [
     baseAmountPence,
@@ -562,9 +572,11 @@ function AdminInvoiceFormModal({
     presets,
     selectedFamily,
     selectedFormStudents,
-    selectedPresetCodes,
+    selectedPresetDiscounts,
     selectedStudentIds,
   ]);
+  const discountBreakdownPreview = discountCalculationPreview?.childBreakdowns ?? [];
+  const discountedSubtotal = discountCalculationPreview?.totalAmountPence ?? subtotal;
   const canSubmit = Boolean(selectedFamily && selectedStudentIds.length > 0 && familyLabel.trim());
   billingDefaults.current = { amountPence: baseAmountPence, cadence: billingCadence };
 
@@ -577,7 +589,7 @@ function AdminInvoiceFormModal({
       setFamilyLabel('');
       setSelectedStudentIds([]);
       setLineItems([]);
-      setSelectedPresetCodes([]);
+      setSelectedPresetDiscounts([]);
       setManualDiscounts([]);
       return;
     }
@@ -585,7 +597,7 @@ function AdminInvoiceFormModal({
       setFamilyLabel('');
       setSelectedStudentIds([]);
       setLineItems([]);
-      setSelectedPresetCodes([]);
+      setSelectedPresetDiscounts([]);
       setManualDiscounts([]);
       return;
     }
@@ -600,9 +612,6 @@ function AdminInvoiceFormModal({
         defaults.cadence,
       ),
     );
-    if (selectedFamily.students.length <= 1) {
-      setSelectedPresetCodes(withoutSiblingDiscountPreset);
-    }
   }, [familyKey, selectedFamily]);
 
   useEffect(() => {
@@ -617,6 +626,13 @@ function AdminInvoiceFormModal({
         return { ...discount, studentId: fallbackStudentId };
       });
     });
+    setSelectedPresetDiscounts((current) =>
+      current.filter(
+        (discount) =>
+          selectedStudentIds.includes(discount.studentId) &&
+          (discount.code !== siblingDiscountCode || selectedStudentIds.length > 1),
+      ),
+    );
   }, [selectedStudentIds]);
 
   function updateSelectedStudent(studentId: string, checked: boolean) {
@@ -633,9 +649,6 @@ function AdminInvoiceFormModal({
         billingCadence,
       ),
     );
-    if (nextStudentIds.length <= 1) {
-      setSelectedPresetCodes(withoutSiblingDiscountPreset);
-    }
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -686,17 +699,16 @@ function AdminInvoiceFormModal({
       setError('Generated invoices need one line item per child.');
       return;
     }
-    const selectedDiscountPresetCodes =
-      selectedStudentIds.length <= 1
-        ? withoutSiblingDiscountPreset(selectedPresetCodes)
-        : selectedPresetCodes;
-    const discounts = selectedDiscountPresetCodes.map((code) => {
-      const preset = presets.find((candidate) => candidate.code === code);
-      if (!preset) return null;
+    const discounts = selectedPresetDiscounts.map((selection) => {
+      const preset = presets.find((candidate) => candidate.code === selection.code);
+      if (!preset || !selection.studentId || !selectedStudentIds.includes(selection.studentId)) {
+        return null;
+      }
       return {
         label: preset.label,
         kind: 'Preset' as const,
         presetCode: preset.code,
+        studentId: selection.studentId,
         percentBps: preset.percentBps,
         amountPence: null,
       };
@@ -709,7 +721,6 @@ function AdminInvoiceFormModal({
         !selectedStudents.some((student) => student.id === discount.studentId)
       )
         return null;
-      const presetCode = manualDiscountPresetCode(discount, selectedStudents);
       if (discount.type === 'percent') {
         const percentBps = parsePercentBps(discount.value);
         return percentBps === null
@@ -717,7 +728,8 @@ function AdminInvoiceFormModal({
           : {
               label: discount.label.trim(),
               kind: 'ManualPercent' as const,
-              presetCode,
+              presetCode: null,
+              studentId: discount.studentId,
               percentBps,
               amountPence: null,
             };
@@ -728,13 +740,21 @@ function AdminInvoiceFormModal({
         : {
             label: discount.label.trim(),
             kind: 'ManualFixed' as const,
-            presetCode,
+            presetCode: null,
+            studentId: discount.studentId,
             percentBps: null,
             amountPence,
           };
     });
     if ([...discounts, ...manual].some((discount) => discount === null)) {
       setError('Discounts need a label, child, and valid percentage or amount.');
+      return;
+    }
+    const discountStudentIds = [...discounts, ...manual]
+      .filter((discount): discount is NonNullable<typeof discount> => discount !== null)
+      .map((discount) => discount.studentId);
+    if (new Set(discountStudentIds).size !== discountStudentIds.length) {
+      setError('Each child can only receive one discount.');
       return;
     }
     if (!discountExplanation.trim()) {
@@ -1029,33 +1049,72 @@ function AdminInvoiceFormModal({
             <h3>Discounts</h3>
             <div className="invoice-preset-grid">
               {presets.map((preset) => {
+                const selection = selectedPresetDiscounts.find(
+                  (discount) => discount.code === preset.code,
+                );
                 const presetDisabled =
                   !selectedFamily ||
                   (preset.code === siblingDiscountCode && selectedStudentIds.length <= 1);
+                const eligibleStudents =
+                  preset.code === siblingDiscountCode
+                    ? selectedFormStudents.slice(1)
+                    : selectedFormStudents;
                 return (
-                  <label key={preset.code}>
-                    <input
-                      checked={!presetDisabled && selectedPresetCodes.includes(preset.code)}
-                      disabled={presetDisabled}
-                      onChange={(event) => {
-                        if (presetDisabled) return;
-                        setSelectedPresetCodes((current) =>
-                          event.target.checked
-                            ? [...new Set([...current, preset.code])]
-                            : current.filter((code) => code !== preset.code),
-                        );
-                      }}
-                      type="checkbox"
-                    />
-                    <span>
-                      <strong>{preset.label}</strong>
-                      <small>
-                        {preset.code === siblingDiscountCode
-                          ? '25% on additional children'
-                          : `${String(preset.percentBps / 100)}%`}
-                      </small>
-                    </span>
-                  </label>
+                  <div key={preset.code}>
+                    <label>
+                      <input
+                        checked={!presetDisabled && Boolean(selection)}
+                        disabled={presetDisabled}
+                        onChange={(event) => {
+                          if (presetDisabled) return;
+                          setSelectedPresetDiscounts((current) =>
+                            event.target.checked
+                              ? [
+                                  ...current,
+                                  {
+                                    code: preset.code,
+                                    studentId: eligibleStudents[0]?.id ?? '',
+                                  },
+                                ]
+                              : current.filter((discount) => discount.code !== preset.code),
+                          );
+                        }}
+                        type="checkbox"
+                      />
+                      <span>
+                        <strong>{preset.label}</strong>
+                        <small>
+                          {preset.code === siblingDiscountCode
+                            ? '25% on an additional child'
+                            : `${String(preset.percentBps / 100)}%`}
+                        </small>
+                      </span>
+                    </label>
+                    {selection ? (
+                      <SelectInput
+                        aria-label={`Apply ${preset.label} to`}
+                        onChange={(event) => {
+                          setSelectedPresetDiscounts((current) =>
+                            current.map((discount) =>
+                              discount.code === preset.code
+                                ? { ...discount, studentId: event.target.value }
+                                : discount,
+                            ),
+                          );
+                        }}
+                        value={selection.studentId}
+                      >
+                        <option disabled value="">
+                          Select child
+                        </option>
+                        {eligibleStudents.map((student) => (
+                          <option key={student.id} value={student.id}>
+                            {student.fullName}
+                          </option>
+                        ))}
+                      </SelectInput>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -1174,7 +1233,9 @@ function AdminInvoiceFormModal({
           <p className="invoice-form-error invoice-form-error--modal">{error ?? serverError}</p>
         ) : null}
         <footer className="invoice-modal__footer">
-          <span className="invoice-create-subtotal">Subtotal {formatPence(subtotal)}</span>
+          <span className="invoice-create-subtotal">
+            Subtotal after discounts {formatPence(discountedSubtotal)}
+          </span>
           <Button onClick={onClose} type="button" variant="ghost">
             Cancel
           </Button>

@@ -9,6 +9,7 @@ import {
   parseSchoolFeeInvoiceText,
   schoolFeeBillingCycle,
   schoolFeeChargeablePeriod,
+  schoolFeeDiscountChildScopedPresetCode,
   schoolFeeDiscountChildIndexPresetCode,
   schoolFeeInvoiceDisplayStatus,
   schoolFeeStudentProratedFees,
@@ -174,30 +175,30 @@ describe('school fee invoice discounts', () => {
         {
           label: 'Sibling discount',
           kind: 'Preset',
-          presetCode: 'sibling',
+          presetCode: schoolFeeDiscountChildScopedPresetCode(1, 'sibling'),
           percentBps: 2500,
           amountPence: null,
         },
         {
           label: 'Church Leaders / Oasis Supervisors',
           kind: 'Preset',
-          presetCode: 'church-leader',
+          presetCode: schoolFeeDiscountChildScopedPresetCode(0, 'church-leader'),
           percentBps: 2000,
           amountPence: null,
         },
       ],
     });
 
-    expect(result.discountAmountPence).toBe(12_250);
-    expect(result.totalAmountPence).toBe(36_750);
-    expect(result.discounts.map((discount) => discount.appliedAmountPence)).toEqual([6_125, 6_125]);
+    expect(result.discountAmountPence).toBe(11_025);
+    expect(result.totalAmountPence).toBe(37_975);
+    expect(result.discounts.map((discount) => discount.appliedAmountPence)).toEqual([6_125, 4_900]);
     expect(
       result.childBreakdowns.map((child) =>
         child.discounts.map((discount) => discount.appliedAmountPence),
       ),
     ).toEqual([
       [0, 4_900],
-      [6_125, 1_225],
+      [6_125, 0],
     ]);
   });
 
@@ -245,17 +246,43 @@ describe('school fee invoice discounts', () => {
         {
           label: 'Fountain Church Member',
           kind: 'Preset',
-          presetCode: 'church-member',
+          presetCode: schoolFeeDiscountChildScopedPresetCode(0, 'church-member'),
           percentBps: 1000,
           amountPence: null,
         },
       ],
     });
 
-    expect(result.discountAmountPence).toBe(30_000);
+    expect(result.discountAmountPence).toBe(10_000);
     expect(result.childBreakdowns.map((child) => child.discountAmountPence)).toEqual([
-      10_000, 10_000, 10_000, 0,
+      10_000, 0, 0, 0,
     ]);
+  });
+
+  it('rejects more than one discount for the same child', () => {
+    expect(() =>
+      calculateSchoolFeeFamilyDiscounts({
+        subtotalAmountPence: 49_000,
+        studentCount: 2,
+        childLineAmountsPence: [24_500, 24_500],
+        discounts: [
+          {
+            label: 'Church member',
+            kind: 'Preset',
+            presetCode: schoolFeeDiscountChildScopedPresetCode(0, 'church-member'),
+            percentBps: 1000,
+            amountPence: null,
+          },
+          {
+            label: 'Manual support',
+            kind: 'ManualPercent',
+            presetCode: schoolFeeDiscountChildIndexPresetCode(0),
+            percentBps: 1000,
+            amountPence: null,
+          },
+        ],
+      }),
+    ).toThrow(/each child can only receive one discount/);
   });
 
   it('rejects sibling discounts for a single child', () => {
