@@ -9,7 +9,7 @@ export const SCHOOL_FEE_DISCOUNT_KINDS = ['Preset', 'ManualPercent', 'ManualFixe
 export type SchoolFeeDiscountKind = (typeof SCHOOL_FEE_DISCOUNT_KINDS)[number];
 
 export const SCHOOL_FEE_DISCOUNT_EXPLANATION =
-  'Our discount structure is designed to be both fair and generous. If you qualify for just one discount - such as being a church leader, volunteer, tither, church member, or enrolling siblings - that discount will be applied in full. If your family qualifies for multiple discounts, we apply the largest discount in full, and then add 25% of each additional eligible discount, with a maximum of 3 discounts per family. This approach ensures meaningful support for engaged families while keeping the learning centre sustainable for all.';
+  'Our discount structure is designed to be both fair and generous. If you qualify for any of the discounts, such as being a church leader, Oasis Supervisor, volunteer, Fountain church member, or enrolling sibling discount - that discount will be applied in full. If your family qualifies for multiple discounts, we apply the largest discount in full. Only one discount will be applied per child. Sibling discount will only be applied on one of the children. This approach ensures meaningful support for engaged families while keeping the learning centre sustainable for all.';
 
 export const SCHOOL_FEE_SIBLING_DISCOUNT_CODE = 'sibling';
 export const SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX = 'child-index:';
