@@ -276,6 +276,14 @@ export function schoolFeeDiscountChildIndexPresetCode(childIndex: number): strin
   return `${SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX}${String(childIndex)}`;
 }
 
+export function schoolFeeDiscountChildScopedPresetCode(
+  childIndex: number,
+  presetCode: string | null,
+): string {
+  const childScope = schoolFeeDiscountChildIndexPresetCode(childIndex);
+  return presetCode ? `${childScope}|${presetCode}` : childScope;
+}
+
 export function calculateSchoolFeeDiscounts(
   subtotalAmountPence: number,
   discounts: readonly SchoolFeeDiscountInput[],
@@ -338,6 +346,7 @@ export function calculateSchoolFeeFamilyDiscounts({
   if (studentCount === 1 && hasSiblingDiscount) {
     throw new Error('sibling discount requires at least two children');
   }
+  assertUniqueDiscountsPerChild(discounts);
 
   const applied = discounts.map<SchoolFeeAppliedDiscount>((discount) => ({
     ...discount,
@@ -393,6 +402,19 @@ export function calculateSchoolFeeFamilyDiscounts({
   };
 }
 
+function assertUniqueDiscountsPerChild(discounts: readonly SchoolFeeDiscountInput[]): void {
+  const seenChildren = new Set<number>();
+  for (const discount of discounts) {
+    if (discount.optedOut) continue;
+    const childIndex = schoolFeeDiscountChildIndex(discount);
+    if (childIndex === null) continue;
+    if (seenChildren.has(childIndex)) {
+      throw new Error('each child can only receive one discount');
+    }
+    seenChildren.add(childIndex);
+  }
+}
+
 export function schoolFeeInvoiceDisplayStatus(
   status: SchoolFeeInvoiceStatus,
   dueOn: Date | string | null,
@@ -422,7 +444,10 @@ function discountBaseAmountPence(
 }
 
 function isSiblingDiscount(discount: SchoolFeeDiscountInput): boolean {
-  return discount.presetCode === SCHOOL_FEE_SIBLING_DISCOUNT_CODE;
+  return (
+    discount.presetCode === SCHOOL_FEE_SIBLING_DISCOUNT_CODE ||
+    discount.presetCode?.endsWith(`|${SCHOOL_FEE_SIBLING_DISCOUNT_CODE}`) === true
+  );
 }
 
 function familyEligibleDiscountIndexes(
@@ -461,7 +486,7 @@ function shouldSkipDiscountForChild(discount: SchoolFeeDiscountInput, childIndex
 function schoolFeeDiscountChildIndex(discount: SchoolFeeDiscountInput): number | null {
   const code = discount.presetCode;
   if (!code?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)) return null;
-  const rawIndex = code.slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length);
+  const rawIndex = code.slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length).split('|', 1)[0];
   if (!/^[0-9]+$/u.test(rawIndex)) return null;
   const index = Number(rawIndex);
   return Number.isSafeInteger(index) ? index : null;
