@@ -52,8 +52,8 @@ interface PresetDiscountForm {
 }
 
 const cadenceLabels = {
-  Annual: 'Annual',
-  Term: 'Term',
+  Annual: 'Full year',
+  Term: 'Full quarter',
   Monthly: 'Monthly',
 } as const;
 const siblingDiscountCode = 'sibling';
@@ -84,21 +84,51 @@ function cadenceAmount(config: FeeConfig, cadence: CreateInvoiceInput['billingCa
 }
 
 function defaultAmountForStudent({
-  cadence,
+  alreadyIssuedAmountPence = 0,
   family,
   fallbackAmountPence,
   student,
 }: {
-  cadence: CreateInvoiceInput['billingCadence'];
+  alreadyIssuedAmountPence?: number | undefined;
   family: BillableFamily | undefined;
   fallbackAmountPence: number;
   student: BillableStudent;
 }): number {
   const summary = studentYearSummary(family, student.id);
   if (!summary) return fallbackAmountPence;
-  if (cadence === 'Annual') return summary.grossLeftToInvoiceAmountPence;
-  if (summary.grossLeftToInvoiceAmountPence <= 0) return 0;
-  return Math.min(fallbackAmountPence, summary.grossLeftToInvoiceAmountPence);
+  const availableAmountPence =
+    summary.grossLeftToInvoiceAmountPence + alreadyIssuedAmountPence;
+  if (availableAmountPence <= 0) return 0;
+  return Math.min(fallbackAmountPence, availableAmountPence);
+}
+
+function lineFormsForPaymentOption({
+  current,
+  family,
+  studentIds,
+  amountPence,
+  cadence,
+  alreadyIssuedAmountsByStudent,
+}: {
+  current: readonly LineForm[];
+  family: BillableFamily | undefined;
+  studentIds: readonly string[];
+  amountPence: number;
+  cadence: CreateInvoiceInput['billingCadence'];
+  alreadyIssuedAmountsByStudent?: ReadonlyMap<string, number> | undefined;
+}): LineForm[] {
+  const selectedStudents = selectedStudentsForFamily(family, studentIds);
+  const generatedLines = selectedStudents.map((student) =>
+    defaultLineFormForStudent(
+      student,
+      amountPence,
+      cadence,
+      family,
+      alreadyIssuedAmountsByStudent?.get(student.id),
+    ),
+  );
+  const manualLines = current.filter((line) => line.studentId === null);
+  return [...generatedLines, ...manualLines];
 }
 
 function defaultTerm(issuedOn: string): string {
@@ -116,6 +146,7 @@ function defaultLineFormForStudent(
   amountPence: number,
   cadence: CreateInvoiceInput['billingCadence'],
   family?: BillableFamily,
+  alreadyIssuedAmountPence?: number,
 ): LineForm {
   return {
     studentId: student.id,
@@ -123,7 +154,7 @@ function defaultLineFormForStudent(
     quantity: '1',
     unitAmount: penceToPoundsInput(
       defaultAmountForStudent({
-        cadence,
+        alreadyIssuedAmountPence,
         family,
         fallbackAmountPence: amountPence,
         student,
@@ -389,8 +420,12 @@ function FamilyYearSummary({
   return (
     <section aria-label={`${family.familyLabel} fee summary`} className="invoice-family-summary">
       <div>
-        <span>{summary.cycleLabel}</span>
+        <span>{summary.cycleLabel} full-year fee</span>
         <strong>{formatPence(summary.annualAmountPence)}</strong>
+      </div>
+      <div>
+        <span>Discounts applied</span>
+        <strong>-{formatPence(summary.discountAmountPence)}</strong>
       </div>
       <div>
         <span>Confirmed paid</span>
@@ -401,8 +436,8 @@ function FamilyYearSummary({
         <strong>{formatPence(summary.grossIssuedAmountPence)}</strong>
       </div>
       <div>
-        <span>Left to pay</span>
-        <strong>{formatPence(summary.grossRemainingAmountPence)}</strong>
+        <span>Balance after discounts</span>
+        <strong>{formatPence(summary.remainingAmountPence)}</strong>
       </div>
       <div>
         <span>Left to invoice</span>
@@ -490,6 +525,16 @@ function SchoolFeeInvoiceForm({
   const familyEffectReady = useRef(false);
   const billingDefaults = useRef({ amountPence: 0, cadence: billingCadence });
   const isEdit = mode === 'edit';
+  const alreadyIssuedAmountsByStudent = useMemo(
+    () =>
+      new Map(
+        (initialInvoice?.students ?? []).map((student, index) => [
+          student.id,
+          initialInvoice?.lineItems[index]?.totalAmountPence ?? 0,
+        ]),
+      ),
+    [initialInvoice],
+  );
 
   const selectedFamily = useMemo(
     () => families.find((family) => family.familyKey === familyKey),
@@ -800,7 +845,7 @@ function SchoolFeeInvoiceForm({
                   value={schoolYear}
                 />
               </Field>
-              <Field label="Cadence" required>
+              <Field label="Payment option" required>
                 <SelectInput
                   disabled={pending}
                   onChange={(event) => {
@@ -808,19 +853,22 @@ function SchoolFeeInvoiceForm({
                     const nextAmountPence = cadenceAmount(feeConfig, nextCadence);
                     setBillingCadence(nextCadence);
                     setLineItems((current) =>
-                      lineFormsForSelectedStudents(
+                      lineFormsForPaymentOption({
                         current,
-                        selectedFamily,
-                        selectedStudentIds,
-                        nextAmountPence,
-                        nextCadence,
-                      ),
+                        family: selectedFamily,
+                        studentIds: selectedStudentIds,
+                        amountPence: nextAmountPence,
+                        cadence: nextCadence,
+                        alreadyIssuedAmountsByStudent: isEdit
+                          ? alreadyIssuedAmountsByStudent
+                          : undefined,
+                      }),
                     );
                   }}
                   value={billingCadence}
                 >
-                  <option value="Annual">Annual</option>
-                  <option value="Term">Term</option>
+                  <option value="Annual">Full year</option>
+                  <option value="Term">Full quarter</option>
                   <option value="Monthly">Monthly</option>
                 </SelectInput>
               </Field>
@@ -1231,7 +1279,7 @@ function SchoolFeeInvoiceForm({
         ) : null}
         <footer className="invoice-modal__footer">
           <span className="invoice-create-subtotal">
-            Subtotal after discounts {formatPence(discountedSubtotal)}
+            Amount due after discounts {formatPence(discountedSubtotal)}
           </span>
           <Button disabled={pending} onClick={onClose} type="button" variant="ghost">
             Cancel
