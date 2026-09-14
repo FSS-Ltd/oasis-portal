@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import { makeTestContext } from './helpers/test-context.js';
 import { createTimetableRouter, type TimetableRouterDeps } from '../routers/timetable.js';
@@ -59,6 +59,7 @@ function dependencies(): TimetableRouterDeps {
         id: 'schedule_1',
         termKey: input.termKey,
         ageBandId: input.ageBandId,
+        updatedAt: new Date('2026-09-14T15:00:00.000Z'),
         slots: input.slots.map((slot, position) => ({
           ...slot,
           id: `slot_${String(position)}`,
@@ -92,6 +93,7 @@ function dependencies(): TimetableRouterDeps {
         name: input.name,
         colour: 'Grey' as const,
       }),
+    deletePublication: () => Promise.resolve(),
     publish: () => Promise.reject(new Error('not used in this test')),
     publishedForParent: () => Promise.resolve(null),
     publishedForStudent: () => Promise.resolve(null),
@@ -153,6 +155,25 @@ describe('timetable router Head workspace', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('lets a Head delete a selected published timetable version', async () => {
+    const deletePublication = vi.fn().mockResolvedValue(undefined);
+    const deps = { ...dependencies(), deletePublication };
+    const publicationCaller = caller(head, deps) as unknown as {
+      timetable: { deletePublication(input: { publicationId: string }): Promise<void> };
+    };
+    const supervisorCaller = caller(supervisor, deps) as unknown as {
+      timetable: { deletePublication(input: { publicationId: string }): Promise<void> };
+    };
+
+    await expect(
+      publicationCaller.timetable.deletePublication({ publicationId: 'publication_1' }),
+    ).resolves.toBeUndefined();
+    await expect(
+      supervisorCaller.timetable.deletePublication({ publicationId: 'publication_1' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(deletePublication).toHaveBeenCalledWith(expect.anything(), { publicationId: 'publication_1' });
+  });
+
   it('accepts a break in any position and rejects overlapping slots', async () => {
     await expect(caller(head).timetable.saveSchedule(scheduleInput)).resolves.toMatchObject({
       slots: [
@@ -177,6 +198,8 @@ describe('timetable router Head workspace', () => {
       caller(head).timetable.saveDraft({
         termKey: term.key,
         studentId: 'student_1',
+        scheduleId: 'schedule_1',
+        scheduleUpdatedAt: new Date('2026-09-14T15:00:00.000Z'),
         entries: [{ day: 'Tuesday', slotId: 'slot_1', subjectId: 'subject_math' }],
       }),
     ).resolves.toMatchObject({ unassignedLessonCount: 7 });

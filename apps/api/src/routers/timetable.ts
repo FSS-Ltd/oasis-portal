@@ -20,6 +20,7 @@ import {
   saveTimetableSchedule,
 } from '../services/timetable-data.js';
 import {
+  deletePublishedTimetable,
   findPublishedTimetableForHead,
   findPublishedTimetableForParent,
   findPublishedTimetableForStudent,
@@ -68,6 +69,8 @@ const studentTermInput = z
   .strict();
 const saveDraftInput = studentTermInput
   .extend({
+    scheduleId: z.string().trim().min(1),
+    scheduleUpdatedAt: z.date(),
     entries: z
       .array(
         z
@@ -103,6 +106,7 @@ export interface TimetableScheduleView {
   ageBandId: string;
   slots: TimetableScheduleSlotView[];
   termKey: string;
+  updatedAt: Date;
 }
 
 export interface TimetableChildSummary {
@@ -183,6 +187,10 @@ export interface TimetableRouterDeps {
     ctx: AuthedContext,
     input: z.infer<typeof addSubjectInput>,
   ): Promise<TimetableSubjectView>;
+  deletePublication(
+    ctx: AuthedContext,
+    input: z.infer<typeof publicationInput>,
+  ): Promise<void>;
   downloadPdf(
     ctx: AuthedContext,
     input: z.infer<typeof publicationInput>,
@@ -239,6 +247,7 @@ const defaultTimetableRouterDeps: TimetableRouterDeps = {
   saveSchedule: saveTimetableSchedule,
   saveDraft: saveStudentTimetableDraft,
   createAndAssignSubject: createAndAssignTimetableSubject,
+  deletePublication: deletePublishedTimetable,
   publish: publishStudentTimetable,
   publishedForParent: findPublishedTimetableForParent,
   publishedForStudent: findPublishedTimetableForStudent,
@@ -341,6 +350,10 @@ export function createTimetableRouter(deps: TimetableRouterDeps = defaultTimetab
         }
         return publication;
       }),
+
+    deletePublication: roleProcedure('Head')
+      .input(publicationInput)
+      .mutation(({ ctx, input }) => deps.deletePublication(ctx, input)),
 
     downloadPdf: roleProcedure('Head')
       .input(publicationInput)

@@ -151,6 +151,7 @@ export async function loadHeadTimetableWorkspace(
           id: data.schedule.id,
           termKey: data.schedule.termKey,
           ageBandId: input.ageBandId,
+          updatedAt: data.schedule.updatedAt,
           slots: data.schedule.slots,
         }
       : null,
@@ -315,6 +316,7 @@ export async function saveTimetableSchedule(
       id: schedule.id,
       termKey: schedule.termKey,
       ageBandId: input.ageBandId,
+      updatedAt: schedule.updatedAt,
       slots,
     };
   });
@@ -325,6 +327,8 @@ export async function saveStudentTimetableDraft(
   input: {
     studentId: string;
     termKey: string;
+    scheduleId: string;
+    scheduleUpdatedAt: Date;
     entries: Array<{ day: (typeof TIMETABLE_DAYS)[number]; slotId: string; subjectId: string }>;
   },
 ) {
@@ -348,6 +352,12 @@ export async function saveStudentTimetableDraft(
       include: { slots: true },
     });
     if (!schedule) badRequest('Save the age-group times before creating child timetables');
+    if (
+      schedule.id !== input.scheduleId ||
+      schedule.updatedAt.getTime() !== input.scheduleUpdatedAt.getTime()
+    ) {
+      badRequest('The shared timetable changed. Refresh before saving this child’s timetable.');
+    }
 
     const lessonSlotIds = new Set(
       schedule.slots.filter((slot) => slot.kind === 'Lesson').map((slot) => slot.id),

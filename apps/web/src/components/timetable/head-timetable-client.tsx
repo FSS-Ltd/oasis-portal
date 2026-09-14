@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarRange, CheckCircle2, Download, UsersRound } from 'lucide-react';
-import { type TimetableDay, type TimetableSlotKind } from '@oasis/domain';
+import { CalendarRange, CheckCircle2, Download, Trash2, UsersRound } from 'lucide-react';
+import { type TimetableDay } from '@oasis/domain';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { AgeGroupScheduleEditor, type EditableScheduleSlot } from './age-group-schedule-editor';
 import { StudentTimetableEditor } from './student-timetable-editor';
+import { mapPublishedEntriesToCurrentLessonSlots } from './timetable-version-mapping';
 import type { TimetableGridSlot } from './timetable-grid';
 import { formatTermDates } from './timetable-format';
 import styles from './timetable.module.css';
@@ -52,12 +53,6 @@ function formatVersionDate(value: Date): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(value);
-}
-
-function isLessonCell(
-  kind: TimetableSlotKind,
-): kind is Extract<TimetableSlotKind, 'Lesson'> {
-  return kind === 'Lesson';
 }
 
 export function HeadTimetableClient() {
@@ -148,15 +143,10 @@ export function HeadTimetableClient() {
   const draftWithPublishedEntries = useMemo(() => {
     if (!draftQuery.data) return null;
     if (!isPublishedMode || !publicationQuery.data || !workspace?.schedule) return draftQuery.data;
-    const slotIdByPosition = new Map<number, string>(
-      scheduledSlots(workspace).map((slot) => [slot.position, slot.id]),
+    const publishedEntries = mapPublishedEntriesToCurrentLessonSlots(
+      publicationQuery.data.entries,
+      scheduledSlots(workspace),
     );
-    const publishedEntries = publicationQuery.data.entries.flatMap((entry) => {
-      if (!isLessonCell(entry.slotKind) || !entry.subjectId) return [];
-      const slotId = slotIdByPosition.get(entry.slotPosition);
-      if (!slotId) return [];
-      return [{ day: entry.day, slotId, subjectId: entry.subjectId }];
-    });
     return { ...draftQuery.data, entries: publishedEntries };
   }, [draftQuery.data, isPublishedMode, publicationQuery.data, workspace]);
 
@@ -180,8 +170,13 @@ export function HeadTimetableClient() {
         utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
       ]);
     },
-    onError(error) {
+    async onError(error) {
       showErrorToast(error, 'The timetable draft could not be saved.');
+      if (!error.message.includes('The shared timetable changed')) return;
+      await Promise.all([
+        utils.timetable.studentDraft.invalidate({ studentId: selectedStudentId, termKey }),
+        utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
+      ]);
     },
   });
   const createSubject = api.timetable.createAndAssignSubject.useMutation({
@@ -191,6 +186,18 @@ export function HeadTimetableClient() {
     },
     onError(error) {
       showErrorToast(error, 'The subject could not be added.');
+    },
+  });
+  const deletePublication = api.timetable.deletePublication.useMutation({
+    async onSuccess() {
+      showSuccessToast('Published timetable version deleted.');
+      await Promise.all([
+        utils.timetable.studentDraft.invalidate({ studentId: selectedStudentId, termKey }),
+        utils.timetable.headWorkspace.invalidate({ termKey, ageBandId }),
+      ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'The published timetable version could not be deleted.');
     },
   });
   const publish = api.timetable.publish.useMutation();
@@ -263,12 +270,23 @@ export function HeadTimetableClient() {
   async function handleSaveTimetable(
     entries: Array<{ day: TimetableDay; slotId: string; subjectId: string }>,
   ): Promise<void> {
-    if (!selectedStudentId) return;
-    await saveDraft.mutateAsync({ studentId: selectedStudentId, termKey, entries });
+    if (!selectedStudentId || !workspace?.schedule) return;
+    await saveDraft.mutateAsync({
+      studentId: selectedStudentId,
+      termKey,
+      scheduleId: workspace.schedule.id,
+      scheduleUpdatedAt: workspace.schedule.updatedAt,
+      entries,
+    });
     if (!isPublishedMode) return;
     const publicationId = await handlePublishTimetable();
     if (publicationId) setSelectedPublicationId(publicationId);
-  } 
+  }
+
+  async function handleDeletePublication(publicationId: string): Promise<void> {
+    if (!window.confirm('Delete this published timetable version? This cannot be undone.')) return;
+    await deletePublication.mutateAsync({ publicationId });
+  }
 
   function pendingAction():
     | 'subject'
@@ -442,6 +460,17 @@ export function HeadTimetableClient() {
                         <a className={styles.downloadButton} href={`/api/timetables/${publication.id}/pdf`}>
                           <Download aria-hidden="true" size={16} /> Download PDF
                         </a>
+                        <button
+                          aria-label={`Delete ${label}`}
+                          className={styles.deleteVersionButton}
+                          disabled={deletePublication.isPending}
+                          onClick={() => {
+                            void handleDeletePublication(publication.id).catch(() => undefined);
+                          }}
+                          type="button"
+                        >
+                          <Trash2 aria-hidden="true" size={16} /> Delete
+                        </button>
                       </article>
                     );
                   })}

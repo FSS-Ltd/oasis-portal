@@ -4,6 +4,7 @@ import type { AppContext } from '../context.js';
 import {
   createAndAssignTimetableSubject,
   customSubjectCodeBase,
+  saveStudentTimetableDraft,
 } from '../services/timetable-data.js';
 
 const head: SessionUser = { id: 'head_1', role: 'Head', tags: [], requires2fa: false };
@@ -43,6 +44,53 @@ describe('createAndAssignTimetableSubject', () => {
         name: 'Maths',
         timetableColour: 'Yellow',
       },
+    });
+  });
+});
+
+describe('saveStudentTimetableDraft', () => {
+  it('rejects a draft from an outdated shared timetable before replacing the child entries', async () => {
+    const db = {
+      calendarEvent: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'calendar-2026-27-term-1-start', startDate: new Date('2026-09-08T00:00:00.000Z') },
+          { id: 'calendar-2026-27-term-1-end', startDate: new Date('2026-10-16T00:00:00.000Z') },
+        ]),
+      },
+    };
+    const tx = {
+      student: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'student_1',
+          ageBandId: 'band_primary',
+          followsOwnTimetable: false,
+          subjects: [],
+        }),
+      },
+      timetableAgeGroupSchedule: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'schedule_current',
+          updatedAt: new Date('2026-09-14T15:00:00.000Z'),
+          slots: [{ id: 'slot_lesson', kind: 'Lesson' }],
+        }),
+      },
+    };
+    const ctx = {
+      db,
+      user: head,
+      withRls: (operation: (database: never) => Promise<unknown>) => operation(tx as never),
+    } as unknown as AppContext & { user: SessionUser };
+    const staleDraft = {
+      studentId: 'student_1',
+      termKey: '2026-27-term-1',
+      scheduleId: 'schedule_previous',
+      scheduleUpdatedAt: new Date('2026-09-14T14:00:00.000Z'),
+      entries: [],
+    };
+
+    await expect(saveStudentTimetableDraft(ctx, staleDraft)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'The shared timetable changed. Refresh before saving this child’s timetable.',
     });
   });
 });

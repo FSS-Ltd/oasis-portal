@@ -47,7 +47,7 @@ describe('generateTimetablePdf', () => {
     const text = await extractPdfText(generated.bytes);
 
     expect(Buffer.from(generated.bytes).subarray(0, 5).toString('utf8')).toBe('%PDF-');
-    expect(generated.fileName).toBe('Taleyah-Term-1-timetable.pdf');
+    expect(generated.fileName).toBe('Taleyah-Term-1-2026-09-04-200000-timetable.pdf');
     expect(generated.mimeType).toBe('application/pdf');
     expect(document.getPageCount()).toBe(1);
     expect(page?.getWidth()).toBeGreaterThan(page?.getHeight() ?? 0);
