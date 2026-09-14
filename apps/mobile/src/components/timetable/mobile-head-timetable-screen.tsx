@@ -138,15 +138,33 @@ export function MobileHeadTimetableScreen({ onBack }: MobileHeadTimetableScreenP
   ): Promise<void> {
     setError(null);
     setStatus(null);
+    const schedule = workspace.data?.schedule;
+    if (!schedule) {
+      setError('Save the shared lesson and break times before saving a child timetable.');
+      return;
+    }
     try {
-      await saveDraft.mutateAsync({ entries, studentId, termKey });
+      await saveDraft.mutateAsync({
+        entries,
+        studentId,
+        termKey,
+        scheduleId: schedule.id,
+        scheduleUpdatedAt: schedule.updatedAt,
+      });
       await Promise.all([
         utils.timetable.studentDraft.invalidate({ studentId, termKey }),
         utils.timetable.headWorkspace.invalidate({ ageBandId, termKey }),
       ]);
       setStatus('Timetable draft saved.');
     } catch (mutationError) {
-      setError(errorMessage(mutationError));
+      const message = errorMessage(mutationError);
+      setError(message);
+      if (message.includes('The shared timetable changed')) {
+        await Promise.all([
+          utils.timetable.studentDraft.invalidate({ studentId, termKey }),
+          utils.timetable.headWorkspace.invalidate({ ageBandId, termKey }),
+        ]);
+      }
       throw mutationError;
     }
   }

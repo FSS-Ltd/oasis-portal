@@ -66,9 +66,17 @@ export async function generateTimetablePdf(
 
   return {
     bytes: await document.save(),
-    fileName: `${safeFileName(publication.studentFirstName)}-${safeFileName(publication.termLabel)}-timetable.pdf`,
+    fileName: `${safeFileName(publication.studentFirstName)}-${safeFileName(publication.termLabel)}-${publicationVersionStamp(publication.publishedAt)}-timetable.pdf`,
     mimeType: 'application/pdf',
   };
+}
+
+function publicationVersionStamp(publishedAt: Date): string {
+  return publishedAt
+    .toISOString()
+    .replace(/\.\d{3}Z$/u, '')
+    .replace('T', '-')
+    .replaceAll(':', '');
 }
 
 async function drawHeader(

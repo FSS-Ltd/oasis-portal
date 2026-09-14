@@ -399,6 +399,31 @@
   align-self: stretch;
   white-space: nowrap;
 }
+
+.deleteVersionButton {
+  min-height: 40px;
+  align-self: stretch;
+  padding: 0 13px;
+  border: 1px solid #f1c2c5;
+  border-radius: 10px;
+  background: #fff;
+  color: #a2262e;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.deleteVersionButton:hover:not(:disabled),
+.deleteVersionButton:focus-visible {
+  border-color: #a2262e;
+  background: #fff4f4;
+}
+
+.deleteVersionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .childPicker {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -920,6 +945,19 @@
   .editorActions > *,
   .downloadButton {
     width: 100%;
+  }
+
+  .versionItem {
+    flex-wrap: wrap;
+  }
+
+  .versionItem .versionSelector {
+    flex-basis: 100%;
+  }
+
+  .versionItem .downloadButton,
+  .versionItem .deleteVersionButton {
+    flex: 1;
   }
 
   .suggestionBar span,

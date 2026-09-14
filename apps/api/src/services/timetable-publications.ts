@@ -271,3 +271,33 @@ export async function findPublishedTimetableForHead(
   );
   return row ? publicationView(ctx, row) : null;
 }
+
+export async function deletePublishedTimetable(
+  ctx: AuthedContext,
+  input: { publicationId: string },
+): Promise<void> {
+  await ctx.withRls(async (db) => {
+    const publication = await db.studentTimetablePublication.findUnique({
+      where: { id: input.publicationId },
+      select: { id: true, studentId: true, termKey: true },
+    });
+    if (!publication) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Published timetable not found' });
+    }
+
+    await db.studentTimetablePublication.delete({ where: { id: publication.id } });
+    await db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Delete',
+        entity: 'StudentTimetablePublication',
+        entityId: publication.id,
+        meta: {
+          source: 'timetable.deletePublication',
+          studentId: publication.studentId,
+          termKey: publication.termKey,
+        },
+      },
+    });
+  });
+}
