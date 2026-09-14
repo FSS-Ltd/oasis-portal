@@ -19,6 +19,18 @@ import { requireTeachingTerm } from './timetable-terms.js';
 
 type AuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
 
+type DraftEntry = {
+  day: (typeof TIMETABLE_DAYS)[number];
+  slotId: string;
+  subjectId: string;
+};
+
+type TimetableSlotReference = {
+  id: string;
+  kind: 'Lesson' | 'Break';
+  position: number;
+};
+
 function badRequest(message: string): never {
   throw new TRPCError({ code: 'BAD_REQUEST', message });
 }
@@ -56,6 +68,29 @@ function subjectView(subject: {
 
 function decryptedStudentName(ctx: AuthedContext, encrypted: string): string {
   return decryptRequiredText({ decrypt: ctx.db.$enc.decrypt }, encrypted, 'student name');
+}
+
+function remapLegacyDraftEntries(
+  entries: readonly DraftEntry[],
+  legacySlots: readonly TimetableSlotReference[],
+  currentSlots: readonly TimetableSlotReference[],
+): DraftEntry[] {
+  const currentLessonSlots = [...currentSlots]
+    .filter((slot) => slot.kind === 'Lesson')
+    .sort((left, right) => left.position - right.position);
+  const legacyLessonSlots = [...legacySlots]
+    .filter((slot) => slot.kind === 'Lesson')
+    .sort((left, right) => left.position - right.position);
+  const currentSlotIdByLegacySlotId = new Map(
+    legacyLessonSlots
+      .map((slot, lessonIndex) => [slot.id, currentLessonSlots[lessonIndex]?.id] as const),
+  );
+
+  return entries.flatMap((entry) => {
+    if (!currentSlotIdByLegacySlotId.has(entry.slotId)) return [entry];
+    const currentSlotId = currentSlotIdByLegacySlotId.get(entry.slotId);
+    return currentSlotId ? [{ ...entry, slotId: currentSlotId }] : [];
+  });
 }
 
 export async function loadHeadTimetableWorkspace(
@@ -186,20 +221,37 @@ export async function loadStudentTimetableDraft(
     if (!ageBand?.active || student.followsOwnTimetable) {
       badRequest('This child is not assigned to the Head timetable workflow');
     }
-    const timetable = await db.studentTimetable.findUnique({
-      where: { studentId_termKey: { studentId: input.studentId, termKey: input.termKey } },
-      include: {
-        entries: { orderBy: [{ day: 'asc' }, { slot: { position: 'asc' } }] },
-        publications: {
-          select: { id: true, publishedAt: true },
-          orderBy: { publishedAt: 'desc' },
+    const [timetable, currentSchedule] = await Promise.all([
+      db.studentTimetable.findUnique({
+        where: { studentId_termKey: { studentId: input.studentId, termKey: input.termKey } },
+        include: {
+          schedule: { select: { slots: { select: { id: true, kind: true, position: true } } } },
+          entries: { orderBy: [{ day: 'asc' }, { slot: { position: 'asc' } }] },
+          publications: {
+            select: { id: true, publishedAt: true },
+            orderBy: { publishedAt: 'desc' },
+          },
         },
-      },
-    });
-    return { student, timetable, ageBandId: ageBand.id };
+      }),
+      db.timetableAgeGroupSchedule.findUnique({
+        where: { termKey_ageBandId: { termKey: input.termKey, ageBandId: ageBand.id } },
+        select: { id: true, slots: { select: { id: true, kind: true, position: true } } },
+      }),
+    ]);
+    return { student, timetable, currentSchedule, ageBandId: ageBand.id };
   });
 
   const fullName = decryptedStudentName(ctx, data.student.fullNameEnc);
+  const entries =
+    data.timetable &&
+    data.currentSchedule &&
+    data.timetable.scheduleId !== data.currentSchedule.id
+      ? remapLegacyDraftEntries(
+          data.timetable.entries,
+          data.timetable.schedule.slots,
+          data.currentSchedule.slots,
+        )
+      : (data.timetable?.entries ?? []);
   return {
     student: {
       id: data.student.id,
@@ -208,12 +260,7 @@ export async function loadStudentTimetableDraft(
       ageBandId: data.ageBandId,
     },
     timetableId: data.timetable?.id ?? null,
-    entries:
-      data.timetable?.entries.map((entry) => ({
-        day: entry.day,
-        slotId: entry.slotId,
-        subjectId: entry.subjectId,
-      })) ?? [],
+    entries,
     publishedVersions: data.timetable?.publications ?? [],
     subjects: data.student.subjects.map(({ subject }) => subjectView(subject)),
     latestPublication: data.timetable?.publications[0] ?? null,
@@ -362,9 +409,26 @@ export async function saveStudentTimetableDraft(
     const lessonSlotIds = new Set(
       schedule.slots.filter((slot) => slot.kind === 'Lesson').map((slot) => slot.id),
     );
+    let entries = input.entries;
+    if (entries.some((entry) => !lessonSlotIds.has(entry.slotId))) {
+      const existingTimetable = await db.studentTimetable.findUnique({
+        where: { studentId_termKey: { studentId: student.id, termKey: input.termKey } },
+        select: {
+          scheduleId: true,
+          schedule: {
+            select: {
+              slots: { select: { id: true, kind: true, position: true } },
+            },
+          },
+        },
+      });
+      if (existingTimetable && existingTimetable.scheduleId !== schedule.id) {
+        entries = remapLegacyDraftEntries(entries, existingTimetable.schedule.slots, schedule.slots);
+      }
+    }
     const assignedSubjectIds = new Set(student.subjects.map((subject) => subject.subjectId));
     const entryKeys = new Set<string>();
-    for (const entry of input.entries) {
+    for (const entry of entries) {
       if (!lessonSlotIds.has(entry.slotId)) badRequest('A selected lesson slot is unavailable');
       if (!assignedSubjectIds.has(entry.subjectId)) {
         badRequest('A selected subject is not assigned to this child');
@@ -386,9 +450,9 @@ export async function saveStudentTimetableDraft(
       update: { ageBandId: student.ageBandId, scheduleId: schedule.id, updatedById: ctx.user.id },
     });
     await db.studentTimetableEntry.deleteMany({ where: { timetableId: timetable.id } });
-    if (input.entries.length > 0) {
+    if (entries.length > 0) {
       await db.studentTimetableEntry.createMany({
-        data: input.entries.map((entry) => ({ ...entry, timetableId: timetable.id })),
+        data: entries.map((entry) => ({ ...entry, timetableId: timetable.id })),
       });
     }
     await db.auditLog.create({
@@ -401,15 +465,15 @@ export async function saveStudentTimetableDraft(
           source: 'timetable.saveDraft',
           studentId: student.id,
           termKey: input.termKey,
-          assignedPeriodCount: input.entries.length,
+          assignedPeriodCount: entries.length,
         },
       },
     });
 
     return {
       timetableId: timetable.id,
-      entries: input.entries,
-      unassignedLessonCount: lessonSlotIds.size * TIMETABLE_DAYS.length - input.entries.length,
+      entries,
+      unassignedLessonCount: lessonSlotIds.size * TIMETABLE_DAYS.length - entries.length,
     };
   });
 }

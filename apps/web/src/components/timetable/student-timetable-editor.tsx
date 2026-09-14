@@ -40,6 +40,7 @@ export function StudentTimetableEditor({
   const [subjectError, setSubjectError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const busy = publishing || pendingAction !== null;
+  const createsPublishedVersion = mode === 'published' || publicationId !== null;
   const lessonCount = slots.filter((slot) => slot.kind === 'Lesson').length * TIMETABLE_DAYS.length;
   const assignedCellCount = useMemo(
     () =>
@@ -176,9 +177,9 @@ export function StudentTimetableEditor({
           variant="secondary"
         >
           <Save aria-hidden="true" size={16} />
-          {mode === 'published' ? 'Save timetable version' : 'Save draft'}
+          {createsPublishedVersion ? 'Save timetable version' : 'Save draft'}
         </Button>
-        {mode === 'draft' ? (
+        {mode === 'draft' && !publicationId ? (
           <Button
             disabled={busy}
             onClick={() => {

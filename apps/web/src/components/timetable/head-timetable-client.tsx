@@ -278,7 +278,7 @@ export function HeadTimetableClient() {
       scheduleUpdatedAt: workspace.schedule.updatedAt,
       entries,
     });
-    if (!isPublishedMode) return;
+    if (!isPublishedMode && !draftQuery.data?.latestPublication) return;
     const publicationId = await handlePublishTimetable();
     if (publicationId) setSelectedPublicationId(publicationId);
   }
@@ -563,7 +563,7 @@ export function HeadTimetableClient() {
           ) : draftWithPublishedEntries && workspace.schedule ? (
             <StudentTimetableEditor
               draft={draftWithPublishedEntries}
-              key={`${termKey}-${selectedStudentId}-${isPublishedMode ? selectedPublicationId : 'draft'}-${JSON.stringify(workspace.schedule.slots)}`}
+              key={`${termKey}-${selectedStudentId}-${isPublishedMode ? selectedPublicationId : 'draft'}-${JSON.stringify(workspace.schedule.slots)}-${JSON.stringify(draftWithPublishedEntries.entries)}`}
               mode={editorMode}
               onAddSubject={async (name) => {
                 await createSubject.mutateAsync({ studentId: selectedStudentId, name });
