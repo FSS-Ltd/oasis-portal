@@ -4,7 +4,12 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Save, ShieldCheck } from 'lucide-react';
-import { ADULT_USER_ACCOUNT_ROLES, displaySchoolYearLabel } from '@oasis/domain';
+import {
+  ADULT_USER_ACCOUNT_ROLES,
+  PARENT_EMAIL_NOTIFICATION_CATEGORIES,
+  displaySchoolYearLabel,
+  type ParentEmailNotificationCategory,
+} from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { roleLabel, permissionTagLabel } from '@/lib/profile-display';
 import { Avatar } from '@/components/ui/avatar';
@@ -16,7 +21,7 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { SpouseInvitePanel } from './spouse-invite-panel';
 
 type Profile = RouterOutputs['profile']['me'];
-type ProfileTab = 'account' | 'access' | 'security' | 'children';
+type ProfileTab = 'account' | 'access' | 'security' | 'children' | 'notifications';
 type ChildDetailContext = 'admin' | 'parent' | 'supervisor';
 
 interface SelfProfileClientProps {
@@ -31,6 +36,15 @@ const tabs: readonly { id: ProfileTab; label: string }[] = [
 ];
 
 const childrenTab = { id: 'children', label: 'Children' } as const;
+const emailNotificationsTab = { id: 'notifications', label: 'Email Notifications' } as const;
+
+const parentEmailNotificationLabels: Record<ParentEmailNotificationCategory, string> = {
+  Message: 'Direct messages',
+  Behaviour: 'Behaviour updates',
+  Notice: 'Noticeboard updates',
+  Club: 'Club updates',
+  Report: 'Term reports',
+};
 
 const profileDateFormatter = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -44,6 +58,13 @@ function profileForm(profile: Profile) {
     email: profile.email,
     phone: profile.phone ?? '',
     address: profile.address ?? '',
+  };
+}
+
+function emailNotificationPreferencesForm(profile: Profile) {
+  return {
+    enabled: profile.emailNotificationPreferences.enabled,
+    optedOutCategories: [...profile.emailNotificationPreferences.optedOutCategories],
   };
 }
 
@@ -68,6 +89,9 @@ export function SelfProfileClient({
   const [activeTab, setActiveTab] = useState<ProfileTab>('account');
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', address: '' });
+  const [emailNotificationPreferences, setEmailNotificationPreferences] = useState<
+    Profile['emailNotificationPreferences']
+  >({ enabled: true, optedOutCategories: [] });
   const utils = api.useUtils();
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
   const updateProfile = api.profile.updateMe.useMutation({
@@ -80,10 +104,21 @@ export function SelfProfileClient({
       showErrorToast(error, 'Profile could not be saved.');
     },
   });
+  const updateEmailNotificationPreferences =
+    api.profile.updateEmailNotificationPreferences.useMutation({
+      async onSuccess() {
+        await utils.profile.me.invalidate();
+        showSuccessToast('Email notification preferences saved.');
+      },
+      onError(error) {
+        showErrorToast(error, 'Email notification preferences could not be saved.');
+      },
+    });
 
   useEffect(() => {
     if (!profileQuery.data) return;
     setForm(profileForm(profileQuery.data));
+    setEmailNotificationPreferences(emailNotificationPreferencesForm(profileQuery.data));
   }, [profileQuery.data]);
 
   if (profileQuery.isLoading) {
@@ -106,7 +141,13 @@ export function SelfProfileClient({
   const profile = profileQuery.data;
   const canSubmit = editing && form.fullName.trim().length > 0 && form.email.trim().length > 0;
   const canShowChildrenTab = isAdultProfile(profile) && profile.children.length > 0;
-  const visibleTabs = canShowChildrenTab ? [...tabs, childrenTab] : tabs;
+  const canManageEmailNotifications =
+    profile.role === 'Parent' || profile.children.some((child) => child.active);
+  const visibleTabs = [
+    ...tabs,
+    ...(canManageEmailNotifications ? [emailNotificationsTab] : []),
+    ...(canShowChildrenTab ? [childrenTab] : []),
+  ];
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,6 +158,15 @@ export function SelfProfileClient({
       phone: form.phone,
       address: form.address,
     });
+  }
+
+  function setCategoryEnabled(category: ParentEmailNotificationCategory, enabled: boolean) {
+    setEmailNotificationPreferences((current) => ({
+      ...current,
+      optedOutCategories: enabled
+        ? current.optedOutCategories.filter((currentCategory) => currentCategory !== category)
+        : [...current.optedOutCategories, category],
+    }));
   }
 
   return (
@@ -234,6 +284,86 @@ export function SelfProfileClient({
               </p>
             ) : null}
             {profile.children.length > 0 ? <SpouseInvitePanel /> : null}
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'notifications' && canManageEmailNotifications ? (
+        <section className="panel">
+          <div className="panel__body email-notification-preferences">
+            <div className="section-title">
+              <div>
+                <h2>Email notifications</h2>
+                <p>Choose which optional Oasis Portal updates we send to this email address.</p>
+              </div>
+            </div>
+            <label className="parent-settings-switch">
+              <span>
+                <strong>Receive optional email notifications</strong>
+                <small>Turn this off to stop all optional parent notification emails.</small>
+              </span>
+              <input
+                checked={emailNotificationPreferences.enabled}
+                className="switch-input"
+                disabled={updateEmailNotificationPreferences.isPending}
+                onChange={(event) => {
+                  setEmailNotificationPreferences((current) => ({
+                    ...current,
+                    enabled: event.target.checked,
+                  }));
+                }}
+                type="checkbox"
+              />
+            </label>
+            <fieldset
+              className="email-notification-preferences__categories"
+              disabled={
+                !emailNotificationPreferences.enabled ||
+                updateEmailNotificationPreferences.isPending
+              }
+            >
+              <legend>Optional email categories</legend>
+              {PARENT_EMAIL_NOTIFICATION_CATEGORIES.map((category) => (
+                <label className="parent-settings-switch" key={category}>
+                  <span>
+                    <strong>{parentEmailNotificationLabels[category]}</strong>
+                    <small>
+                      {emailNotificationPreferences.optedOutCategories.includes(category)
+                        ? 'Email updates are off.'
+                        : 'Email updates are on.'}
+                    </small>
+                  </span>
+                  <input
+                    checked={!emailNotificationPreferences.optedOutCategories.includes(category)}
+                    className="switch-input"
+                    onChange={(event) => {
+                      setCategoryEnabled(category, event.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                </label>
+              ))}
+            </fieldset>
+            <p className="muted">
+              Overdue-payment reminders and account or security emails will still be sent.
+            </p>
+            <div className="email-notification-preferences__actions">
+              <Button
+                onClick={() => {
+                  updateEmailNotificationPreferences.mutate(emailNotificationPreferences);
+                }}
+                pending={updateEmailNotificationPreferences.isPending}
+                type="button"
+              >
+                <Save aria-hidden="true" size={16} />
+                Save email preferences
+              </Button>
+            </div>
+            {updateEmailNotificationPreferences.error ? (
+              <p className="status--error" role="alert">
+                {friendlyErrorMessage(updateEmailNotificationPreferences.error)}
+              </p>
+            ) : null}
           </div>
         </section>
       ) : null}

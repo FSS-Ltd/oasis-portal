@@ -27,6 +27,10 @@ import {
   type EmailClient,
 } from '../lib/email.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import {
+  shouldSendParentEmailNotification,
+  type ParentEmailNotificationRecipient,
+} from '../services/parent-email-notifications.js';
 import { createStudentNotifications } from '../services/student-notifications.js';
 import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
@@ -75,7 +79,7 @@ interface LinkedStudentRow {
   };
 }
 
-interface ClubNotificationRecipient {
+interface ClubNotificationRecipient extends ParentEmailNotificationRecipient {
   childNameEncs: string[];
   role: string;
   userId: string;
@@ -355,6 +359,8 @@ const clubNotificationSelect = Prisma.validator<Prisma.ClubSelect>()({
                   role: true,
                   fullNameEnc: true,
                   emailEnc: true,
+                  parentEmailNotificationsEnabled: true,
+                  parentEmailNotificationOptOuts: true,
                 },
               },
             },
@@ -1005,6 +1011,8 @@ function notificationRecipientsFor(club: ClubForNotification): ClubNotificationR
         userId: guardian.user.id,
         userEmailEnc: guardian.user.emailEnc,
         userNameEnc: guardian.user.fullNameEnc,
+        parentEmailNotificationsEnabled: guardian.user.parentEmailNotificationsEnabled,
+        parentEmailNotificationOptOuts: guardian.user.parentEmailNotificationOptOuts,
       });
     }
   }
@@ -1089,11 +1097,17 @@ async function sendClubNotificationEmails({
   notificationId: string;
   recipients: ClubNotificationRecipient[];
   title: string;
-}): Promise<{ failedCount: number; sentCount: number }> {
+}): Promise<{ failedCount: number; sentCount: number; skippedOptOutCount: number }> {
   let sentCount = 0;
   let failedCount = 0;
+  let skippedOptOutCount = 0;
 
   for (const recipient of recipients) {
+    if (!shouldSendParentEmailNotification(recipient, 'Club')) {
+      skippedOptOutCount += 1;
+      continue;
+    }
+
     try {
       const recipientName = decryptRequired(
         ctx.db.$enc.decrypt,
@@ -1160,7 +1174,7 @@ async function sendClubNotificationEmails({
     }
   }
 
-  return { failedCount, sentCount };
+  return { failedCount, sentCount, skippedOptOutCount };
 }
 
 export function createClubRouter(deps: ClubRouterDeps = {}) {
@@ -3066,9 +3080,9 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         title: notification.title,
       });
 
-      const { failedCount, sentCount } =
+      const { failedCount, sentCount, skippedOptOutCount } =
         recipients.length === 0
-          ? { failedCount: 0, sentCount: 0 }
+          ? { failedCount: 0, sentCount: 0, skippedOptOutCount: 0 }
           : await sendClubNotificationEmails({
               body: input.body,
               club,
@@ -3084,6 +3098,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         recipientCount: recipients.length,
         sentCount,
         failedCount,
+        skippedOptOutCount,
       };
     }),
   });

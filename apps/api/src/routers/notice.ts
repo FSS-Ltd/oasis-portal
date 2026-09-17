@@ -19,6 +19,10 @@ import {
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { assertUploadedNoticeAttachments } from '../services/notice-attachment-storage.js';
+import {
+  shouldSendParentEmailNotification,
+  type ParentEmailNotificationRecipient,
+} from '../services/parent-email-notifications.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -52,7 +56,7 @@ const noticeAudienceSchema = z.enum(['Supervisors', 'Parents', 'Both']);
 type NoticeAudience = z.infer<typeof noticeAudienceSchema>;
 type NoticeRecipientRole = 'Supervisor' | 'ClubsAdmin' | 'Parent';
 
-interface NoticeRecipient {
+interface NoticeRecipient extends ParentEmailNotificationRecipient {
   canReceiveParentNotices: boolean;
   emailEnc: string | null;
   id: string;
@@ -70,6 +74,7 @@ export interface NoticeEmailSummary {
   failedCount: number;
   recipientCount: number;
   sentCount: number;
+  skippedOptOutCount: number;
 }
 
 const MAX_NOTICE_ATTACHMENTS = 5;
@@ -357,6 +362,8 @@ async function loadNoticeRecipients(ctx: AuthedContext): Promise<NoticeRecipient
       role: true,
       emailEnc: true,
       fullNameEnc: true,
+      parentEmailNotificationsEnabled: true,
+      parentEmailNotificationOptOuts: true,
     },
   });
   const supervisorIds = users.filter((user) => user.role === 'Supervisor').map((user) => user.id);
@@ -383,6 +390,8 @@ async function loadNoticeRecipients(ctx: AuthedContext): Promise<NoticeRecipient
             id: user.id,
             role: user.role,
             fullNameEnc: user.fullNameEnc,
+            parentEmailNotificationsEnabled: user.parentEmailNotificationsEnabled,
+            parentEmailNotificationOptOuts: user.parentEmailNotificationOptOuts,
           },
         ]
       : [],
@@ -443,6 +452,15 @@ function noticePathForRecipient(audience: NoticeAudience, recipient: NoticeRecip
 
 function hasNoticeEmail(recipient: NoticeRecipient): recipient is NoticeEmailRecipient {
   return Boolean(recipient.emailEnc);
+}
+
+function shouldSendNoticeEmailToRecipient(
+  audience: NoticeAudience,
+  recipient: NoticeRecipient,
+): boolean {
+  if (audience === 'Supervisors') return true;
+  if (audience === 'Both' && recipient.role !== 'Parent') return true;
+  return shouldSendParentEmailNotification(recipient, 'Notice');
 }
 
 async function auditNoticeEmailFailure(
@@ -565,12 +583,18 @@ async function sendNoticeNotificationEmails({
       userId: ctx.user.id,
     });
     await auditNoticeEmailFailure(ctx, { audience, noticeId, reason: 'recipient-resolution' });
-    return { failedCount: 0, recipientCount: 0, sentCount: 0 };
+    return { failedCount: 0, recipientCount: 0, sentCount: 0, skippedOptOutCount: 0 };
   }
 
   let sentCount = 0;
   let failedCount = 0;
+  let skippedOptOutCount = 0;
   for (const recipient of recipients) {
+    if (!shouldSendNoticeEmailToRecipient(audience, recipient)) {
+      skippedOptOutCount += 1;
+      continue;
+    }
+
     try {
       const recipientName = decryptRequired(ctx.db.$enc.decrypt, recipient.fullNameEnc);
       const recipientEmail = decryptRequired(ctx.db.$enc.decrypt, recipient.emailEnc);
@@ -609,7 +633,7 @@ async function sendNoticeNotificationEmails({
     }
   }
 
-  return { failedCount, recipientCount: recipients.length, sentCount };
+  return { failedCount, recipientCount: recipients.length, sentCount, skippedOptOutCount };
 }
 
 async function createNoticeReadReceipt(

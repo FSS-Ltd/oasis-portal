@@ -22,4 +22,5 @@ export * from './incidents.js';
 export * from './studentPortalSettings.js';
 export * from './academicInventory.js';
 export * from './parentVolunteer.js';
+export * from './parentEmailNotifications.js';
 export * from './timetable.js';

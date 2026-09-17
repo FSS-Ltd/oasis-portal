@@ -17,6 +17,7 @@ import {
 } from '../lib/email.js';
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import { shouldSendParentEmailNotification } from '../services/parent-email-notifications.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -68,6 +69,8 @@ const userDisplaySelect = Prisma.validator<Prisma.UserSelect>()({
   emailEnc: true,
   active: true,
   tags: true,
+  parentEmailNotificationsEnabled: true,
+  parentEmailNotificationOptOuts: true,
 });
 
 const threadSummaryInclude = Prisma.validator<Prisma.MessageThreadInclude>()({
@@ -828,6 +831,13 @@ async function notifyMessageRecipient({
   thread: ThreadForNotification;
 }) {
   const recipient = targetForMessage(thread, sender.id);
+
+  if (
+    recipient.id === thread.parentId &&
+    !shouldSendParentEmailNotification(recipient, 'Message')
+  ) {
+    return;
+  }
 
   try {
     const senderName = decryptRequired(ctx.db.$enc.decrypt, sender.fullNameEnc, 'sender name');

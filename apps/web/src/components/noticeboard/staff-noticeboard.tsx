@@ -87,10 +87,14 @@ function emailCountLabel(count: number): string {
 
 function noticePostSuccessMessage(summary: NoticePostResult['emailSummary']): string {
   if (summary.recipientCount === 0) return 'Notice posted. No email recipients found.';
+  const optedOutText =
+    summary.skippedOptOutCount > 0
+      ? ` ${String(summary.skippedOptOutCount)} opted out of email notifications.`
+      : '';
   if (summary.failedCount > 0) {
-    return `Notice posted. ${emailCountLabel(summary.sentCount)} sent, ${emailCountLabel(summary.failedCount)} failed.`;
+    return `Notice posted. ${emailCountLabel(summary.sentCount)} sent, ${emailCountLabel(summary.failedCount)} failed.${optedOutText}`;
   }
-  return `Notice posted. ${emailCountLabel(summary.sentCount)} sent.`;
+  return `Notice posted. ${emailCountLabel(summary.sentCount)} sent.${optedOutText}`;
 }
 
 function ReadSummaryBadge({ summary }: { summary: NonNullable<Notice['readSummary']> }) {

@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  DEFAULT_REPORT_SECTIONS,
-  type ReportSections,
-  type SessionUser,
-} from '@oasis/domain';
+import { DEFAULT_REPORT_SECTIONS, type ReportSections, type SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { REPORT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
 import type {
@@ -469,9 +465,7 @@ function makeFakeDb() {
     },
     user: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
-        Promise.resolve(
-          where.id === headUser.id ? { fullNameEnc: encrypt('Harriet Head') } : null,
-        ),
+        Promise.resolve(where.id === headUser.id ? { fullNameEnc: encrypt('Harriet Head') } : null),
       ),
     },
     termReport: {
@@ -516,19 +510,17 @@ function makeFakeDb() {
         ({
           where,
         }: {
-          where:
-            | { id: string }
-            | { studentId_periodKey: { studentId: string; periodKey: string } };
+          where: { id: string } | { studentId_periodKey: { studentId: string; periodKey: string } };
         }) => {
           if ('id' in where) {
             const report = reports.find((candidate) => candidate.id === where.id);
             return Promise.resolve(report ? cloneReport(report) : null);
           }
           const report = reports.find(
-              (report) =>
-                report.studentId === where.studentId_periodKey.studentId &&
-                report.periodKey === where.studentId_periodKey.periodKey,
-            );
+            (report) =>
+              report.studentId === where.studentId_periodKey.studentId &&
+              report.periodKey === where.studentId_periodKey.periodKey,
+          );
           return Promise.resolve(report ? cloneReport(report) : null);
         },
       ),
@@ -580,9 +572,7 @@ function makeFakeEmailClient(result = { id: 'report_email_123' }) {
   return { client, send };
 }
 
-type PdfGenerator = (
-  input: GenerateStudentReportPdfInput,
-) => Promise<GeneratedStudentReportPdf>;
+type PdfGenerator = (input: GenerateStudentReportPdfInput) => Promise<GeneratedStudentReportPdf>;
 
 function makeFakePdfGenerator(
   result: GeneratedStudentReportPdf = {
@@ -865,9 +855,7 @@ describe('report.review and report.send', () => {
     const reviewed = await caller.report.review({
       reportId: draft.id,
       progressComment: 'Jane is making steady progress.',
-      behaviourNotes: [
-        { id: behaviourId, category: 'Character', note: 'Shows initiative.' },
-      ],
+      behaviourNotes: [{ id: behaviourId, category: 'Character', note: 'Shows initiative.' }],
       generalNotes: [{ id: generalId, note: 'Enjoys independent reading.' }],
     });
 
@@ -1152,7 +1140,9 @@ describe('report.review and report.send', () => {
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
     expect(email.send).toHaveBeenCalledTimes(1);
-    expect(auditData(db).filter((entry) => entry.meta?.['source'] === 'report.send')).toHaveLength(1);
+    expect(auditData(db).filter((entry) => entry.meta?.['source'] === 'report.send')).toHaveLength(
+      1,
+    );
     expect(db.reports[0]?.status).toBe('Sent');
   });
 
@@ -1236,6 +1226,26 @@ describe('report.review and report.send', () => {
         toRole: parentUser.role,
       },
     });
+  });
+
+  it('does not email a guardian who opted out of report notifications', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    db.guardian.findMany.mockResolvedValue([
+      {
+        user: {
+          ...linkedGuardianUser,
+          parentEmailNotificationOptOuts: ['Report'],
+          parentEmailNotificationsEnabled: true,
+        },
+      },
+    ]);
+
+    await makeCaller(headUser, db, { emailClient: email.client }).caller.report.send({
+      reportId: draft.id,
+    });
+
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('rejects re-drafting a sent report before recompiling source data', async () => {
@@ -1453,9 +1463,7 @@ describe('report.listForStudent', () => {
           note: 'Hidden behaviour note.',
         },
       ],
-      generalNotes: [
-        { id: '0658301f-8a25-48c6-b200-d3cb7def258b', note: 'Hidden general note.' },
-      ],
+      generalNotes: [{ id: '0658301f-8a25-48c6-b200-d3cb7def258b', note: 'Hidden general note.' }],
     });
     await headCaller.report.draft({
       ...defaultDraftInput(),
