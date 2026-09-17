@@ -48,6 +48,8 @@ function makeFakeDb(): FakeDb {
     phoneEnc: 'enc:07700 900123',
     addressEnc: null,
     active: true,
+    parentEmailNotificationsEnabled: true,
+    parentEmailNotificationOptOuts: [],
     createdAt: new Date('2026-04-29T09:00:00.000Z'),
     updatedAt: new Date('2026-04-29T10:00:00.000Z'),
     guardianOf: [
@@ -187,6 +189,10 @@ describe('profile.me', () => {
       phone: '07700 900123',
       address: null,
       active: true,
+      emailNotificationPreferences: {
+        enabled: true,
+        optedOutCategories: [],
+      },
       requires2fa: false,
       createdAt: new Date('2026-04-29T09:00:00.000Z'),
       updatedAt: new Date('2026-04-29T10:00:00.000Z'),
@@ -211,6 +217,8 @@ describe('profile.me', () => {
         phoneEnc: true,
         addressEnc: true,
         active: true,
+        parentEmailNotificationsEnabled: true,
+        parentEmailNotificationOptOuts: true,
         createdAt: true,
         updatedAt: true,
         guardianOf: {
@@ -275,6 +283,8 @@ describe('profile.me', () => {
       phoneEnc: null,
       addressEnc: null,
       active: true,
+      parentEmailNotificationsEnabled: true,
+      parentEmailNotificationOptOuts: [],
       createdAt: new Date('2026-05-12T09:00:00.000Z'),
       updatedAt: new Date('2026-05-12T10:00:00.000Z'),
       guardianOf: [],
@@ -376,6 +386,8 @@ describe('profile.updateMe', () => {
         phoneEnc: 'enc:07700 900123',
         addressEnc: null,
         active: true,
+        parentEmailNotificationsEnabled: true,
+        parentEmailNotificationOptOuts: [],
         createdAt: new Date('2026-04-29T09:00:00.000Z'),
         updatedAt: new Date('2026-04-29T10:00:00.000Z'),
         guardianOf: [],
@@ -437,6 +449,78 @@ describe('profile.updateMe', () => {
       message: 'email address is already in use',
     });
     expect(updatePrimaryEmail).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('profile.updateEmailNotificationPreferences', () => {
+  it('updates the signed-in user preferences and writes an audit row', async () => {
+    const { caller, db } = makeCaller(parentUser);
+
+    await expect(
+      caller.profile.updateEmailNotificationPreferences({
+        enabled: false,
+        optedOutCategories: ['Message', 'Club'],
+      }),
+    ).resolves.toMatchObject({
+      emailNotificationPreferences: {
+        enabled: true,
+        optedOutCategories: [],
+      },
+    });
+
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: parentUser.id },
+      data: {
+        parentEmailNotificationsEnabled: false,
+        parentEmailNotificationOptOuts: ['Message', 'Club'],
+      },
+      select: { id: true },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: parentUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: parentUser.id,
+        meta: {
+          fields: ['parentEmailNotificationOptOuts', 'parentEmailNotificationsEnabled'],
+          source: 'profile.updateEmailNotificationPreferences',
+        },
+      },
+    });
+  });
+
+  it('rejects duplicate email notification categories', async () => {
+    const { caller, db } = makeCaller(parentUser);
+
+    await expect(
+      caller.profile.updateEmailNotificationPreferences({
+        enabled: true,
+        optedOutCategories: ['Message', 'Message'],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('requires a parent role or linked active child', async () => {
+    const staffUser: SessionUser = {
+      id: 'u_staff',
+      role: 'Head',
+      tags: [],
+      requires2fa: false,
+    };
+    const db = makeFakeDb();
+    db.guardian.findMany.mockResolvedValue([]);
+    const { caller } = makeCaller(staffUser, { db });
+
+    await expect(
+      caller.profile.updateEmailNotificationPreferences({
+        enabled: true,
+        optedOutCategories: [],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.update).not.toHaveBeenCalled();
   });
 });

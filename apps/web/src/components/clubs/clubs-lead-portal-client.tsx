@@ -471,7 +471,11 @@ function NoticeboardTab({
       showSuccessToast(
         result.recipientCount === 0
           ? 'Notice posted. No active signup guardians were found.'
-          : `Notice posted to ${String(result.sentCount)} guardian${result.sentCount === 1 ? '' : 's'}.`,
+          : `Notice posted to ${String(result.sentCount)} guardian${result.sentCount === 1 ? '' : 's'}.${
+              result.skippedOptOutCount > 0
+                ? ` ${String(result.skippedOptOutCount)} opted out of email notifications.`
+                : ''
+            }`,
       );
       await utils.club.notifications.invalidate({ clubId: club.id });
     } catch (error) {

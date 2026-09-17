@@ -64,6 +64,14 @@ enum ChildRegistrationPromptStatus {
   HasChildren
 }
 
+enum ParentEmailNotificationCategory {
+  Message
+  Behaviour
+  Notice
+  Club
+  Report
+}
+
 enum PaceInventoryOrderStatus {
   Ordered
   InTransit
@@ -128,6 +136,8 @@ model User {
   active                            Boolean                       @default(true)
   staffParentVolunteerAccess        Boolean                       @default(false)
   lunchAndClubsVolunteerExempt      Boolean                       @default(false)
+  parentEmailNotificationsEnabled   Boolean                       @default(true)
+  parentEmailNotificationOptOuts    ParentEmailNotificationCategory[] @default([])
   createdAt                         DateTime                      @default(now())
   updatedAt                         DateTime                      @updatedAt
 

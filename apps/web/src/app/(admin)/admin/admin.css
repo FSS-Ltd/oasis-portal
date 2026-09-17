@@ -9061,6 +9061,65 @@ button.club-assignment-row {
   display: grid;
 }
 
+.email-notification-preferences,
+.email-notification-preferences__categories {
+  display: grid;
+  gap: 12px;
+}
+
+.email-notification-preferences .parent-settings-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 56px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.email-notification-preferences .parent-settings-switch > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.email-notification-preferences .parent-settings-switch strong {
+  color: var(--oasis-navy);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.email-notification-preferences .parent-settings-switch small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.email-notification-preferences__categories {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.email-notification-preferences__categories legend {
+  padding: 0;
+  color: var(--oasis-text-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.email-notification-preferences__categories:disabled .parent-settings-switch {
+  opacity: 0.58;
+}
+
+.email-notification-preferences__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .spouse-invite-form,
 .spouse-invite-status {
   display: grid;

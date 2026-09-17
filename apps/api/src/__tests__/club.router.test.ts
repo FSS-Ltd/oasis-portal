@@ -110,6 +110,8 @@ interface StoredUser {
   active: boolean;
   fullNameEnc: string;
   emailEnc: string;
+  parentEmailNotificationsEnabled?: boolean;
+  parentEmailNotificationOptOuts?: ('Message' | 'Behaviour' | 'Notice' | 'Club' | 'Report')[];
 }
 
 interface StoredSignup {
@@ -1192,6 +1194,8 @@ function withNotificationRecipients(
                     role: user.role,
                     fullNameEnc: user.fullNameEnc,
                     emailEnc: user.emailEnc,
+                    parentEmailNotificationsEnabled: user.parentEmailNotificationsEnabled,
+                    parentEmailNotificationOptOuts: user.parentEmailNotificationOptOuts,
                   },
                 };
               })
@@ -2745,6 +2749,7 @@ describe('club.notify', () => {
       recipientCount: 1,
       sentCount: 1,
       failedCount: 0,
+      skippedOptOutCount: 0,
     });
 
     expect(db.notifications).toEqual([
@@ -2786,6 +2791,36 @@ describe('club.notify', () => {
     expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain(
       'Please bring a labelled water bottle.',
     );
+  });
+
+  it('skips guardian emails when a guardian opted out of club notifications', async () => {
+    const users = defaultUsers.map((user) =>
+      user.id === parentUser.id
+        ? { ...user, parentEmailNotificationOptOuts: ['Club'] as 'Club'[] }
+        : user,
+    );
+    const db = makeFakeDb({
+      guardians: [{ userId: parentUser.id, studentId: linkedStudentId }],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      users,
+    });
+    const { caller, email } = makeCaller(clubsAdminUser, db);
+
+    await expect(
+      caller.club.notify({
+        clubId: defaultClubId,
+        title: 'Bring water',
+        body: 'Please bring a labelled water bottle.',
+      }),
+    ).resolves.toMatchObject({ sentCount: 0, skippedOptOutCount: 1 });
+
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('allows Head users to send club notifications', async () => {

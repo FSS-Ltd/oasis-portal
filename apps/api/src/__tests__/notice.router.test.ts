@@ -70,6 +70,8 @@ interface StoredUser {
   fullNameEnc: string;
   emailEnc: string | null;
   active: boolean;
+  parentEmailNotificationsEnabled?: boolean;
+  parentEmailNotificationOptOuts?: ('Message' | 'Behaviour' | 'Notice' | 'Club' | 'Report')[];
 }
 
 interface StoredGuardian {
@@ -495,7 +497,12 @@ describe('notice.post', () => {
       audience: 'Parents',
     });
 
-    expect(result.emailSummary).toEqual({ recipientCount: 2, sentCount: 2, failedCount: 0 });
+    expect(result.emailSummary).toEqual({
+      recipientCount: 2,
+      sentCount: 2,
+      failedCount: 0,
+      skippedOptOutCount: 0,
+    });
     expect(email.send).toHaveBeenCalledTimes(2);
     expect(email.send.mock.calls.map(([input]) => input.to).sort()).toEqual([
       'parent@example.com',
@@ -503,6 +510,29 @@ describe('notice.post', () => {
     ]);
     expect(email.send.mock.calls[0]?.[0].text).toContain('Parents update');
     expect(email.send.mock.calls[0]?.[0].text).toContain('Bring forms tomorrow.');
+  });
+
+  it('skips parent notice emails when a parent opted out', async () => {
+    const users = defaultUsers.map((user) =>
+      user.id === parentUser.id
+        ? { ...user, parentEmailNotificationOptOuts: ['Notice'] as 'Notice'[] }
+        : user,
+    );
+    const { caller, email } = makeCaller(headUser, makeFakeDb([], [], users));
+
+    const result = await caller.notice.post({
+      title: 'Parents update',
+      body: 'Bring forms tomorrow.',
+      audience: 'Parents',
+    });
+
+    expect(result.emailSummary).toEqual({
+      recipientCount: 1,
+      sentCount: 0,
+      failedCount: 0,
+      skippedOptOutCount: 1,
+    });
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('emails supervisor notices only to active supervisor-audience users', async () => {
@@ -515,7 +545,12 @@ describe('notice.post', () => {
       audience: 'Supervisors',
     });
 
-    expect(result.emailSummary).toEqual({ recipientCount: 3, sentCount: 3, failedCount: 0 });
+    expect(result.emailSummary).toEqual({
+      recipientCount: 3,
+      sentCount: 3,
+      failedCount: 0,
+      skippedOptOutCount: 0,
+    });
     expect(email.send.mock.calls.map(([input]) => input.to).sort()).toEqual([
       'clubs-admin@example.com',
       'supervisor@example.com',
@@ -540,7 +575,12 @@ describe('notice.post', () => {
       audience: 'Both',
     });
 
-    expect(result.emailSummary).toEqual({ recipientCount: 4, sentCount: 4, failedCount: 0 });
+    expect(result.emailSummary).toEqual({
+      recipientCount: 4,
+      sentCount: 4,
+      failedCount: 0,
+      skippedOptOutCount: 0,
+    });
     expect(email.send.mock.calls.map(([input]) => input.to).sort()).toEqual([
       'clubs-admin@example.com',
       'parent@example.com',
@@ -568,7 +608,12 @@ describe('notice.post', () => {
       audience: 'Parents',
     });
 
-    expect(result.emailSummary).toEqual({ recipientCount: 2, sentCount: 1, failedCount: 1 });
+    expect(result.emailSummary).toEqual({
+      recipientCount: 2,
+      sentCount: 1,
+      failedCount: 1,
+      skippedOptOutCount: 0,
+    });
     expect(db.notices).toHaveLength(1);
     const audits = auditCreateArgs(db);
     const sentEmailAudit = audits.find(

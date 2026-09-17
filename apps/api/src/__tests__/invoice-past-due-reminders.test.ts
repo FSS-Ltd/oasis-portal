@@ -37,6 +37,8 @@ interface FakeGuardianRow {
     emailEnc: string | null;
     fullNameEnc: string;
     id: string;
+    parentEmailNotificationOptOuts?: string[];
+    parentEmailNotificationsEnabled?: boolean;
     role: string;
   };
   userId: string;
@@ -174,7 +176,7 @@ describe('invoice past-due reminder email', () => {
 });
 
 describe('sendPastDueInvoiceReminders', () => {
-  it('sends 2-day and 5-day reminders only to active parent guardians linked to invoice students', async () => {
+  it('sends 2-day and 5-day reminders only to active parent guardians linked to invoice students, regardless of optional email opt-outs', async () => {
     const { client, send } = makeEmailClient();
     const db = makeFakeDb({
       guardians: [
@@ -186,6 +188,8 @@ describe('sendPastDueInvoiceReminders', () => {
             emailEnc: encrypt('parent.a@example.com'),
             fullNameEnc: encrypt('Parent A'),
             id: 'parent_a',
+            parentEmailNotificationsEnabled: false,
+            parentEmailNotificationOptOuts: ['Message', 'Behaviour', 'Notice', 'Club', 'Report'],
             role: 'Parent',
           },
         },

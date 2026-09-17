@@ -98,6 +98,8 @@ interface StoredUser {
   emailEnc: string;
   fullNameEnc: string;
   role: SessionUser['role'];
+  parentEmailNotificationsEnabled?: boolean;
+  parentEmailNotificationOptOuts?: ('Message' | 'Behaviour' | 'Notice' | 'Club' | 'Report')[];
 }
 
 interface StoredGuardian {
@@ -934,6 +936,32 @@ describe('behaviour.log', () => {
       studentId: activeStudentId,
       type: 'Merit',
     });
+  });
+
+  it('does not email a guardian who opted out of behaviour notifications', async () => {
+    const optedOutGuardian = makeStoredUser({
+      id: 'ckuserbehaviouroptout001',
+      emailEnc: 'enc:behaviour.optout@example.com',
+      fullNameEnc: 'enc:Behaviour Opt Out',
+      parentEmailNotificationOptOuts: ['Behaviour'],
+      role: 'Parent',
+    });
+    const { db, behaviour } = makeFakeDb({
+      guardians: [makeGuardian(optedOutGuardian.id)],
+      users: [optedOutGuardian],
+    });
+    const email = makeFakeEmailClient();
+
+    await makeCaller(supervisorUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      visibility: 'General',
+      amount: 2,
+    });
+
+    expect(behaviour).toHaveLength(1);
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('emails General demerits to linked guardians', async () => {

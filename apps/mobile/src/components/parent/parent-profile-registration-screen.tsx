@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  PARENT_EMAIL_NOTIFICATION_CATEGORIES,
+  type ParentEmailNotificationCategory,
+} from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -28,6 +32,15 @@ import {
 } from './parent-profile-registration-utils';
 
 type LinkRequest = RouterOutputs['registration']['listMyStudentParentLinkRequests'][number];
+type EmailNotificationPreferences = RouterOutputs['profile']['me']['emailNotificationPreferences'];
+
+const parentEmailNotificationLabels: Record<ParentEmailNotificationCategory, string> = {
+  Message: 'Direct messages',
+  Behaviour: 'Behaviour updates',
+  Notice: 'Noticeboard updates',
+  Club: 'Club updates',
+  Report: 'Term reports',
+};
 
 export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () => Promise<void> }) {
   const utils = api.useUtils();
@@ -39,12 +52,16 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
     retry: false,
   });
   const updateProfile = api.profile.updateMe.useMutation();
+  const updateEmailNotificationPreferences =
+    api.profile.updateEmailNotificationPreferences.useMutation();
   const inviteSpouse = api.profile.inviteSpouse.useMutation();
   const updateRegistration = api.registration.updateMine.useMutation();
   const addSiblings = api.registration.addSiblings.useMutation();
   const confirmLink = api.registration.confirmStudentParentLinkRequest.useMutation();
   const rejectLink = api.registration.rejectStudentParentLinkRequest.useMutation();
   const [profileFields, setProfileFields] = useState<ProfileForm>(profileForm(undefined));
+  const [emailNotificationPreferences, setEmailNotificationPreferences] =
+    useState<EmailNotificationPreferences>({ enabled: true, optedOutCategories: [] });
   const [registrationFields, setRegistrationFields] = useState<RegistrationForm>(
     registrationForm(undefined),
   );
@@ -55,6 +72,14 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
 
   useEffect(() => {
     if (profile.data) setProfileFields(profileForm(profile.data));
+  }, [profile.data]);
+
+  useEffect(() => {
+    if (!profile.data) return;
+    setEmailNotificationPreferences({
+      enabled: profile.data.emailNotificationPreferences.enabled,
+      optedOutCategories: [...profile.data.emailNotificationPreferences.optedOutCategories],
+    });
   }, [profile.data]);
 
   useEffect(() => {
@@ -69,6 +94,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
     linkRequests.isFetching;
   const mutationPending =
     updateProfile.isPending ||
+    updateEmailNotificationPreferences.isPending ||
     inviteSpouse.isPending ||
     updateRegistration.isPending ||
     addSiblings.isPending ||
@@ -83,6 +109,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
     null;
   const mutationError =
     updateProfile.error?.message ??
+    updateEmailNotificationPreferences.error?.message ??
     inviteSpouse.error?.message ??
     updateRegistration.error?.message ??
     addSiblings.error?.message ??
@@ -124,6 +151,22 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
     setProfileFields(profileForm(saved));
     setStatus('Profile saved.');
     await utils.profile.me.invalidate();
+  }
+
+  async function saveEmailNotificationPreferences() {
+    setFormError(null);
+    await updateEmailNotificationPreferences.mutateAsync(emailNotificationPreferences);
+    setStatus('Email notification preferences saved.');
+    await utils.profile.me.invalidate();
+  }
+
+  function setCategoryEnabled(category: ParentEmailNotificationCategory, enabled: boolean) {
+    setEmailNotificationPreferences((current) => ({
+      ...current,
+      optedOutCategories: enabled
+        ? current.optedOutCategories.filter((currentCategory) => currentCategory !== category)
+        : [...current.optedOutCategories, category],
+    }));
   }
 
   async function sendSpouseInvite() {
@@ -276,6 +319,79 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
           label={updateProfile.isPending ? 'Saving profile...' : 'Save profile'}
           onPress={() => {
             void saveProfile();
+          }}
+          variant="primary"
+        />
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.cardTitle}>Email notifications</Text>
+            <MutedText>Choose which optional Oasis Portal updates we send to this email.</MutedText>
+          </View>
+        </View>
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{
+            checked: emailNotificationPreferences.enabled,
+            disabled: updateEmailNotificationPreferences.isPending,
+          }}
+          disabled={updateEmailNotificationPreferences.isPending}
+          onPress={() => {
+            setEmailNotificationPreferences((current) => ({
+              ...current,
+              enabled: !current.enabled,
+            }));
+          }}
+          style={[
+            styles.notificationToggle,
+            updateEmailNotificationPreferences.isPending ? styles.disabled : null,
+          ]}
+        >
+          <View style={styles.notificationToggleText}>
+            <Text style={styles.rowTitle}>Receive optional email notifications</Text>
+            <MutedText>Turn this off to stop all optional parent notification emails.</MutedText>
+          </View>
+          <ToggleTrack checked={emailNotificationPreferences.enabled} />
+        </Pressable>
+        <Text style={styles.readLabel}>Optional email categories</Text>
+        {PARENT_EMAIL_NOTIFICATION_CATEGORIES.map((category) => {
+          const enabled = !emailNotificationPreferences.optedOutCategories.includes(category);
+          const disabled = !emailNotificationPreferences.enabled || mutationPending;
+          return (
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: enabled, disabled }}
+              disabled={disabled}
+              key={category}
+              onPress={() => {
+                setCategoryEnabled(category, !enabled);
+              }}
+              style={[styles.notificationToggle, disabled ? styles.disabled : null]}
+            >
+              <View style={styles.notificationToggleText}>
+                <Text style={styles.rowTitle}>{parentEmailNotificationLabels[category]}</Text>
+                <MutedText>
+                  {enabled ? 'Email updates are on.' : 'Email updates are off.'}
+                </MutedText>
+              </View>
+              <ToggleTrack checked={enabled} />
+            </Pressable>
+          );
+        })}
+        <MutedText>
+          Overdue-payment reminders and account or security emails will still be sent.
+        </MutedText>
+        <MobileButton
+          disabled={mutationPending}
+          label={
+            updateEmailNotificationPreferences.isPending
+              ? 'Saving email preferences...'
+              : 'Save email preferences'
+          }
+          onPress={() => {
+            void saveEmailNotificationPreferences();
           }}
           variant="primary"
         />
@@ -494,6 +610,14 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
   );
 }
 
+function ToggleTrack({ checked }: { checked: boolean }) {
+  return (
+    <View style={[styles.toggleTrack, checked ? styles.toggleTrackActive : null]}>
+      <View style={[styles.toggleKnob, checked ? styles.toggleKnobActive : null]} />
+    </View>
+  );
+}
+
 function RegistrationLevelSelector({
   disabled,
   onChange,
@@ -605,6 +729,9 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'space-between',
   },
+  cardHeaderText: {
+    flex: 1,
+  },
   cardTitle: {
     color: C.navy,
     fontSize: 17,
@@ -646,6 +773,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 10,
     padding: 12,
+  },
+  notificationToggle: {
+    alignItems: 'center',
+    backgroundColor: C.bg,
+    borderRadius: 10,
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    minHeight: 62,
+    padding: 12,
+  },
+  notificationToggleText: {
+    flex: 1,
+    gap: 3,
   },
   levelButton: {
     alignItems: 'center',
@@ -744,5 +885,26 @@ const styles = StyleSheet.create({
     fontSize: 23,
     fontWeight: '900',
     lineHeight: 28,
+  },
+  toggleKnob: {
+    backgroundColor: C.surface,
+    borderRadius: 9,
+    height: 18,
+    left: 3,
+    position: 'absolute',
+    top: 3,
+    width: 18,
+  },
+  toggleKnobActive: {
+    left: 21,
+  },
+  toggleTrack: {
+    backgroundColor: C.textMuted,
+    borderRadius: 12,
+    height: 24,
+    width: 42,
+  },
+  toggleTrackActive: {
+    backgroundColor: C.crimson,
   },
 });

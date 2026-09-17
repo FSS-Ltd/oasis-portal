@@ -78,6 +78,8 @@ interface StoredUser {
   fullNameEnc: string;
   emailEnc: string;
   tags: string[];
+  parentEmailNotificationsEnabled?: boolean;
+  parentEmailNotificationOptOuts?: ('Message' | 'Behaviour' | 'Notice' | 'Club' | 'Report')[];
 }
 
 interface StoredThread {
@@ -877,6 +879,23 @@ describe('message.send', () => {
         toUserId: headUser.id,
       },
     });
+  });
+
+  it('does not email a parent who opted out of message notifications', async () => {
+    const thread = makeThread({ id: 'cthread000000000000101' });
+    const users = defaultUsers.map((user) =>
+      user.id === parentUser.id ? { ...user, parentEmailNotificationsEnabled: false } : user,
+    );
+    const email = makeFakeEmailClient();
+
+    await expect(
+      makeCaller(headUser, makeFakeDb([thread], [], users), email).caller.message.send({
+        threadId: thread.id,
+        body: 'Please check the portal.',
+      }),
+    ).resolves.toMatchObject({ senderId: headUser.id });
+
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('allows Head to respond when Head is a participant', async () => {

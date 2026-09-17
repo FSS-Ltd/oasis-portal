@@ -28,6 +28,10 @@ import {
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { generateStudentReportPdf } from '../reports/student-report-pdf.js';
+import {
+  shouldSendParentEmailNotification,
+  type ParentEmailNotificationRecipient,
+} from '../services/parent-email-notifications.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -71,7 +75,7 @@ interface TermReportRow {
 }
 
 interface ReportNotificationGuardian {
-  user: {
+  user: ParentEmailNotificationRecipient & {
     id: string;
     role: SessionUser['role'];
     fullNameEnc: string;
@@ -432,26 +436,28 @@ async function compileReportSnapshot(
     { total: 0, present: 0, absent: 0, late: 0 },
   );
 
-  const paces = input.sections.paceProgress ? student.subjects.map((assignment) => {
-    const subjectRecords = paceRows.filter((row) => row.subjectId === assignment.subjectId);
-    const scores = subjectRecords
-      .map(scoreForRecord)
-      .filter((score): score is number => score !== null);
-    const averageTestScore =
-      scores.length === 0
-        ? null
-        : Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
-    return {
-      subjectCode: assignment.subject.code,
-      subjectName: assignment.subject.name,
-      currentPace: assignment.currentPaceNumber,
-      pacesCompletedThisTerm: subjectRecords.filter(
-        (record) => record.paceTestScore !== null && record.paceTestScore >= 80,
-      ).length,
-      averageTestScore,
-      status: paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup),
-    };
-  }) : [];
+  const paces = input.sections.paceProgress
+    ? student.subjects.map((assignment) => {
+        const subjectRecords = paceRows.filter((row) => row.subjectId === assignment.subjectId);
+        const scores = subjectRecords
+          .map(scoreForRecord)
+          .filter((score): score is number => score !== null);
+        const averageTestScore =
+          scores.length === 0
+            ? null
+            : Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+        return {
+          subjectCode: assignment.subject.code,
+          subjectName: assignment.subject.name,
+          currentPace: assignment.currentPaceNumber,
+          pacesCompletedThisTerm: subjectRecords.filter(
+            (record) => record.paceTestScore !== null && record.paceTestScore >= 80,
+          ).length,
+          averageTestScore,
+          status: paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup),
+        };
+      })
+    : [];
 
   const behaviourSummaryRows = input.sections.behaviourSummary ? behaviourRows : [];
   const behaviour = {
@@ -693,9 +699,7 @@ function reportContentForViewer(ctx: AuthedContext, compiled: CompiledReport): C
     ...compiled,
     behaviour: {
       ...compiled.behaviour,
-      generalEntries: compiled.sections.behaviourNotes
-        ? compiled.behaviour.generalEntries
-        : [],
+      generalEntries: compiled.sections.behaviourNotes ? compiled.behaviour.generalEntries : [],
     },
     notes: compiled.sections.generalNotes ? compiled.notes : [],
     headSummary: compiled.sections.progressComment ? compiled.headSummary : '',
@@ -894,6 +898,8 @@ async function notifyReportGuardians({
               role: true,
               fullNameEnc: true,
               emailEnc: true,
+              parentEmailNotificationsEnabled: true,
+              parentEmailNotificationOptOuts: true,
             },
           },
         },
@@ -924,6 +930,8 @@ async function notifyReportGuardians({
   }
 
   for (const guardian of guardians) {
+    if (!shouldSendParentEmailNotification(guardian.user, 'Report')) continue;
+
     try {
       const recipientName = decryptRequired(
         ctx.db.$enc.decrypt,

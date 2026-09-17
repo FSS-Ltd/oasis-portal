@@ -1,7 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
-import { canUseLinkedChildGuardianAccess, type SessionUser } from '@oasis/domain';
+import {
+  canUseLinkedChildGuardianAccess,
+  PARENT_EMAIL_NOTIFICATION_CATEGORIES,
+  type SessionUser,
+} from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
   createDefaultClerkInvitationClient,
@@ -32,6 +36,8 @@ const profileUserSelect = Prisma.validator<Prisma.UserSelect>()({
   phoneEnc: true,
   addressEnc: true,
   active: true,
+  parentEmailNotificationsEnabled: true,
+  parentEmailNotificationOptOuts: true,
   createdAt: true,
   updatedAt: true,
   guardianOf: {
@@ -72,6 +78,24 @@ const updateMyProfileInput = z.object({
   address: z.string().trim().max(500, 'Address is too long').nullable().optional(),
 });
 type UpdateMyProfileInput = z.infer<typeof updateMyProfileInput>;
+
+const parentEmailNotificationCategoryInput = z.enum(PARENT_EMAIL_NOTIFICATION_CATEGORIES);
+
+const updateEmailNotificationPreferencesInput = z
+  .object({
+    enabled: z.boolean(),
+    optedOutCategories: z
+      .array(parentEmailNotificationCategoryInput)
+      .max(PARENT_EMAIL_NOTIFICATION_CATEGORIES.length),
+  })
+  .superRefine((input, refinement) => {
+    if (new Set(input.optedOutCategories).size === input.optedOutCategories.length) return;
+    refinement.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'email notification categories must be unique',
+      path: ['optedOutCategories'],
+    });
+  });
 
 const inviteSpouseInput = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email address'),
@@ -247,6 +271,10 @@ function mapProfile(
     phone: ctx.db.$enc.decrypt(user.phoneEnc),
     address: ctx.db.$enc.decrypt(user.addressEnc),
     active: user.active,
+    emailNotificationPreferences: {
+      enabled: user.parentEmailNotificationsEnabled,
+      optedOutCategories: [...user.parentEmailNotificationOptOuts],
+    },
     requires2fa: false,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
@@ -281,6 +309,12 @@ async function loadLinkedActiveChildIds(
     select: { studentId: true },
   });
   return guardians.map((guardian) => guardian.studentId);
+}
+
+async function canManageParentEmailNotificationPreferences(
+  ctx: AppContext & { user: SessionUser },
+): Promise<boolean> {
+  return ctx.user.role === 'Parent' || (await loadLinkedActiveChildIds(ctx)).length > 0;
 }
 
 async function loadSpouseInviteStatus(ctx: AppContext & { user: SessionUser }) {
@@ -626,6 +660,48 @@ export function createProfileRouter(deps: ProfileRouterDeps = {}) {
 
       return loadProfile(ctx);
     }),
+
+    updateEmailNotificationPreferences: authedProcedure
+      .input(updateEmailNotificationPreferencesInput)
+      .mutation(async ({ ctx, input }) => {
+        if (!(await canManageParentEmailNotificationPreferences(ctx))) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'email notification preferences require parent or linked-child access',
+          });
+        }
+
+        try {
+          await ctx.db.user.update({
+            where: { id: ctx.user.id },
+            data: {
+              parentEmailNotificationsEnabled: input.enabled,
+              parentEmailNotificationOptOuts: input.optedOutCategories,
+            },
+            select: { id: true },
+          });
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'profile not found' });
+          }
+          throw err;
+        }
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'User',
+            entityId: ctx.user.id,
+            meta: {
+              fields: ['parentEmailNotificationOptOuts', 'parentEmailNotificationsEnabled'],
+              source: 'profile.updateEmailNotificationPreferences',
+            },
+          },
+        });
+
+        return loadProfile(ctx);
+      }),
   });
 }
 

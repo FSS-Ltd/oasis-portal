@@ -153,16 +153,22 @@ export function notificationStatusText({
   failedCount,
   recipientCount,
   sentCount,
+  skippedOptOutCount,
 }: {
   failedCount: number;
   recipientCount: number;
   sentCount: number;
+  skippedOptOutCount: number;
 }): string {
   if (recipientCount === 0) return 'Notice saved. No active signup guardians were found.';
+  const optedOutText =
+    skippedOptOutCount > 0
+      ? ` ${String(skippedOptOutCount)} opted out of email notifications.`
+      : '';
   if (failedCount > 0) {
-    return `Notice saved. ${String(sentCount)} sent, ${String(failedCount)} failed.`;
+    return `Notice saved. ${String(sentCount)} sent, ${String(failedCount)} failed.${optedOutText}`;
   }
-  return `Notice posted to ${String(sentCount)} guardian${sentCount === 1 ? '' : 's'}.`;
+  return `Notice posted to ${String(sentCount)} guardian${sentCount === 1 ? '' : 's'}.${optedOutText}`;
 }
 
 export function capacityText(club: Club): string {

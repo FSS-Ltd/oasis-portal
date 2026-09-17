@@ -37,6 +37,10 @@ import {
 } from '../lib/email.js';
 import { localDayBounds } from '../lib/local-day.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import {
+  shouldSendParentEmailNotification,
+  type ParentEmailNotificationRecipient,
+} from '../services/parent-email-notifications.js';
 import { createStudentNotifications } from '../services/student-notifications.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
@@ -58,7 +62,7 @@ export interface BehaviourRouterDeps {
 }
 
 interface BehaviourNotificationGuardian {
-  user: {
+  user: ParentEmailNotificationRecipient & {
     id: string;
     role: SessionUser['role'];
     fullNameEnc: string;
@@ -639,6 +643,8 @@ async function notifyBehaviourGuardians({
               role: true,
               fullNameEnc: true,
               emailEnc: true,
+              parentEmailNotificationsEnabled: true,
+              parentEmailNotificationOptOuts: true,
             },
           },
         },
@@ -672,6 +678,8 @@ async function notifyBehaviourGuardians({
   }
 
   for (const guardian of guardians) {
+    if (!shouldSendParentEmailNotification(guardian.user, 'Behaviour')) continue;
+
     try {
       const recipientName = decryptRequired(
         ctx.db.$enc.decrypt,

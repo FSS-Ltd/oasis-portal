@@ -26,11 +26,12 @@ describe('parent profile and registration mobile wiring', () => {
     expect(portal).toMatch(/route === 'profile'/);
   });
 
-  it('uses existing parent-scoped profile, spouse, registration, and link request APIs', () => {
+  it('uses existing parent-scoped profile, notification preferences, spouse, registration, and link request APIs', () => {
     const screen = readMobile('src/components/parent/parent-profile-registration-screen.tsx');
 
     expect(screen).toMatch(/api\.profile\.me\.useQuery/);
     expect(screen).toMatch(/api\.profile\.updateMe\.useMutation/);
+    expect(screen).toMatch(/api\.profile\.updateEmailNotificationPreferences\.useMutation/);
     expect(screen).toMatch(/api\.profile\.spouseInviteStatus\.useQuery/);
     expect(screen).toMatch(/api\.profile\.inviteSpouse\.useMutation/);
     expect(screen).toMatch(/api\.registration\.mine\.useQuery/);
@@ -46,6 +47,9 @@ describe('parent profile and registration mobile wiring', () => {
 
     for (const text of [
       'Parent Profile',
+      'Email notifications',
+      'Receive optional email notifications',
+      'Save email preferences',
       'Registration maintenance',
       'Spouse invite',
       'Pending student links',
