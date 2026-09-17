@@ -779,6 +779,33 @@ describe('pace parent progress', () => {
     expect(JSON.stringify(result)).not.toMatch(/approvedBy|approval|recordedBy|notes/iu);
   });
 
+  it('allows a linked staff guardian to view current PACE subjects and history', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(supervisorUser, db);
+
+    const [current, history] = await Promise.all([
+      caller.pace.parentCurrent({ studentId: STUDENT_ID }),
+      caller.pace.parentHistory({
+        studentId: STUDENT_ID,
+        period: { type: 'AcademicYear', startYear: 2025 },
+        page: 1,
+        pageSize: 20,
+      }),
+    ]);
+
+    expect(current.student).toEqual({
+      id: STUDENT_ID,
+      fullName: 'Jane Learner',
+      yearGroup: 'Year 6',
+    });
+    expect(history).toMatchObject({ page: 1, totalRows: 0, rows: [] });
+    expect(db.guardian.findUnique).toHaveBeenCalledWith({
+      where: { userId_studentId: { userId: supervisorUser.id, studentId: STUDENT_ID } },
+      select: { studentId: true },
+    });
+    expect(auditCalls(db)).toEqual([]);
+  });
+
   it('rejects an unlinked parent and audits the denial', async () => {
     const db = makeFakeDb();
     db.guardian.findUnique.mockResolvedValue(null);
@@ -786,7 +813,7 @@ describe('pace parent progress', () => {
 
     await expect(caller.pace.parentCurrent({ studentId: STUDENT_ID })).rejects.toMatchObject({
       code: 'FORBIDDEN',
-      message: 'Parent is not linked to this student',
+      message: 'Account is not linked to this student',
     });
     expect(
       auditCalls(db).some(
