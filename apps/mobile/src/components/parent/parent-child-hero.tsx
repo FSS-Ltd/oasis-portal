@@ -34,10 +34,7 @@ export function ParentChildHero({ child }: { child: ParentDashboardChild }) {
           value={child.todayStatus.label}
         />
         <HeroMetric label="Attendance" value={attendanceRate} />
-        <HeroMetric
-          label="PACEs"
-          value={String(child.metrics.pacesCompletedThisAcademicYear)}
-        />
+        <HeroMetric label="PACEs" value={String(child.metrics.pacesCompletedThisAcademicYear)} />
       </View>
     </View>
   );
@@ -53,7 +50,13 @@ function HeroMetric({
   value: string;
 }) {
   const badgeVariant =
-    tone === 'success' ? 'success' : tone === 'warning' ? 'warning' : tone === 'danger' ? 'danger' : 'blue';
+    tone === 'success'
+      ? 'success'
+      : tone === 'warning'
+        ? 'warning'
+        : tone === 'danger'
+          ? 'danger'
+          : 'blue';
   return (
     <View style={styles.metric}>
       <Badge variant={badgeVariant}>{value}</Badge>
@@ -65,11 +68,13 @@ function HeroMetric({
 const styles = StyleSheet.create({
   avatar: {
     alignItems: 'center',
-    backgroundColor: C.blue,
-    borderRadius: 24,
-    height: 48,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 26,
+    borderWidth: 1,
+    height: 52,
     justifyContent: 'center',
-    width: 48,
+    width: 52,
   },
   avatarText: {
     color: C.surface,
@@ -93,10 +98,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   hero: {
-    backgroundColor: C.navy,
-    borderRadius: 14,
-    gap: 16,
-    padding: 18,
+    backgroundColor: C.navyMid,
+    borderColor: C.navyLight,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 18,
+    padding: 20,
   },
   heroTop: {
     alignItems: 'center',
@@ -105,8 +112,10 @@ const styles = StyleSheet.create({
   },
   metric: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 14,
+    borderWidth: 1,
     flex: 1,
     gap: 5,
     minHeight: 66,
@@ -132,8 +141,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   totalValue: {
-    color: C.blue,
-    fontSize: 26,
+    color: C.surface,
+    fontSize: 28,
     fontWeight: '900',
   },
 });

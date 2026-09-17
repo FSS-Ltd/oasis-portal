@@ -124,7 +124,9 @@ export function ParentPaceClient() {
     return <EmptyState title="Loading linked children" />;
   }
   if (profileQuery.error) {
-    return <EmptyState detail={friendlyErrorMessage(profileQuery.error)} title="PACE is unavailable" />;
+    return (
+      <EmptyState detail={friendlyErrorMessage(profileQuery.error)} title="PACE is unavailable" />
+    );
   }
   if (children.length === 0 || !selectedStudentId) {
     return (
@@ -140,41 +142,56 @@ export function ParentPaceClient() {
     id: child.id,
     yearGroup: child.yearGroup,
   }));
+  const selectedChild = children.find((child) => child.id === selectedStudentId) ?? null;
   const current = currentQuery.data;
 
   return (
     <div className="parent-pace-page">
-      <div className="parent-page-title-row">
-        <div className="parent-home-intro">
-          <p>Academic progress</p>
+      <header className="parent-pace-hero">
+        <div className="parent-pace-hero__copy">
+          <p className="parent-pace-hero__eyebrow">Academic progress</p>
           <h1>PACE</h1>
-          <span>
-            {current ? `${current.student.fullName} · ${current.student.yearGroup}` : 'Linked child'}
-          </span>
+          <p className="parent-pace-hero__description">
+            {selectedChild
+              ? `A clear view of ${selectedChild.fullName}'s current PACE work and assessments.`
+              : 'A clear view of current PACE work and assessments.'}
+          </p>
         </div>
-        <ParentChildSelector
-          children={childOptions}
-          onSelect={setSelectedStudentId}
-          selectedChildId={selectedStudentId}
+        <div className="parent-pace-hero__selector">
+          <span>Viewing progress for</span>
+          {childOptions.length > 1 ? (
+            <ParentChildSelector
+              children={childOptions}
+              onSelect={setSelectedStudentId}
+              selectedChildId={selectedStudentId}
+            />
+          ) : (
+            <strong>{selectedChild?.fullName ?? 'Linked child'}</strong>
+          )}
+        </div>
+      </header>
+
+      <div className="parent-pace-view-switcher">
+        <TwoOptionSegmentedControl
+          ariaLabel="PACE view"
+          items={[
+            { label: 'Current', value: 'current' },
+            { label: 'History', value: 'history' },
+          ]}
+          onChange={setView}
+          value={view}
         />
       </div>
-
-      <TwoOptionSegmentedControl
-        ariaLabel="PACE view"
-        items={[
-          { label: 'Current', value: 'current' },
-          { label: 'History', value: 'history' },
-        ]}
-        onChange={setView}
-        value={view}
-      />
 
       {view === 'current' ? (
         <section aria-label="Current PACE subjects" className="parent-pace-current" role="tabpanel">
           {currentQuery.isLoading ? <EmptyState title="Loading current PACE subjects…" /> : null}
           {currentQuery.error ? (
             <EmptyState
-              detail={friendlyErrorMessage(currentQuery.error, 'Current PACE subjects could not be loaded.')}
+              detail={friendlyErrorMessage(
+                currentQuery.error,
+                'Current PACE subjects could not be loaded.',
+              )}
               title="PACE is unavailable"
             />
           ) : null}
@@ -190,7 +207,9 @@ export function ParentPaceClient() {
                 <article className="parent-pace-current__subject" key={subject.subjectCode}>
                   <span>{subject.subjectCode}</span>
                   <h2>{subject.subjectName}</h2>
-                  <strong aria-label={`${subject.subjectName}, PACE ${formatPaceIdentifier(subject.currentPaceNumber)}`}>
+                  <strong
+                    aria-label={`${subject.subjectName}, PACE ${formatPaceIdentifier(subject.currentPaceNumber)}`}
+                  >
                     PACE {formatPaceIdentifier(subject.currentPaceNumber)}
                   </strong>
                 </article>
@@ -199,7 +218,11 @@ export function ParentPaceClient() {
           ) : null}
         </section>
       ) : (
-        <section aria-label="PACE history controls" className="parent-pace-history-panel" role="tabpanel">
+        <section
+          aria-label="PACE history controls"
+          className="parent-pace-history-panel"
+          role="tabpanel"
+        >
           <div className="parent-pace-history-panel__controls">
             <TwoOptionSegmentedControl
               ariaLabel="PACE history period"
@@ -242,7 +265,9 @@ export function ParentPaceClient() {
                 </Field>
               ) : null}
             </div>
-            <p className="parent-pace-history-panel__period">Showing {resolvedPeriod.snapshot.label}</p>
+            <p className="parent-pace-history-panel__period">
+              Showing {resolvedPeriod.snapshot.label}
+            </p>
           </div>
           <ParentPaceHistoryTable
             error={historyQuery.error}

@@ -1,14 +1,6 @@
-import { formatPaceIdentifier, resolveReportPeriod } from '@oasis/domain';
+import { displaySchoolYearLabel, formatPaceIdentifier, resolveReportPeriod } from '@oasis/domain';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -65,7 +57,11 @@ function SegmentedControl<T extends string>({
   value: T;
 }) {
   return (
-    <View accessibilityLabel={accessibilityLabel} accessibilityRole="tablist" style={styles.segmented}>
+    <View
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="tablist"
+      style={styles.segmented}
+    >
       {items.map((item) => {
         const selected = item.value === value;
         return (
@@ -141,7 +137,9 @@ function YearPicker({
                   }}
                   style={[styles.yearOption, selected ? styles.yearOptionSelected : null]}
                 >
-                  <Text style={[styles.yearOptionText, selected ? styles.yearOptionTextSelected : null]}>
+                  <Text
+                    style={[styles.yearOptionText, selected ? styles.yearOptionTextSelected : null]}
+                  >
                     {academicYearLabel(year)}
                   </Text>
                   <Text style={styles.yearOptionState}>{selected ? 'Selected' : ''}</Text>
@@ -184,14 +182,20 @@ function CurrentPaceSubjects({
     <View style={styles.currentList}>
       {subjects.map((subject) => (
         <Card key={subject.subjectCode} style={styles.currentSubject}>
-          <Text style={styles.subjectCode}>{subject.subjectCode}</Text>
+          <View style={styles.currentSubjectHeader}>
+            <Text style={styles.currentSubjectLabel}>CURRENT SUBJECT</Text>
+            <Text style={styles.subjectCode}>{subject.subjectCode}</Text>
+          </View>
           <Text style={styles.subjectName}>{subject.subjectName}</Text>
-          <Text
-            accessibilityLabel={`${subject.subjectName}, PACE ${formatPaceIdentifier(subject.currentPaceNumber)}`}
-            style={styles.paceNumber}
-          >
-            PACE {formatPaceIdentifier(subject.currentPaceNumber)}
-          </Text>
+          <View style={styles.paceProgress}>
+            <Text style={styles.paceProgressLabel}>Current PACE</Text>
+            <Text
+              accessibilityLabel={`${subject.subjectName}, PACE ${formatPaceIdentifier(subject.currentPaceNumber)}`}
+              style={styles.paceNumber}
+            >
+              {formatPaceIdentifier(subject.currentPaceNumber)}
+            </Text>
+          </View>
         </Card>
       ))}
     </View>
@@ -238,7 +242,8 @@ function PACEHistory({
             </View>
             <Text style={styles.historyPace}>PACE {formatPaceIdentifier(row.paceNumber)}</Text>
             <MutedText>
-              {assessmentLabel(row.testType)} · {String(row.score)}% · {formatHistoryDate(row.completedAt)}
+              {assessmentLabel(row.testType)} · {String(row.score)}% ·{' '}
+              {formatHistoryDate(row.completedAt)}
             </MutedText>
           </Card>
         );
@@ -352,11 +357,18 @@ export function ParentPaceScreen({
         </Card>
       ) : (
         <>
-          <ParentChildSwitcher
-            children={children}
-            onSelect={onSelectChild}
-            selectedChildId={selectedStudentId}
-          />
+          <View style={styles.paceHero}>
+            <Text style={styles.paceHeroLabel}>VIEWING PROGRESS FOR</Text>
+            <Text style={styles.paceHeroName}>{selectedChild.student.fullName}</Text>
+            <Text style={styles.paceHeroMeta}>
+              {displaySchoolYearLabel(selectedChild.student.yearGroup)}
+            </Text>
+            <ParentChildSwitcher
+              children={children}
+              onSelect={onSelectChild}
+              selectedChildId={selectedStudentId}
+            />
+          </View>
           <SegmentedControl
             accessibilityLabel="PACE view"
             items={[
@@ -435,8 +447,19 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   currentSubject: {
-    gap: 5,
-    padding: 16,
+    gap: 10,
+    padding: 18,
+  },
+  currentSubjectHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  currentSubjectLabel: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   disabled: {
     opacity: 0.45,
@@ -512,9 +535,51 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   paceNumber: {
-    color: C.crimson,
-    fontSize: 20,
+    color: C.navy,
+    fontSize: 22,
     fontWeight: '900',
+  },
+  paceHero: {
+    backgroundColor: C.navy,
+    borderColor: C.navyLight,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 5,
+    overflow: 'hidden',
+    padding: 18,
+  },
+  paceHeroLabel: {
+    color: 'rgba(255,255,255,0.58)',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  paceHeroMeta: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  paceHeroName: {
+    color: C.surface,
+    fontSize: 22,
+    fontWeight: '900',
+    lineHeight: 27,
+  },
+  paceProgress: {
+    alignItems: 'flex-end',
+    backgroundColor: C.bg,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  paceProgressLabel: {
+    color: C.textSecondary,
+    fontSize: 12,
+    fontWeight: '800',
   },
   pageButton: {
     alignItems: 'center',
@@ -585,9 +650,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   segmented: {
-    backgroundColor: C.bg,
-    borderColor: C.border,
-    borderRadius: 10,
+    backgroundColor: '#E4EAF4',
+    borderColor: '#D4DDEA',
+    borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 4,
@@ -595,7 +660,7 @@ const styles = StyleSheet.create({
   },
   segmentSelected: {
     backgroundColor: C.surface,
-    borderColor: C.blueMid,
+    borderColor: 'rgba(255,255,255,0.88)',
     borderWidth: 1,
   },
   segmentText: {
@@ -607,10 +672,10 @@ const styles = StyleSheet.create({
     color: C.navy,
   },
   subjectCode: {
-    color: C.textSecondary,
-    fontSize: 11,
+    color: C.crimson,
+    fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.7,
+    letterSpacing: 0.8,
   },
   subjectName: {
     color: C.navy,
