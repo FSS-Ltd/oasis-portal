@@ -1,4 +1,5 @@
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { formatPaceIdentifier } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -17,6 +18,7 @@ export function ParentChildDetailScreen({
   children,
   dashboardError,
   loadingDashboard,
+  onOpenPace,
   onRefresh,
   onSelectChild,
   refreshing,
@@ -25,6 +27,7 @@ export function ParentChildDetailScreen({
   children: readonly ParentDashboardChild[];
   dashboardError: string | null;
   loadingDashboard: boolean;
+  onOpenPace: () => void;
   onRefresh: () => Promise<void>;
   onSelectChild: (studentId: string) => void;
   refreshing: boolean;
@@ -35,11 +38,16 @@ export function ParentChildDetailScreen({
     { studentId: selectedStudentId },
     { enabled: Boolean(selectedStudentId), retry: false },
   );
+  const currentPace = api.pace.parentCurrent.useQuery(
+    { studentId: selectedStudentId },
+    { enabled: Boolean(selectedStudentId), retry: false },
+  );
 
   async function refreshAll() {
     await Promise.all([
       onRefresh(),
       selectedStudentId ? reports.refetch() : Promise.resolve(),
+      selectedStudentId ? currentPace.refetch() : Promise.resolve(),
     ]);
   }
 
@@ -51,7 +59,7 @@ export function ParentChildDetailScreen({
           onRefresh={() => {
             void refreshAll();
           }}
-          refreshing={refreshing || reports.isFetching}
+          refreshing={refreshing || reports.isFetching || currentPace.isFetching}
         />
       }
       showsVerticalScrollIndicator={false}
@@ -91,7 +99,12 @@ export function ParentChildDetailScreen({
           />
           <ParentChildHero child={selectedChild} />
           <AttendanceSummaryCard child={selectedChild} />
-          <PaceProgressCard child={selectedChild} />
+          <PaceProgressCard
+            error={currentPace.error?.message ?? null}
+            loading={currentPace.isLoading}
+            onOpenPace={onOpenPace}
+            subjects={currentPace.data?.subjects}
+          />
           <VisibleBehaviourCard child={selectedChild} />
           <VisibleNotesCard child={selectedChild} />
           <ReportSummaryCard
@@ -138,31 +151,48 @@ function AttendanceSummaryCard({ child }: { child: ParentDashboardChild }) {
   );
 }
 
-function PaceProgressCard({ child }: { child: ParentDashboardChild }) {
+function PaceProgressCard({
+  error,
+  loading,
+  onOpenPace,
+  subjects,
+}: {
+  error: string | null;
+  loading: boolean;
+  onOpenPace: () => void;
+  subjects: RouterOutputs['pace']['parentCurrent']['subjects'] | undefined;
+}) {
   return (
     <Card style={styles.compactCard}>
       <View style={styles.cardHeader}>
-        <SectionTitle>PACE progress</SectionTitle>
-        <Badge variant="blue">
-          {String(child.metrics.pacesCompletedThisAcademicYear)} done
-        </Badge>
+        <SectionTitle>Current PACE</SectionTitle>
       </View>
-      {child.pace.length === 0 ? <MutedText>No PACE records</MutedText> : null}
-      {child.pace.slice(0, 5).map((record) => (
-        <View key={record.id} style={styles.listRow}>
+      {loading ? <InlineSpinner label="Loading current PACE subjects" /> : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {!loading && !error && subjects?.length === 0 ? (
+        <MutedText>No active PACE subjects are assigned.</MutedText>
+      ) : null}
+      {subjects?.slice(0, 3).map((subject) => (
+        <View key={subject.subjectCode} style={styles.listRow}>
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>
-              {record.subjectCode} PACE {String(record.paceNumber)}
+              {subject.subjectCode} {subject.subjectName}
             </Text>
-            <MutedText>
-              {record.testType} - {String(record.score)}% - {formatParentDate(record.date)}
-            </MutedText>
+            <MutedText>Current subject</MutedText>
           </View>
-          <Badge variant={record.passed ? 'success' : 'warning'}>
-            {record.passed ? 'Passed' : 'Review'}
-          </Badge>
+          <Text style={styles.currentPaceNumber}>
+            PACE {formatPaceIdentifier(subject.currentPaceNumber)}
+          </Text>
         </View>
       ))}
+      <Pressable
+        accessibilityLabel="View full PACE progress"
+        accessibilityRole="button"
+        onPress={onOpenPace}
+        style={styles.paceAction}
+      >
+        <Text style={styles.paceActionText}>View Full PACE</Text>
+      </Pressable>
     </Card>
   );
 }
@@ -295,6 +325,11 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 16,
   },
+  currentPaceNumber: {
+    color: C.crimson,
+    fontSize: 12,
+    fontWeight: '900',
+  },
   content: {
     gap: 14,
     padding: 16,
@@ -352,6 +387,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     gap: 4,
     paddingTop: 10,
+  },
+  paceAction: {
+    alignItems: 'center',
+    borderColor: C.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 14,
+  },
+  paceActionText: {
+    color: C.navy,
+    fontSize: 13,
+    fontWeight: '900',
   },
   reportCard: {
     backgroundColor: C.bg,

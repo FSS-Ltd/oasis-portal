@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Bell,
+  BookOpenCheck,
   CalendarDays,
   ClipboardList,
   ClipboardCheck,
@@ -24,6 +25,7 @@ import {
 
 const parentNavItems = [
   { href: '/parent', label: 'Home', icon: Home },
+  { href: '/parent/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/parent/timetable', label: 'Timetable', icon: Table2 },
   { href: '/parent/volunteer', label: 'Volunteer', icon: CalendarDays },

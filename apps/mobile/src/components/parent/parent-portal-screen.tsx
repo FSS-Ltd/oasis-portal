@@ -20,6 +20,7 @@ import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
 import { ParentMessagesScreen } from './parent-messages-screen';
 import { ParentNoticesScreen } from './parent-notices-screen';
+import { ParentPaceScreen } from './parent-pace-screen';
 import { ParentPermissionSlipsScreen } from './parent-permission-slips-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
@@ -33,6 +34,7 @@ type MessagePage = RouterOutputs['message']['listConversations'];
 type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type ParentPortalRoute =
   | 'home'
+  | 'pace'
   | 'child'
   | 'reports'
   | 'incidents'
@@ -51,6 +53,7 @@ const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
+  { id: 'pace', icon: 'pace', label: 'PACE' },
   { id: 'calendar', icon: 'calendar', label: 'Calendar' },
   { id: 'timetable', icon: 'pace', label: 'Timetable' },
   { id: 'volunteer', icon: 'calendar', label: 'Volunteer' },
@@ -370,7 +373,17 @@ export function ParentPortalScreen({
           loadingDashboard={dashboard.isLoading || profile.isLoading}
           onRefresh={refresh}
           onSelectChild={setSelectedChildId}
+          onOpenPace={() => {
+            setRoute('pace');
+          }}
           refreshing={refreshing}
+          selectedChild={selectedChild}
+        />
+      ) : route === 'pace' ? (
+        <ParentPaceScreen
+          children={children}
+          onRefresh={refresh}
+          onSelectChild={setSelectedChildId}
           selectedChild={selectedChild}
         />
       ) : route === 'reports' ? (

@@ -100,6 +100,7 @@ vi.mock('./parent-home-screen', () => ({ ParentHomeScreen: mocks.parentHome }));
 vi.mock('./parent-volunteer-screen', () => ({ ParentVolunteerScreen: mocks.parentVolunteer }));
 vi.mock('./parent-calendar-screen', () => ({ ParentCalendarScreen: () => null }));
 vi.mock('./parent-child-detail-screen', () => ({ ParentChildDetailScreen: () => null }));
+vi.mock('./parent-pace-screen', () => ({ ParentPaceScreen: () => null }));
 vi.mock('./parent-clubs-screen', () => ({ ParentClubsScreen: () => null }));
 vi.mock('./parent-fees-invoices-screen', () => ({ ParentFeesInvoicesScreen: () => null }));
 vi.mock('./parent-incident-reports-screen', () => ({ ParentIncidentReportsScreen: () => null }));

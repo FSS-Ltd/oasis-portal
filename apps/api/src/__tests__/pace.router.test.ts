@@ -130,6 +130,7 @@ interface FakeDb {
     update: ReturnType<typeof vi.fn>;
   };
   meritLedger: { createMany: ReturnType<typeof vi.fn> };
+  guardian: { findUnique: ReturnType<typeof vi.fn> };
   student: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -622,6 +623,9 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     meritLedger: {
       createMany: createLedgerRows,
     },
+    guardian: {
+      findUnique: vi.fn().mockResolvedValue({ studentId: STUDENT_ID }),
+    },
     student: {
       findMany: vi.fn(
         ({
@@ -753,6 +757,168 @@ const validInput = {
   testType: 'FinalTest' as const,
   score: 90,
 };
+
+describe('pace parent progress', () => {
+  it('returns a linked parent only the active current PACE assignments', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(parentUser, db);
+
+    const result = await caller.pace.parentCurrent({ studentId: STUDENT_ID });
+
+    expect(result).toEqual({
+      student: { id: STUDENT_ID, fullName: 'Jane Learner', yearGroup: 'Year 6' },
+      subjects: [
+        { subjectCode: 'ENG', subjectName: 'English', currentPaceNumber: 1001 },
+        { subjectCode: 'MATH', subjectName: 'Maths', currentPaceNumber: 1007 },
+      ],
+    });
+    expect(db.guardian.findUnique).toHaveBeenCalledWith({
+      where: { userId_studentId: { userId: parentUser.id, studentId: STUDENT_ID } },
+      select: { studentId: true },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/approvedBy|approval|recordedBy|notes/iu);
+  });
+
+  it('rejects an unlinked parent and audits the denial', async () => {
+    const db = makeFakeDb();
+    db.guardian.findUnique.mockResolvedValue(null);
+    const { caller } = makeCaller(parentUser, db);
+
+    await expect(caller.pace.parentCurrent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Parent is not linked to this student',
+    });
+    expect(
+      auditCalls(db).some(
+        (entry) =>
+          entry.action === 'PermissionDenied' &&
+          entry.entity === 'pace.parentCurrent' &&
+          entry.meta?.studentId === STUDENT_ID &&
+          entry.meta.source === 'guardian-link',
+      ),
+    ).toBe(true);
+  });
+
+  it('maps both test types and returns deterministic server pages for an academic year', async () => {
+    const db = makeFakeDb();
+    const records = Array.from({ length: 25 }, (_, index) => {
+      const selfTest = index % 2 === 0;
+      return {
+        id: `pace_history_${String(index + 1)}`,
+        paceNumber: 1029 - index,
+        selfTestScore: selfTest ? 100 : null,
+        paceTestScore: selfTest ? null : 70,
+        completedAt: new Date(`2026-06-${String(25 - index).padStart(2, '0')}T10:00:00.000Z`),
+        createdAt: new Date(`2026-06-${String(25 - index).padStart(2, '0')}T09:00:00.000Z`),
+        subject: { code: index % 2 === 0 ? 'ENG' : 'MATH', name: selfTest ? 'English' : 'Maths' },
+      };
+    });
+    db.paceRecord.count.mockResolvedValue(records.length);
+    db.paceRecord.findMany.mockImplementation(
+      ({ skip = 0, take = records.length }: { skip?: number; take?: number }) =>
+        Promise.resolve(records.slice(skip, skip + take)),
+    );
+    const { caller } = makeCaller(parentUser, db);
+
+    const firstPage = await caller.pace.parentHistory({
+      studentId: STUDENT_ID,
+      period: { type: 'AcademicYear', startYear: 2025 },
+      page: 1,
+      pageSize: 20,
+    });
+    const secondPage = await caller.pace.parentHistory({
+      studentId: STUDENT_ID,
+      period: { type: 'AcademicYear', startYear: 2025 },
+      page: 2,
+      pageSize: 20,
+    });
+
+    expect(firstPage).toMatchObject({
+      period: {
+        key: '2025-AcademicYear',
+        label: '2025/26 Academic Year',
+        from: '2025-09-01',
+        to: '2026-08-31',
+      },
+      page: 1,
+      pageSize: 20,
+      totalRows: 25,
+      totalPages: 2,
+    });
+    expect(firstPage.rows).toHaveLength(20);
+    expect(firstPage.rows[0]).toMatchObject({
+      id: 'pace_history_1',
+      paceNumber: 1029,
+      testType: 'SelfTest',
+      score: 100,
+      result: 'Passed',
+    });
+    expect(firstPage.rows[1]).toMatchObject({
+      id: 'pace_history_2',
+      paceNumber: 1028,
+      testType: 'FinalTest',
+      score: 70,
+      result: 'BelowPassMark',
+    });
+    expect(secondPage.rows.map((row) => row.id)).toEqual([
+      'pace_history_21',
+      'pace_history_22',
+      'pace_history_23',
+      'pace_history_24',
+      'pace_history_25',
+    ]);
+    expect(db.paceRecord.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ skip: 0, take: 20 }),
+    );
+    expect(db.paceRecord.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ skip: 20, take: 20 }),
+    );
+    expect(JSON.stringify(firstPage)).not.toMatch(/approvedBy|approval|recordedBy|notes/iu);
+  });
+
+  it('resolves the selected term to the repository summer boundaries', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(parentUser, db);
+
+    const result = await caller.pace.parentHistory({
+      studentId: STUDENT_ID,
+      period: { type: 'Term', term: '2026-Summer' },
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(result.period).toMatchObject({
+      key: '2026-Summer',
+      label: 'Summer 2026',
+      from: '2026-04-01',
+      to: '2026-08-31',
+    });
+    expect(db.paceRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        studentId: STUDENT_ID,
+        completedAt: {
+          gte: new Date('2026-04-01T00:00:00.000Z'),
+          lt: new Date('2026-09-01T00:00:00.000Z'),
+        },
+        OR: [{ selfTestScore: { not: null } }, { paceTestScore: { not: null } }],
+      },
+      orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      skip: 0,
+      take: 20,
+      select: {
+        id: true,
+        paceNumber: true,
+        selfTestScore: true,
+        paceTestScore: true,
+        completedAt: true,
+        createdAt: true,
+        subject: { select: { code: true, name: true } },
+      },
+    });
+  });
+});
 
 describe('pace.forStudent RBAC', () => {
   it('allows full-admin (Head) to read PACE progress', async () => {
