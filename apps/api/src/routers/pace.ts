@@ -212,24 +212,17 @@ async function denyPaceAccess(
   throw new TRPCError({ code: 'FORBIDDEN', message });
 }
 
-async function assertLinkedParentPaceAccess(
+async function assertLinkedGuardianPaceAccess(
   ctx: AuthedContext,
   studentId: string,
   entity: string,
 ): Promise<void> {
-  if (ctx.user.role !== 'Parent') {
-    await denyPaceAccess(ctx, entity, 'PACE parent history is only available to parents', {
-      studentId,
-      source: 'parent-role',
-    });
-  }
-
   const guardian = await ctx.db.guardian.findUnique({
     where: { userId_studentId: { userId: ctx.user.id, studentId } },
     select: { studentId: true },
   });
   if (!guardian) {
-    await denyPaceAccess(ctx, entity, 'Parent is not linked to this student', {
+    await denyPaceAccess(ctx, entity, 'Account is not linked to this student', {
       studentId,
       source: 'guardian-link',
     });
@@ -719,7 +712,7 @@ async function loadPaceScopeForStudentRead(
 
 export const paceRouter = router({
   parentCurrent: authedProcedure.input(parentPaceCurrentInput).query(async ({ ctx, input }) => {
-    await assertLinkedParentPaceAccess(ctx, input.studentId, 'pace.parentCurrent');
+    await assertLinkedGuardianPaceAccess(ctx, input.studentId, 'pace.parentCurrent');
 
     const student = await ctx.db.student.findUnique({
       where: { id: input.studentId },
@@ -753,7 +746,7 @@ export const paceRouter = router({
   }),
 
   parentHistory: authedProcedure.input(parentPaceHistoryInput).query(async ({ ctx, input }) => {
-    await assertLinkedParentPaceAccess(ctx, input.studentId, 'pace.parentHistory');
+    await assertLinkedGuardianPaceAccess(ctx, input.studentId, 'pace.parentHistory');
 
     const period = resolveReportPeriod(input.period);
     const where = {
