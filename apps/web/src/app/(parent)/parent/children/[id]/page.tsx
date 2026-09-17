@@ -8,12 +8,14 @@ export default async function ParentChildPage({ params }: { params: Promise<{ id
 
   return (
     <MotionPage>
-      <StudentDrillThroughContent
-        backHref="/parent"
-        backLabel="Back to My Children"
-        parentPaceHref={`/parent/pace?studentId=${id}`}
-        studentId={id}
-      />
+      <div className="parent-child-detail">
+        <StudentDrillThroughContent
+          backHref="/parent"
+          backLabel="Back to My Children"
+          parentPaceHref={`/parent/pace?studentId=${id}`}
+          studentId={id}
+        />
+      </div>
     </MotionPage>
   );
 }

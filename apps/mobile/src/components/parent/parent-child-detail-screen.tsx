@@ -86,7 +86,9 @@ export function ParentChildDetailScreen({
       {children.length === 0 && !loadingDashboard ? (
         <Card>
           <SectionTitle>No linked children</SectionTitle>
-          <MutedText>Linked child records will appear once Oasis connects them to this account.</MutedText>
+          <MutedText>
+            Linked child records will appear once Oasis connects them to this account.
+          </MutedText>
         </Card>
       ) : null}
 
@@ -97,7 +99,10 @@ export function ParentChildDetailScreen({
             onSelect={onSelectChild}
             selectedChildId={selectedChild.student.id}
           />
-          <ParentChildHero child={selectedChild} />
+          <View style={styles.childOverview}>
+            <Text style={styles.sectionEyebrow}>Child overview</Text>
+            <ParentChildHero child={selectedChild} />
+          </View>
           <AttendanceSummaryCard child={selectedChild} />
           <PaceProgressCard
             error={currentPace.error?.message ?? null}
@@ -321,6 +326,9 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'space-between',
   },
+  childOverview: {
+    gap: 8,
+  },
   compactCard: {
     gap: 10,
     padding: 16,
@@ -431,6 +439,13 @@ const styles = StyleSheet.create({
     color: C.navy,
     fontSize: 13,
     fontWeight: '900',
+  },
+  sectionEyebrow: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   scroller: {
     flex: 1,
