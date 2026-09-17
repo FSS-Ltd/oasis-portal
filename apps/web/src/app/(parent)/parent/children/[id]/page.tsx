@@ -11,6 +11,7 @@ export default async function ParentChildPage({ params }: { params: Promise<{ id
       <StudentDrillThroughContent
         backHref="/parent"
         backLabel="Back to My Children"
+        parentPaceHref={`/parent/pace?studentId=${id}`}
         studentId={id}
       />
     </MotionPage>

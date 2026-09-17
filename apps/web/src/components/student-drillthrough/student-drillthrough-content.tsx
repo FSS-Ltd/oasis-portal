@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { ArrowLeft, Edit3, ShieldAlert, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { displaySchoolYearLabel } from '@oasis/domain';
+import { displaySchoolYearLabel, formatPaceIdentifier } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
@@ -61,10 +61,14 @@ const BASE_DRILL_THROUGH_TABS = [
 
 function drillThroughTabs(
   canViewFinance: boolean,
+  includePaceHistory: boolean,
 ): readonly (readonly [DrillThroughTab, string])[] {
+  const standardTabs = includePaceHistory
+    ? BASE_DRILL_THROUGH_TABS
+    : BASE_DRILL_THROUGH_TABS.filter(([id]) => id !== 'pace');
   return canViewFinance
-    ? [...BASE_DRILL_THROUGH_TABS, ['finance', 'Finance'] as const]
-    : BASE_DRILL_THROUGH_TABS;
+    ? [...standardTabs, ['finance', 'Finance'] as const]
+    : standardTabs;
 }
 
 interface StudentDrillThroughContentProps {
@@ -73,6 +77,7 @@ interface StudentDrillThroughContentProps {
   onEdit?: (() => void) | undefined;
   canManageCorrections?: boolean;
   canViewFinance?: boolean;
+  parentPaceHref?: Route | undefined;
   studentId: string;
 }
 
@@ -185,16 +190,46 @@ function StudentTabs({
   );
 }
 
+function ParentCurrentPacePreview({ data, href }: { data: DrillThrough; href: Route }) {
+  const previewSubjects = data.student.subjects.slice(0, 4);
+
+  return (
+    <section className="panel panel__body snapshot-pace-compact parent-current-pace-preview">
+      <div className="parent-current-pace-preview__heading">
+        <h3>Current PACE</h3>
+        <Link className="button button--secondary button--sm" href={href}>
+          View Full PACE
+        </Link>
+      </div>
+      {previewSubjects.length === 0 ? (
+        <p className="muted">No active PACE subjects are assigned.</p>
+      ) : (
+        <div className="parent-current-pace-preview__list">
+          {previewSubjects.map((subject) => (
+            <div key={subject.subjectId}>
+              <span>{subject.code}</span>
+              <strong>{subject.name}</strong>
+              <b>PACE {formatPaceIdentifier(subject.currentPaceNumber)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function OverviewTab({
   canManageCorrections,
   data,
   onDeletePace,
   onEditPace,
+  parentPaceHref,
 }: {
   canManageCorrections: boolean;
   data: DrillThrough;
   onDeletePace: (entry: PaceEntry) => void;
   onEditPace: (entry: PaceEntry) => void;
+  parentPaceHref?: Route | undefined;
 }) {
   const presentDays = data.attendance.filter((row) => row.status === 'Present').length;
   const lateDays = data.attendance.filter((row) => row.status === 'Late').length;
@@ -264,12 +299,14 @@ function OverviewTab({
           sub={`net: ${netMerits >= 0 ? '+' : ''}${String(netMerits)} this period`}
           value={demeritsTotal ? String(demeritsTotal) : '—'}
         />
-        <SnapshotStatCard
-          accent={scoreTone(avgPaceScore)}
-          label="Avg PACE score"
-          sub={`${String(data.pace.length)} test${data.pace.length === 1 ? '' : 's'} this year`}
-          value={avgPaceScore === null ? '—' : `${String(avgPaceScore)}%`}
-        />
+        {!parentPaceHref ? (
+          <SnapshotStatCard
+            accent={scoreTone(avgPaceScore)}
+            label="Avg PACE score"
+            sub={`${String(data.pace.length)} test${data.pace.length === 1 ? '' : 's'} this year`}
+            value={avgPaceScore === null ? '—' : `${String(avgPaceScore)}%`}
+          />
+        ) : null}
       </div>
 
       <div className="snapshot-overview-grid">
@@ -294,65 +331,68 @@ function OverviewTab({
             />
           </div>
         </section>
-        <section className="panel panel__body snapshot-pace-compact">
-          <h3>PACE scores</h3>
-          {data.pace.length === 0 ? (
-            <p className="muted">No PACE scores recorded this academic year.</p>
-          ) : null}
-          {data.pace.slice(0, 5).map((item) => (
-            <div key={item.id}>
-              <span className={`snapshot-score-pill is-${scoreTone(item.score)}`}>
-                {item.score}%
-              </span>
-              <div>
-                <strong>
-                  {item.subjectName} <span>PACE {item.paceNumber}</span>
-                </strong>
-                <p>
-                  {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)}
-                </p>
-                {item.approval ? (
+        {parentPaceHref ? <ParentCurrentPacePreview data={data} href={parentPaceHref} /> : null}
+        {!parentPaceHref ? (
+          <section className="panel panel__body snapshot-pace-compact">
+            <h3>PACE scores</h3>
+            {data.pace.length === 0 ? (
+              <p className="muted">No PACE scores recorded this academic year.</p>
+            ) : null}
+            {data.pace.slice(0, 5).map((item) => (
+              <div key={item.id}>
+                <span className={`snapshot-score-pill is-${scoreTone(item.score)}`}>
+                  {item.score}%
+                </span>
+                <div>
+                  <strong>
+                    {item.subjectName} <span>PACE {item.paceNumber}</span>
+                  </strong>
                   <p>
-                    Approved advance by {item.approval.approvedByName} · {item.approval.notes}
+                    {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)}
                   </p>
-                ) : null}
+                  {item.approval ? (
+                    <p>
+                      Approved advance by {item.approval.approvedByName} · {item.approval.notes}
+                    </p>
+                  ) : null}
+                </div>
+                <span className="snapshot-pace-actions">
+                  <span>{item.testType}</span>
+                  {canManageCorrections ? (
+                    <>
+                      <Button
+                        aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
+                        className="pace-score-edit-button"
+                        onClick={() => {
+                          onEditPace(item);
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Edit3 aria-hidden="true" size={14} />
+                        <span className="sr-only">Edit PACE score</span>
+                      </Button>
+                      <Button
+                        aria-label={`Delete ${item.testType} score for ${item.subjectName}`}
+                        className="pace-score-edit-button"
+                        onClick={() => {
+                          onDeletePace(item);
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Trash2 aria-hidden="true" size={14} />
+                        <span className="sr-only">Delete PACE score</span>
+                      </Button>
+                    </>
+                  ) : null}
+                </span>
               </div>
-              <span className="snapshot-pace-actions">
-                <span>{item.testType}</span>
-                {canManageCorrections ? (
-                  <>
-                    <Button
-                      aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
-                      className="pace-score-edit-button"
-                      onClick={() => {
-                        onEditPace(item);
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Edit3 aria-hidden="true" size={14} />
-                      <span className="sr-only">Edit PACE score</span>
-                    </Button>
-                    <Button
-                      aria-label={`Delete ${item.testType} score for ${item.subjectName}`}
-                      className="pace-score-edit-button"
-                      onClick={() => {
-                        onDeletePace(item);
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Trash2 aria-hidden="true" size={14} />
-                      <span className="sr-only">Delete PACE score</span>
-                    </Button>
-                  </>
-                ) : null}
-              </span>
-            </div>
-          ))}
-        </section>
+            ))}
+          </section>
+        ) : null}
       </div>
     </div>
   );
@@ -852,10 +892,11 @@ export function StudentDrillThroughContent({
   canManageCorrections = false,
   canViewFinance = false,
   onEdit,
+  parentPaceHref,
   studentId,
 }: StudentDrillThroughContentProps) {
   const [activeTab, setActiveTab] = useState<DrillThroughTab>('overview');
-  const tabs = drillThroughTabs(canViewFinance);
+  const tabs = drillThroughTabs(canViewFinance, !parentPaceHref);
   const drillThroughQuery = api.childLog.drillThrough.useQuery({ studentId }, { retry: false });
   const utils = api.useUtils();
   const [behaviourDraft, setBehaviourDraft] = useState<BehaviourCorrectionDraft | null>(null);
@@ -1027,6 +1068,7 @@ export function StudentDrillThroughContent({
           data={data}
           onDeletePace={setPaceDelete}
           onEditPace={setPaceDraft}
+          parentPaceHref={parentPaceHref}
         />
       ) : null}
       {activeTab === 'attendance' ? <AttendanceTab data={data} /> : null}
@@ -1039,7 +1081,7 @@ export function StudentDrillThroughContent({
         />
       ) : null}
       {activeTab === 'discipline' ? <DisciplineTab data={data} /> : null}
-      {activeTab === 'pace' ? (
+      {activeTab === 'pace' && !parentPaceHref ? (
         <PaceTab
           canManageCorrections={canManageCorrections}
           data={data}

@@ -11,6 +11,7 @@ import {
   paceProgressStatusForYear,
   paceRecordInput,
   paceUpdateRecordInput,
+  resolveReportPeriod,
   requireSelfStudent,
   rowsForMerit,
   type PaceProgressStatusResult,
@@ -58,6 +59,23 @@ const paceRecordByIdInput = z.object({ recordId: z.string().trim().min(1) });
 const paceApprovalInput = paceRecordByIdInput.extend({
   notes: z.string().trim().min(1).max(3000),
 });
+const parentPaceHistoryPeriodInput = z.union([
+  z.object({
+    type: z.literal('AcademicYear'),
+    startYear: z.number().int().min(2000).max(2100),
+  }),
+  z.object({
+    type: z.literal('Term'),
+    term: z.string().regex(/^\d{4}-(Spring|Summer|Autumn)$/u),
+  }),
+]);
+const parentPaceHistoryInput = z.object({
+  studentId: z.string().trim().min(1),
+  period: parentPaceHistoryPeriodInput,
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(50).default(20),
+});
+const parentPaceCurrentInput = z.object({ studentId: z.string().trim().min(1) });
 
 function utcDayBounds(date: Date): { dayKey: string; dayStart: Date; dayEnd: Date } {
   const dayKey = date.toISOString().slice(0, 10);
@@ -192,6 +210,30 @@ async function denyPaceAccess(
     },
   });
   throw new TRPCError({ code: 'FORBIDDEN', message });
+}
+
+async function assertLinkedParentPaceAccess(
+  ctx: AuthedContext,
+  studentId: string,
+  entity: string,
+): Promise<void> {
+  if (ctx.user.role !== 'Parent') {
+    await denyPaceAccess(ctx, entity, 'PACE parent history is only available to parents', {
+      studentId,
+      source: 'parent-role',
+    });
+  }
+
+  const guardian = await ctx.db.guardian.findUnique({
+    where: { userId_studentId: { userId: ctx.user.id, studentId } },
+    select: { studentId: true },
+  });
+  if (!guardian) {
+    await denyPaceAccess(ctx, entity, 'Parent is not linked to this student', {
+      studentId,
+      source: 'guardian-link',
+    });
+  }
 }
 
 async function assertNoDuplicateSelfTest(
@@ -676,6 +718,93 @@ async function loadPaceScopeForStudentRead(
 }
 
 export const paceRouter = router({
+  parentCurrent: authedProcedure.input(parentPaceCurrentInput).query(async ({ ctx, input }) => {
+    await assertLinkedParentPaceAccess(ctx, input.studentId, 'pace.parentCurrent');
+
+    const student = await ctx.db.student.findUnique({
+      where: { id: input.studentId },
+      select: {
+        id: true,
+        fullNameEnc: true,
+        yearGroup: true,
+        subjects: {
+          where: { subject: { active: true } },
+          include: { subject: { select: { code: true, name: true } } },
+          orderBy: { subject: { code: 'asc' } },
+        },
+      },
+    });
+    if (!student) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+    }
+    const fullName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
+    return {
+      student: {
+        id: student.id,
+        fullName,
+        yearGroup: student.yearGroup,
+      },
+      subjects: student.subjects.map((assignment) => ({
+        subjectCode: assignment.subject.code,
+        subjectName: assignment.subject.name,
+        currentPaceNumber: assignment.currentPaceNumber,
+      })),
+    };
+  }),
+
+  parentHistory: authedProcedure.input(parentPaceHistoryInput).query(async ({ ctx, input }) => {
+    await assertLinkedParentPaceAccess(ctx, input.studentId, 'pace.parentHistory');
+
+    const period = resolveReportPeriod(input.period);
+    const where = {
+      studentId: input.studentId,
+      completedAt: { gte: period.queryFrom, lt: period.queryToExclusive },
+      OR: [{ selfTestScore: { not: null } }, { paceTestScore: { not: null } }],
+    };
+    const [records, totalRows, storedPolicy] = await Promise.all([
+      ctx.db.paceRecord.findMany({
+        where,
+        orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
+        select: {
+          id: true,
+          paceNumber: true,
+          selfTestScore: true,
+          paceTestScore: true,
+          completedAt: true,
+          createdAt: true,
+          subject: { select: { code: true, name: true } },
+        },
+      }),
+      ctx.db.paceRecord.count({ where }),
+      ctx.db.pacePolicy.findUnique({ where: { id: 'default' } }),
+    ]);
+    const policy = storedPolicy ?? DEFAULT_POLICY;
+
+    return {
+      period: period.snapshot,
+      page: input.page,
+      pageSize: input.pageSize,
+      totalRows,
+      totalPages: Math.ceil(totalRows / input.pageSize),
+      rows: records.map((record) => {
+        const testType = testTypeForRecord(record);
+        const score = scoreForRecord(record);
+        return {
+          id: record.id,
+          subjectCode: record.subject.code,
+          subjectName: record.subject.name,
+          paceNumber: record.paceNumber,
+          testType,
+          score,
+          result: score >= policy.passThreshold ? 'Passed' : 'BelowPassMark',
+          completedAt: record.completedAt ?? record.createdAt,
+        };
+      }),
+    };
+  }),
+
   roster: authedProcedure.input(paceRosterInput).query(async ({ ctx, input }) => {
     const scope = await loadPaceScope(ctx, input?.date, 'pace.roster');
     const scopedBandIds = scope.scopedBandIds ? [...scope.scopedBandIds] : null;

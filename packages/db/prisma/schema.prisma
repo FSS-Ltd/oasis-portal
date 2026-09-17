@@ -860,6 +860,7 @@ model PaceRecord {
   automaticMeritEntries BehaviourEntry[]         @relation("PaceRecordAutomaticMerit")
 
   @@index([studentId, subjectId])
+  @@index([studentId, completedAt, createdAt])
 }
 
 model PaceProgress {
