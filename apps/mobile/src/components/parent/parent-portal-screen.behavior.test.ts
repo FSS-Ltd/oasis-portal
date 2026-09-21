@@ -57,6 +57,7 @@ vi.mock('../../lib/trpc', () => ({
       myClubNotices: { useQuery: () => mocks.queryResult },
     },
     invoice: { listParent: { useQuery: () => mocks.queryResult } },
+    library: { parentSummary: { useQuery: () => mocks.queryResult } },
     meritLedger: { balances: { useQuery: () => mocks.queryResult } },
     message: {
       listConversations: { useQuery: () => mocks.queryResult },
