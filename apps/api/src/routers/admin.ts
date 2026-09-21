@@ -70,6 +70,7 @@ const HEAD_ONLY_PERMISSION_TAGS = [
   'supervisor-primary-students',
   'calendar-manager',
   'parent-message-responder',
+  'librarian',
 ] as const satisfies readonly PermissionTag[];
 const permissionTagOptions = PERMISSION_TAGS as readonly [PermissionTag, ...PermissionTag[]];
 
@@ -914,62 +915,62 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     createSubject: adminOperationsProcedure
       .input(createSubjectInput)
       .mutation(async ({ ctx, input }) => {
-      try {
-        const subject = await ctx.db.subject.create({
-          data: { code: input.code, name: input.name },
-          select: { id: true, code: true, name: true, active: true },
-        });
-
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'Subject',
-            entityId: subject.id,
-            meta: { code: subject.code, name: subject.name },
-          },
-        });
-
-        return subject;
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: `subject code "${input.code}" already exists`,
+        try {
+          const subject = await ctx.db.subject.create({
+            data: { code: input.code, name: input.name },
+            select: { id: true, code: true, name: true, active: true },
           });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'Subject',
+              entityId: subject.id,
+              meta: { code: subject.code, name: subject.name },
+            },
+          });
+
+          return subject;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `subject code "${input.code}" already exists`,
+            });
+          }
+          throw err;
         }
-        throw err;
-      }
-    }),
+      }),
 
     updateSubject: adminOperationsProcedure
       .input(updateSubjectInput)
       .mutation(async ({ ctx, input }) => {
-      try {
-        const subject = await ctx.db.subject.update({
-          where: { id: input.id },
-          data: { ...(input.name !== undefined ? { name: input.name } : {}) },
-          select: { id: true, code: true, name: true, active: true },
-        });
+        try {
+          const subject = await ctx.db.subject.update({
+            where: { id: input.id },
+            data: { ...(input.name !== undefined ? { name: input.name } : {}) },
+            select: { id: true, code: true, name: true, active: true },
+          });
 
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Update',
-            entity: 'Subject',
-            entityId: subject.id,
-            meta: { name: subject.name, source: 'admin.updateSubject' },
-          },
-        });
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'Subject',
+              entityId: subject.id,
+              meta: { name: subject.name, source: 'admin.updateSubject' },
+            },
+          });
 
-        return subject;
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
+          return subject;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
+          }
+          throw err;
         }
-        throw err;
-      }
-    }),
+      }),
 
     deactivateSubject: adminOperationsProcedure
       .input(deactivateSubjectInput)
@@ -1377,39 +1378,39 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     searchParents: adminOperationsProcedure
       .input(searchParentsInput)
       .query(async ({ ctx, input }) => {
-      const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
-      if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
+        const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
+        if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
 
-      const parents = await ctx.db.user.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: input?.limit ?? 10,
-        select: { id: true, fullNameEnc: true, emailEnc: true },
-      });
+        const parents = await ctx.db.user.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: input?.limit ?? 10,
+          select: { id: true, fullNameEnc: true, emailEnc: true },
+        });
 
-      const rows = parents.map((parent) => {
-        const fullName = ctx.db.$enc.decrypt(parent.fullNameEnc);
-        const email = ctx.db.$enc.decrypt(parent.emailEnc);
-        if (!fullName || !email) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'parent PII decrypt failed',
-          });
-        }
-        return { id: parent.id, fullName, email };
-      });
+        const rows = parents.map((parent) => {
+          const fullName = ctx.db.$enc.decrypt(parent.fullNameEnc);
+          const email = ctx.db.$enc.decrypt(parent.emailEnc);
+          if (!fullName || !email) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'parent PII decrypt failed',
+            });
+          }
+          return { id: parent.id, fullName, email };
+        });
 
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'DecryptPii',
-          entity: 'User',
-          meta: { count: rows.length, source: 'admin.searchParents' },
-        },
-      });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'User',
+            meta: { count: rows.length, source: 'admin.searchParents' },
+          },
+        });
 
-      return rows;
-    }),
+        return rows;
+      }),
 
     searchGuardianAccounts: adminOperationsProcedure
       .input(searchParentsInput)
@@ -1603,64 +1604,64 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     linkGuardian: adminOperationsProcedure
       .input(linkGuardianInput)
       .mutation(async ({ ctx, input }) => {
-      const [targetUser, student] = await Promise.all([
-        ctx.db.user.findUnique({
-          where: { id: input.userId },
-          select: { id: true, role: true, active: true },
-        }),
-        ctx.db.student.findUnique({ where: { id: input.studentId } }),
-      ]);
-      if (!targetUser) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
-      }
-      if (!student) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
-      }
-      if (!targetUser.active) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'cannot link guardian: user account is inactive',
-        });
-      }
-      if (targetUser.role !== 'Parent' && !canAnswerChildRegistrationPrompt(targetUser)) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: `cannot link guardian: user role is ${targetUser.role}`,
-        });
-      }
+        const [targetUser, student] = await Promise.all([
+          ctx.db.user.findUnique({
+            where: { id: input.userId },
+            select: { id: true, role: true, active: true },
+          }),
+          ctx.db.student.findUnique({ where: { id: input.studentId } }),
+        ]);
+        if (!targetUser) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+        }
+        if (!student) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+        }
+        if (!targetUser.active) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'cannot link guardian: user account is inactive',
+          });
+        }
+        if (targetUser.role !== 'Parent' && !canAnswerChildRegistrationPrompt(targetUser)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `cannot link guardian: user role is ${targetUser.role}`,
+          });
+        }
 
-      try {
-        const created = await ctx.db.guardian.create({
-          data: { userId: input.userId, studentId: input.studentId },
-        });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'Guardian',
-            entityId: created.id,
-            meta: {
-              guardianUserId: input.userId,
-              studentId: input.studentId,
-              targetRole: targetUser.role,
-            },
-          },
-        });
-        return { created: true, guardianId: created.id };
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-          const existing = await ctx.db.guardian.findUnique({
-            where: {
-              userId_studentId: { userId: input.userId, studentId: input.studentId },
+        try {
+          const created = await ctx.db.guardian.create({
+            data: { userId: input.userId, studentId: input.studentId },
+          });
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'Guardian',
+              entityId: created.id,
+              meta: {
+                guardianUserId: input.userId,
+                studentId: input.studentId,
+                targetRole: targetUser.role,
+              },
             },
           });
-          if (existing) {
-            return { created: false, guardianId: existing.id };
+          return { created: true, guardianId: created.id };
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            const existing = await ctx.db.guardian.findUnique({
+              where: {
+                userId_studentId: { userId: input.userId, studentId: input.studentId },
+              },
+            });
+            if (existing) {
+              return { created: false, guardianId: existing.id };
+            }
           }
+          throw err;
         }
-        throw err;
-      }
-    }),
+      }),
   });
 }
 

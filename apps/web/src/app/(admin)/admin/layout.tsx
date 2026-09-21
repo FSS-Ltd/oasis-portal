@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
@@ -10,6 +9,7 @@ import {
   canManageInvoices,
   canManagePermissionSlips,
   canManageShop,
+  canManageLibrary,
   canUseAdminOperations,
   canUseClubLeadAccess,
   canUsePersonalTasks,
@@ -55,6 +55,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canManageInvoiceModule = canManageInvoices(user);
   const canManagePermissionSlipModule = canManagePermissionSlips(user);
   const canUseShop = canManageShop(user) || canSellInShop(user);
+  const canUseLibrary = canManageLibrary(user);
   const canUseMessages = canRespondToParentMessages(user) || canUseStaffMessaging(user);
   const [linkedChildren, assignedClubLeadCount, unreadMessageCount] = await Promise.all([
     linkedChildCount(user.id),
@@ -106,7 +107,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
                     ? '/admin/invoices'
                     : canUseShop
                       ? '/admin/shop'
-                      : '/admin/profile';
+                      : canUseLibrary
+                        ? '/admin/library'
+                        : '/admin/profile';
   const adminNavProps = {
     canManageClubs: canManageClubModule,
     canManageInvoices: canManageInvoiceModule,
@@ -114,6 +117,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     canUseShop,
     canUseAdminOperations: adminOperations,
     canUsePersonalTasks: canUsePersonalTasks(user),
+    canUseLibrary,
     canManageUserAccounts: canManageAccounts,
     canUseMessages,
     canViewAudit,
@@ -169,13 +173,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           >
             <AdminSidebarNav {...adminNavProps} />
           </MobileSideMenu>
-          <Link className="admin-shell__mobile-brand" href={homeHref}>
+          <a className="admin-shell__mobile-brand" href={homeHref}>
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
               <small>Supervisor Portal</small>
               <strong>{userRoleLabel}</strong>
             </span>
-          </Link>
+          </a>
           <div className="admin-shell__mobile-actions">
             {portalSwitchViews ? (
               <PortalViewSwitch activeView="staff" variant="mobile" views={portalSwitchViews} />

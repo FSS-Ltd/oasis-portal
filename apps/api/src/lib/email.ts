@@ -33,6 +33,11 @@ import {
 } from '../emails/report-notification-email.js';
 import { buildSmokeTestEmailText, SmokeTestEmail } from '../emails/smoke-test-email.js';
 import { buildUserInviteEmailText, UserInviteEmail } from '../emails/user-invite-email.js';
+import {
+  buildLibraryReminderEmailText,
+  LibraryReminderEmail,
+  type LibraryReminderEmailProps,
+} from '../emails/library-reminder-email.js';
 
 export const DEFAULT_RESEND_FROM = 'onboarding@resend.dev';
 export const PRODUCTION_RESEND_FROM = 'Oasis Portal <no-reply@oasisportal.space>';
@@ -51,6 +56,7 @@ export const INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT =
 export const INVOICE_PAST_DUE_REMINDER_EMAIL_SUBJECT_PREFIX = 'Invoice';
 export const NOTICE_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal noticeboard update';
 export const REPORT_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal term report ready';
+export const LIBRARY_REMINDER_EMAIL_SUBJECT = 'Oasis Portal library reminder';
 
 export interface EmailEnv {
   [key: string]: string | undefined;
@@ -445,6 +451,33 @@ export interface ReportNotificationEmailInput {
   reportPath?: string;
   term: string;
   to: string;
+}
+
+export interface LibraryReminderEmailInput extends Omit<
+  LibraryReminderEmailProps,
+  'libraryUrl' | 'logoUrl'
+> {
+  libraryPath?: string;
+  logoUrl?: string;
+  to: string;
+}
+
+export function buildLibraryReminderEmail(input: LibraryReminderEmailInput): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const libraryUrl = buildPortalUrl(input.libraryPath ?? '/parent/library');
+  const props = {
+    bookTitle: input.bookTitle,
+    childName: input.childName,
+    dueOn: input.dueOn,
+    stage: input.stage,
+    ...(libraryUrl ? { libraryUrl } : {}),
+  };
+  return {
+    to: input.to,
+    subject: `${LIBRARY_REMINDER_EMAIL_SUBJECT}: ${input.bookTitle}`,
+    react: createElement(LibraryReminderEmail, { ...props, ...logoProps(logoUrl) }),
+    text: buildLibraryReminderEmailText(props),
+  };
 }
 
 export function buildReportNotificationEmail(input: ReportNotificationEmailInput): SendEmailInput {

@@ -15,6 +15,7 @@ import { StaffPaceScreen } from './staff-pace-screen';
 import { StaffRotaScreen } from './staff-rota-screen';
 import { StaffShopCounterScreen } from './staff-shop-counter-screen';
 import { MobileHeadTimetableScreen } from '../timetable/mobile-head-timetable-screen';
+import { StaffLibraryScreen } from './staff-library-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StaffPortalRoute =
@@ -26,6 +27,7 @@ type StaffPortalRoute =
   | 'clubs'
   | 'communications'
   | 'incidents'
+  | 'library'
   | 'pace'
   | 'rota'
   | 'shop'
@@ -129,6 +131,16 @@ export function StaffPortalScreen({
     );
   }
 
+  if (route === 'library' && user?.tags.includes('librarian')) {
+    return (
+      <StaffLibraryScreen
+        onBack={() => {
+          setRoute('home');
+        }}
+      />
+    );
+  }
+
   if (route === 'rota') {
     return (
       <StaffRotaScreen
@@ -215,6 +227,13 @@ export function StaffPortalScreen({
       onOpenIncidents={() => {
         setRoute('incidents');
       }}
+      {...(user?.tags.includes('librarian')
+        ? {
+            onOpenLibrary: () => {
+              setRoute('library');
+            },
+          }
+        : {})}
       onOpenPace={() => {
         setRoute('pace');
       }}

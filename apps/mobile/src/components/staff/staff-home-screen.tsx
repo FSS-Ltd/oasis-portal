@@ -88,6 +88,7 @@ export function StaffHomeScreen({
   onOpenClubs,
   onOpenCommunications,
   onOpenIncidents,
+  onOpenLibrary,
   onOpenPace,
   onOpenRota,
   onOpenShop,
@@ -103,6 +104,7 @@ export function StaffHomeScreen({
   onOpenClubs?: () => void;
   onOpenCommunications?: () => void;
   onOpenIncidents?: () => void;
+  onOpenLibrary?: () => void;
   onOpenPace?: () => void;
   onOpenRota?: () => void;
   onOpenShop?: () => void;
@@ -196,6 +198,17 @@ export function StaffHomeScreen({
                 <MutedText>Set age-group times and publish each child’s timetable.</MutedText>
               </View>
               <MobileButton label="Timetables" onPress={onOpenTimetables} variant="blue" />
+            </View>
+          </Card>
+        ) : null}
+        {onOpenLibrary ? (
+          <Card style={styles.compactCard}>
+            <View style={styles.rowHeader}>
+              <View style={styles.rowBody}>
+                <Text style={styles.cardTitle}>Library</Text>
+                <MutedText>Scan books to check them in or out.</MutedText>
+              </View>
+              <MobileButton label="Library" onPress={onOpenLibrary} variant="blue" />
             </View>
           </Card>
         ) : null}

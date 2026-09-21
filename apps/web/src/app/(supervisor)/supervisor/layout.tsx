@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   canManageClubs,
   canManageInvoices,
+  canManageLibrary,
   canManageShop,
   canSellInShop,
   canUseClubLeadAccess,
@@ -72,6 +73,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
   const supervisorNavProps = {
     canManageClubs: canManageClubs(user),
     canManageInvoices: canManageInvoices(user),
+    canUseLibrary: canManageLibrary(user),
     canUseShop: canManageShop(user) || canSellInShop(user),
     unreadMessageCount,
     unreadNoticeCount,

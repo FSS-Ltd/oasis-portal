@@ -80,6 +80,7 @@ export const PERMISSION_TAGS = [
   'calendar-manager',
   'parent-message-responder',
   'club-lead',
+  'librarian',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 
@@ -159,6 +160,17 @@ export function canManageInvoices(user: Pick<SessionUser, 'role' | 'tags'>): boo
     return false;
   }
   return hasTag(user, 'finance-admin');
+}
+
+/** Library circulation is deliberately tag-gated, including for full admins. */
+export function canManageLibrary(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
+  return user.role !== 'Parent' && user.role !== 'Student' && hasTag(user, 'librarian');
+}
+
+export function requireCanManageLibrary(user: SessionUser): void {
+  if (!canManageLibrary(user)) {
+    throw new AccessDeniedError('library circulation requires the librarian tag');
+  }
 }
 
 export function canViewStudentFinance(user: Pick<SessionUser, 'role'>): boolean {
