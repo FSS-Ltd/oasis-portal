@@ -86,7 +86,7 @@ interface StoredStudent {
 interface StoredUser {
   id: string;
   fullNameEnc: string;
-  emailEnc: string;
+  emailEnc: string | null;
   role: SessionUser['role'];
   active: boolean;
 }
@@ -150,6 +150,14 @@ interface StoredStaffShift {
   notes: string | null;
 }
 
+interface StoredParentVolunteerDay {
+  id: string;
+  parentUserId: string;
+  date: Date;
+  placement: 'Centre' | 'LunchAndClubsPrimary' | 'LunchAndClubsSecondary';
+  slot: number;
+}
+
 interface FakeDb {
   $enc: {
     encrypt: ReturnType<typeof vi.fn>;
@@ -193,6 +201,9 @@ interface FakeDb {
     findFirst: ReturnType<typeof vi.fn>;
   };
   staffShift: {
+    findMany: ReturnType<typeof vi.fn>;
+  };
+  parentVolunteerDay: {
     findMany: ReturnType<typeof vi.fn>;
   };
   studentPortalSettings: {
@@ -287,6 +298,13 @@ function makeFakeDb() {
       role: 'Supervisor',
       active: false,
     },
+    {
+      id: studentUser.id,
+      fullNameEnc: 'enc:Student User',
+      emailEnc: 'enc:student@example.test',
+      role: 'Student',
+      active: true,
+    },
   ];
   const attendance: StoredAttendance[] = [];
   const staffAttendance: StoredStaffAttendance[] = [];
@@ -338,6 +356,7 @@ function makeFakeDb() {
       notes: null,
     },
   ];
+  const parentVolunteerDays: StoredParentVolunteerDay[] = [];
 
   const db: FakeDb = {
     $enc: { decrypt: vi.fn(decrypt), encrypt: vi.fn(encrypt) },
@@ -859,6 +878,27 @@ function makeFakeDb() {
           ),
       ),
     },
+    parentVolunteerDay: {
+      findMany: vi.fn(({ where }: { where: { date: Date; parentUser?: { active?: boolean } } }) =>
+        Promise.resolve(
+          parentVolunteerDays
+            .filter((volunteerDay) => dateKey(volunteerDay.date) === dateKey(where.date))
+            .filter((volunteerDay) => {
+              const parentUser = users.find((user) => user.id === volunteerDay.parentUserId);
+              return (
+                parentUser !== undefined &&
+                (where.parentUser?.active === undefined ||
+                  parentUser.active === where.parentUser.active)
+              );
+            })
+            .map((volunteerDay) => {
+              const parentUser = users.find((user) => user.id === volunteerDay.parentUserId);
+              if (!parentUser) throw new Error('test parent volunteer missing');
+              return { ...volunteerDay, parentUser };
+            }),
+        ),
+      ),
+    },
     studentPortalSettings: {
       findUnique: vi.fn().mockResolvedValue(null),
     },
@@ -870,8 +910,10 @@ function makeFakeDb() {
   return {
     db,
     students,
+    users,
     attendance,
     staffAttendance,
+    parentVolunteerDays,
     specialAttendanceSessions,
     specialAttendanceRecords,
     yearGroupBands,
@@ -1347,75 +1389,25 @@ describe('attendance.listExportOptions', () => {
   it('returns student and staff selectors for export-authorised users and audits PII decrypts', async () => {
     const { db } = makeFakeDb();
 
-    await expect(
-      makeCaller(attendanceExporterUser, db).attendance.listExportOptions(),
-    ).resolves.toEqual({
-      students: [
-        {
-          id: inactiveStudentId,
-          label: 'Former Student · Year 7 · Inactive',
-          name: 'Former Student',
-          yearGroup: 'Year 7',
-          active: false,
-        },
-        {
-          id: activeStudentId,
-          label: 'Jane Learner · Year 6',
-          name: 'Jane Learner',
-          yearGroup: 'Year 6',
-          active: true,
-        },
-        {
-          id: secondStudentId,
-          label: 'Amos Scholar · Year 5',
-          name: 'Amos Scholar',
-          yearGroup: 'Year 5',
-          active: true,
-        },
-      ],
-      staff: [
-        {
+    const options = await makeCaller(attendanceExporterUser, db).attendance.listExportOptions();
+
+    expect(options.students).toHaveLength(3);
+    expect(options.staff).toHaveLength(6);
+    expect(options.staff).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
           id: headUser.id,
-          label: 'Head User · Head',
-          name: 'Head User',
-          email: 'head@example.test',
+          personKind: 'staff',
           role: 'Head',
-          active: true,
-        },
-        {
-          id: supervisorUser.id,
-          label: 'Supervisor User · Supervisor',
-          name: 'Supervisor User',
-          email: 'supervisor@example.test',
-          role: 'Supervisor',
-          active: true,
-        },
-        {
-          id: attendanceExporterUser.id,
-          label: 'Exporter User · Supervisor',
-          name: 'Exporter User',
-          email: 'exporter@example.test',
-          role: 'Supervisor',
-          active: true,
-        },
-        {
-          id: attendanceRecorderUser.id,
-          label: 'Recorder User · Supervisor',
-          name: 'Recorder User',
-          email: 'recorder@example.test',
-          role: 'Supervisor',
-          active: true,
-        },
-        {
-          id: inactiveStaffUserId,
-          label: 'Inactive Supervisor · Supervisor · Inactive',
-          name: 'Inactive Supervisor',
-          email: 'inactive@example.test',
-          role: 'Supervisor',
-          active: false,
-        },
-      ],
-    });
+        }),
+        expect.objectContaining({
+          id: parentUser.id,
+          label: 'Parent User · Parent volunteer',
+          personKind: 'parentVolunteer',
+          role: 'Parent',
+        }),
+      ]),
+    );
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: attendanceExporterUser.id,
@@ -1429,7 +1421,7 @@ describe('attendance.listExportOptions', () => {
         userId: attendanceExporterUser.id,
         action: 'DecryptPii',
         entity: 'User',
-        meta: { count: 5, source: 'attendance.listExportOptions' },
+        meta: { count: 6, source: 'attendance.listExportOptions' },
       },
     });
   });
@@ -2066,7 +2058,7 @@ describe('attendance.markStaff', () => {
     });
   });
 
-  it('denies non-admin users and rejects missing or non-staff users', async () => {
+  it('denies non-admin users, allows active parents, and rejects missing or student users', async () => {
     const { db } = makeFakeDb();
 
     await expect(
@@ -2084,16 +2076,23 @@ describe('attendance.markStaff', () => {
         date: day('2026-04-29'),
         status: 'Present',
       }),
-    ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'supervisor user not found' });
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'attendance person not found' });
     await expect(
       caller.attendance.markStaff({
         staffUserId: parentUser.id,
         date: day('2026-04-29'),
         status: 'Present',
       }),
+    ).resolves.toMatchObject({ staffUserId: parentUser.id, status: 'Present' });
+    await expect(
+      caller.attendance.markStaff({
+        staffUserId: studentUser.id,
+        date: day('2026-04-29'),
+        status: 'Present',
+      }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'user is not an active supervisor',
+      message: 'user is not an active staff member or parent',
     });
   });
 
@@ -2186,7 +2185,7 @@ describe('attendance.resetStaffForDate', () => {
 });
 
 describe('attendance.staffForDate', () => {
-  it('returns scheduled supervisors, unscheduled saved attendance, and addable unscheduled options', async () => {
+  it('returns scheduled staff, saved attendance, and grouped addable people', async () => {
     const { db } = makeFakeDb();
     await makeCaller(headUser, db).attendance.markStaff({
       staffUserId: attendanceExporterUser.id,
@@ -2209,7 +2208,76 @@ describe('attendance.staffForDate', () => {
       scheduled: false,
       status: 'Present',
     });
-    expect(result.unscheduledOptions.map((option) => option.id)).toEqual([headUser.id]);
+    expect(result.unscheduledOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: headUser.id, personKind: 'staff' }),
+        expect.objectContaining({ id: parentUser.id, personKind: 'parentVolunteer' }),
+      ]),
+    );
+  });
+
+  it('merges all parent-volunteer placements with staff shifts without duplicate people', async () => {
+    const { db, parentVolunteerDays } = makeFakeDb();
+    parentVolunteerDays.push(
+      {
+        id: 'volunteer-centre',
+        parentUserId: parentUser.id,
+        date: day('2026-04-29'),
+        placement: 'Centre',
+        slot: 0,
+      },
+      {
+        id: 'volunteer-primary',
+        parentUserId: parentUser.id,
+        date: day('2026-04-29'),
+        placement: 'LunchAndClubsPrimary',
+        slot: 0,
+      },
+      {
+        id: 'volunteer-secondary',
+        parentUserId: parentUser.id,
+        date: day('2026-04-29'),
+        placement: 'LunchAndClubsSecondary',
+        slot: 0,
+      },
+      {
+        id: 'volunteer-staff',
+        parentUserId: supervisorUser.id,
+        date: day('2026-04-29'),
+        placement: 'LunchAndClubsPrimary',
+        slot: 1,
+      },
+    );
+
+    const result = await makeCaller(headUser, db).attendance.staffForDate({
+      date: day('2026-04-29'),
+    });
+
+    const parentRow = result.rows.find((row) => row.staffUserId === parentUser.id);
+    expect(parentRow).toMatchObject({
+      personKind: 'parentVolunteer',
+      isParentVolunteer: true,
+      scheduled: true,
+      shifts: [],
+    });
+    expect(parentRow?.volunteerPlacements.map((placement) => placement.label)).toEqual([
+      'Centre volunteer',
+      'Lunch + Clubs · Primary',
+      'Lunch + Clubs · Secondary',
+    ]);
+
+    const supervisorRow = result.rows.find((row) => row.staffUserId === supervisorUser.id);
+    expect(supervisorRow).toMatchObject({
+      personKind: 'staff',
+      isParentVolunteer: true,
+      scheduled: true,
+    });
+    expect(supervisorRow?.shifts).toHaveLength(1);
+    expect(supervisorRow?.volunteerPlacements).toEqual([
+      expect.objectContaining({ label: 'Lunch + Clubs · Primary' }),
+    ]);
+    expect(result.rows.filter((row) => row.staffUserId === supervisorUser.id)).toHaveLength(1);
+    expect(result.unscheduledOptions.map((option) => option.id)).not.toContain(parentUser.id);
   });
 
   it('denies non-full-admin users', async () => {
@@ -2400,12 +2468,12 @@ describe('attendance.exportStaffCsv', () => {
     });
 
     expect(exported).toEqual({
-      filename: 'supervisor-attendance-2026-04-28-to-2026-04-29.csv',
+      filename: 'staff-and-volunteer-attendance-2026-04-28-to-2026-04-29.csv',
       contentType: 'text/csv; charset=utf-8',
       csv: [
-        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Absence Reason,Recorded At',
-        '2026-04-28,ckusersup000000000000001,Supervisor User,supervisor@example.test,Supervisor,Absent,Unexcused,2026-04-29T11:00:00.000Z',
-        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,,2026-04-29T11:01:00.000Z',
+        'Date,Person User ID,Person Name,Email,Attendance Group,Role,Status,Absence Reason,Recorded At',
+        '2026-04-28,ckusersup000000000000001,Supervisor User,supervisor@example.test,Staff,Supervisor,Absent,Unexcused,2026-04-29T11:00:00.000Z',
+        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Staff,Supervisor,Late,,2026-04-29T11:01:00.000Z',
       ].join('\n'),
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -2438,7 +2506,7 @@ describe('attendance.exportStaffCsv', () => {
         to: day('2026-04-29'),
       }),
     ).resolves.toMatchObject({
-      filename: 'supervisor-attendance-2026-04-29-to-2026-04-29.csv',
+      filename: 'staff-and-volunteer-attendance-2026-04-29-to-2026-04-29.csv',
     });
     await expect(
       makeCaller(supervisorUser, db).attendance.exportStaffCsv({
@@ -2498,8 +2566,8 @@ describe('attendance.exportStaffCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Absence Reason,Recorded At',
-        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,,2026-04-29T11:01:00.000Z',
+        'Date,Person User ID,Person Name,Email,Attendance Group,Role,Status,Absence Reason,Recorded At',
+        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Staff,Supervisor,Late,,2026-04-29T11:01:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -2517,6 +2585,33 @@ describe('attendance.exportStaffCsv', () => {
         },
       },
     });
+  });
+
+  it('exports a parent volunteer with a nullable email and parent-volunteer category', async () => {
+    const { db, users } = makeFakeDb();
+    const parent = users.find((user) => user.id === parentUser.id);
+    if (!parent) throw new Error('test parent missing');
+    parent.emailEnc = null;
+
+    const caller = makeCaller(headUser, db);
+    await caller.attendance.markStaff({
+      staffUserId: parentUser.id,
+      date: day('2026-04-29'),
+      status: 'Present',
+    });
+
+    const exported = await caller.attendance.exportStaffCsv({
+      from: day('2026-04-29'),
+      to: day('2026-04-29'),
+      staffUserId: parentUser.id,
+    });
+
+    expect(exported.csv).toBe(
+      [
+        'Date,Person User ID,Person Name,Email,Attendance Group,Role,Status,Absence Reason,Recorded At',
+        '2026-04-29,ckuserparent000000000001,Parent User,,Parent volunteer,Parent,Present,,2026-04-29T11:00:00.000Z',
+      ].join('\n'),
+    );
   });
 
   it('rejects invalid ranges before staff export work starts', async () => {
@@ -2578,8 +2673,8 @@ describe('attendance.exportStaffCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Absence Reason,Recorded At',
-        '2026-04-28,ckuserinactive000000001,Inactive Supervisor,inactive@example.test,Supervisor,Absent,Unexcused,2026-04-28T09:45:00.000Z',
+        'Date,Person User ID,Person Name,Email,Attendance Group,Role,Status,Absence Reason,Recorded At',
+        '2026-04-28,ckuserinactive000000001,Inactive Supervisor,inactive@example.test,Staff,Supervisor,Absent,Unexcused,2026-04-28T09:45:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -2689,6 +2784,40 @@ describe('attendance.insights', () => {
         to: day('2026-04-29'),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('includes recorded parent volunteers in staff attendance insights', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await caller.attendance.markStaff({
+      staffUserId: parentUser.id,
+      date: day('2026-04-29'),
+      status: 'Present',
+    });
+
+    const result = await caller.attendance.insights({
+      kind: 'staff',
+      from: day('2026-04-29'),
+      to: day('2026-04-29'),
+      subjectId: parentUser.id,
+    });
+
+    expect(result.summary).toMatchObject({ total: 1, present: 1, absent: 0, late: 0 });
+    expect(result.people).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: parentUser.id,
+          detail: 'Parent volunteer',
+          label: 'Parent User · Parent volunteer',
+        }),
+      ]),
+    );
+    expect(result.records).toEqual([
+      expect.objectContaining({
+        subjectId: parentUser.id,
+        detail: 'Parent volunteer',
+      }),
+    ]);
   });
 
   it('keeps legacy Absent rows without a reason in the Unknown bucket', async () => {

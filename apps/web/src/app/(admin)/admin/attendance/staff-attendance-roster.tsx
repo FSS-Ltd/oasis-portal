@@ -49,19 +49,19 @@ function formatTime(value: Date): string {
 }
 
 function scheduleLabel(row: StaffAttendanceRow): string {
-  if (!row.scheduled) return 'Unscheduled';
-  if (row.shifts.length === 0) return 'Scheduled';
-  return row.shifts
-    .map(
-      (shift) =>
-        `${formatTime(shift.startsAt)}-${formatTime(shift.endsAt)} · ${shift.bandName ?? 'Band'}`,
-    )
-    .join(', ');
+  const shiftLabels = row.shifts.map(
+    (shift) =>
+      `${formatTime(shift.startsAt)}-${formatTime(shift.endsAt)} · ${shift.bandName ?? 'Band'}`,
+  );
+  const volunteerLabels = row.volunteerPlacements.map((placement) => placement.label);
+  const labels = [...shiftLabels, ...volunteerLabels];
+  if (labels.length > 0) return labels.join(', ');
+  return row.scheduled ? 'Scheduled' : 'Unscheduled';
 }
 
 export function StaffAttendanceRoster() {
   const [selectedDate, setSelectedDate] = useState(todayKey);
-  const [selectedStaffUserId, setSelectedStaffUserId] = useState(NO_SELECTION);
+  const [selectedPersonUserId, setSelectedPersonUserId] = useState(NO_SELECTION);
   const [selectedStatuses, setSelectedStatuses] = useState<Record<string, AttendanceStatus>>({});
   const [selectedReasons, setSelectedReasons] = useState<Record<string, AbsenceReason>>({});
   const [pendingRows, setPendingRows] = useState<Record<string, boolean>>({});
@@ -95,66 +95,80 @@ export function StaffAttendanceRoster() {
       showSuccessToast(`${row.staffName} marked ${status}.`);
       await utils.attendance.staffForDate.invalidate({ date });
     } catch (err) {
-      showErrorToast(err, 'Supervisor attendance could not be saved.');
+      showErrorToast(err, 'Attendance could not be saved.');
       setRowErrors((current) => ({
         ...current,
-        [row.staffUserId]: friendlyErrorMessage(err, 'Supervisor attendance could not be saved.'),
+        [row.staffUserId]: friendlyErrorMessage(err, 'Attendance could not be saved.'),
       }));
     } finally {
       setPendingRows((current) => withoutRecordKey(current, row.staffUserId));
     }
   }
 
-  async function addUnscheduledSupervisor() {
-    if (!selectedStaffUserId) return;
+  async function addUnscheduledPerson() {
+    if (!selectedPersonUserId) return;
     const option = staffQuery.data?.unscheduledOptions.find(
-      (staff) => staff.id === selectedStaffUserId,
+      (person) => person.id === selectedPersonUserId,
     );
     if (!option) return;
-    setPendingRows((current) => ({ ...current, [selectedStaffUserId]: true }));
-    setRowErrors((current) => withoutRecordKey(current, selectedStaffUserId));
+    setPendingRows((current) => ({ ...current, [selectedPersonUserId]: true }));
+    setRowErrors((current) => withoutRecordKey(current, selectedPersonUserId));
     setAddError(null);
 
     try {
-      await markMutation.mutateAsync({ staffUserId: selectedStaffUserId, date, status: 'Present' });
-      setSelectedStaffUserId(NO_SELECTION);
+      await markMutation.mutateAsync({
+        staffUserId: selectedPersonUserId,
+        date,
+        status: 'Present',
+      });
+      setSelectedPersonUserId(NO_SELECTION);
       showSuccessToast(`${option.name} added to attendance.`);
       await utils.attendance.staffForDate.invalidate({ date });
     } catch (err) {
-      setAddError(friendlyErrorMessage(err, 'Supervisor could not be added.'));
-      showErrorToast(err, 'Supervisor could not be added.');
+      setAddError(friendlyErrorMessage(err, 'Person could not be added.'));
+      showErrorToast(err, 'Person could not be added.');
     } finally {
-      setPendingRows((current) => withoutRecordKey(current, selectedStaffUserId));
+      setPendingRows((current) => withoutRecordKey(current, selectedPersonUserId));
     }
   }
 
   async function resetRegister() {
-    if (!window.confirm('Reset this supervisor register for the selected date?')) return;
+    if (!window.confirm('Reset this staff and volunteer register for the selected date?')) return;
     try {
       const result = await resetMutation.mutateAsync({ date });
       setSelectedStatuses({});
       setSelectedReasons({});
       setRowErrors({});
       showSuccessToast(
-        `Supervisor register reset. ${String(result.deletedCount)} records cleared.`,
+        `Staff and volunteer register reset. ${String(result.deletedCount)} records cleared.`,
       );
       await utils.attendance.staffForDate.invalidate({ date });
     } catch (err) {
-      showErrorToast(err, 'Supervisor register could not be reset.');
+      showErrorToast(err, 'Staff and volunteer register could not be reset.');
     }
   }
 
   const rows = staffQuery.data?.rows ?? [];
+  const unscheduledOptions = staffQuery.data?.unscheduledOptions ?? [];
+  const unscheduledStaffOptions = unscheduledOptions.filter(
+    (option) => option.personKind === 'staff',
+  );
+  const unscheduledParentVolunteerOptions = unscheduledOptions.filter(
+    (option) => option.personKind === 'parentVolunteer',
+  );
   const dateStatus = operationalDatesQuery.data?.[0];
   const canRecordForDate = dateStatus?.kind === 'operating';
   const columns: DataTableColumn<StaffAttendanceRow>[] = [
     {
       id: 'name',
-      header: 'Supervisor',
+      header: 'Person',
       render: (row) => (
         <span className="student-row__text">
           <strong>{row.staffName}</strong>
-          <span>{roleLabel(row.role)}</span>
+          <span className="badge-list">
+            {roleLabel(row.role)}
+            {row.isParentVolunteer ? <Badge tone="green">Parent volunteer</Badge> : null}
+          </span>
         </span>
       ),
     },
@@ -200,7 +214,7 @@ export function StaffAttendanceRoster() {
   if (canRecordForDate) {
     columns.push({
       id: 'actions',
-      header: <span className="sr-only">Mark supervisor attendance</span>,
+      header: <span className="sr-only">Mark attendance</span>,
       render: (row) => {
         const selectedStatus = selectedStatuses[row.staffUserId] ?? row.status;
         const selectedReason = selectedReasons[row.staffUserId] ?? row.absenceReason ?? '';
@@ -263,9 +277,9 @@ export function StaffAttendanceRoster() {
     <section className="attendance-staff-roster">
       <div className="section-title">
         <div>
-          <h2>Supervisor attendance</h2>
+          <h2>Staff &amp; volunteer attendance</h2>
           <p className="muted">
-            Mark scheduled supervisors, or add someone who came in unscheduled.
+            Mark scheduled staff and volunteers, or add someone who came in to help.
           </p>
         </div>
       </div>
@@ -273,7 +287,7 @@ export function StaffAttendanceRoster() {
       <div className="toolbar attendance-toolbar">
         <div className="toolbar__search attendance-toolbar__date">
           <TextInput
-            aria-label="Supervisor attendance date"
+            aria-label="Staff and volunteer attendance date"
             onChange={(event) => {
               setSelectedDate(event.target.value);
               setSelectedStatuses({});
@@ -310,31 +324,42 @@ export function StaffAttendanceRoster() {
       </div>
 
       {dateStatus && !canRecordForDate ? (
-        <p className="status--warning">Supervisor attendance is unavailable: {dateStatus.label}.</p>
+        <p className="status--warning">
+          Staff and volunteer attendance is unavailable: {dateStatus.label}.
+        </p>
       ) : null}
 
       <div className="panel panel__body attendance-unscheduled-panel">
         <SelectInput
-          aria-label="Unscheduled supervisor"
+          aria-label="Unscheduled staff member or parent volunteer"
           onChange={(event) => {
-            setSelectedStaffUserId(event.target.value);
+            setSelectedPersonUserId(event.target.value);
             setAddError(null);
           }}
-          value={selectedStaffUserId}
+          value={selectedPersonUserId}
         >
-          <option value={NO_SELECTION}>Add unscheduled supervisor</option>
-          {(staffQuery.data?.unscheduledOptions ?? []).map((staff) => (
-            <option key={staff.id} value={staff.id}>
-              {staff.label}
-            </option>
-          ))}
+          <option value={NO_SELECTION}>Add unscheduled person</option>
+          <optgroup label="Staff">
+            {unscheduledStaffOptions.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.label}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Parent volunteers">
+            {unscheduledParentVolunteerOptions.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.label}
+              </option>
+            ))}
+          </optgroup>
         </SelectInput>
         <Button
-          disabled={!canRecordForDate || !selectedStaffUserId}
+          disabled={!canRecordForDate || !selectedPersonUserId}
           onClick={() => {
-            void addUnscheduledSupervisor();
+            void addUnscheduledPerson();
           }}
-          pending={selectedStaffUserId ? (pendingRows[selectedStaffUserId] ?? false) : false}
+          pending={selectedPersonUserId ? (pendingRows[selectedPersonUserId] ?? false) : false}
           type="button"
         >
           <Plus aria-hidden="true" size={16} />
@@ -350,14 +375,14 @@ export function StaffAttendanceRoster() {
           columns={columns}
           empty={
             <EmptyState
-              detail="Create rota shifts before marking supervisor attendance."
-              title="No supervisors scheduled"
+              detail="Create staff shifts or volunteer bookings before marking attendance."
+              title="No staff or volunteers scheduled"
             />
           }
           errorMessage={staffQuery.error ? friendlyErrorMessage(staffQuery.error) : undefined}
           getRowKey={(row) => row.staffUserId}
           loading={staffQuery.isLoading}
-          loadingLabel="Loading supervisor attendance..."
+          loadingLabel="Loading staff and volunteer attendance..."
           rows={rows}
           tableClassName="attendance-table"
         />
