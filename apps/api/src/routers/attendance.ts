@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import {
+  ADULT_USER_ACCOUNT_ROLES,
   AccessDeniedError,
   attendanceRate as calculateAttendanceRate,
   canExportAttendance,
   canRecordStudentAttendance,
-  isStaff,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -31,6 +31,14 @@ const ATTENDANCE_ROLES = [
   'ClubsAdmin',
   'Supervisor',
 ] as const;
+
+const ATTENDANCE_PERSON_ROLES = ADULT_USER_ACCOUNT_ROLES;
+
+const PARENT_VOLUNTEER_PLACEMENT_LABELS = {
+  Centre: 'Centre volunteer',
+  LunchAndClubsPrimary: 'Lunch + Clubs · Primary',
+  LunchAndClubsSecondary: 'Lunch + Clubs · Secondary',
+} as const;
 
 const attendanceStatusSchema = z.enum(['Present', 'Absent', 'Late']);
 const absenceReasonSchema = z.enum(['Sick', 'Holiday', 'NotScheduled', 'Excused', 'Unexcused']);
@@ -428,7 +436,7 @@ async function denyOutOfDailyScope(
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
-async function assertActiveStaffUser(
+async function assertActiveAttendancePerson(
   ctx: {
     db: {
       user: {
@@ -446,10 +454,13 @@ async function assertActiveStaffUser(
     select: { id: true, role: true, active: true },
   });
   if (!user) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'supervisor user not found' });
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'attendance person not found' });
   }
-  if (!user.active || !isStaff(user)) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'user is not an active supervisor' });
+  if (!user.active || user.role === 'Student') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'user is not an active staff member or parent',
+    });
   }
 }
 
@@ -923,7 +934,7 @@ export const attendanceRouter = router({
       }),
       ctx.db.user.findMany({
         where: {
-          role: { in: [...ATTENDANCE_ROLES] },
+          role: { in: [...ATTENDANCE_PERSON_ROLES] },
         },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         select: {
@@ -948,13 +959,15 @@ export const attendanceRouter = router({
     });
     const staffOptions = staffUsers.map((staffUser) => {
       const staffName = decryptRequired(ctx.db.$enc.decrypt, staffUser.fullNameEnc, 'user');
-      const email = decryptRequired(ctx.db.$enc.decrypt, staffUser.emailEnc, 'user');
+      const personKind = staffUser.role === 'Parent' ? 'parentVolunteer' : 'staff';
+      const email = decryptOptional(ctx.db.$enc.decrypt, staffUser.emailEnc);
       return {
         id: staffUser.id,
-        label: `${staffName} · ${staffUser.role}${staffUser.active ? '' : ' · Inactive'}`,
+        label: `${staffName} · ${personKind === 'parentVolunteer' ? 'Parent volunteer' : staffUser.role}${staffUser.active ? '' : ' · Inactive'}`,
         name: staffName,
         email,
         role: staffUser.role,
+        personKind,
         active: staffUser.active,
       };
     });
@@ -1179,7 +1192,7 @@ export const attendanceRouter = router({
     .input(z.object({ date: z.coerce.date() }))
     .query(async ({ ctx, input }) => {
       const date = normalizeDate(input.date);
-      const [shifts, attendanceRows, activeStaff] = await Promise.all([
+      const [shifts, parentVolunteerDays, attendanceRows, activePeople] = await Promise.all([
         ctx.db.staffShift.findMany({
           where: {
             date,
@@ -1193,6 +1206,18 @@ export const attendanceRouter = router({
             yearGroupBand: { select: { name: true, colour: true } },
           },
         }),
+        ctx.db.parentVolunteerDay.findMany({
+          where: {
+            date,
+            parentUser: { active: true, role: { in: [...ATTENDANCE_PERSON_ROLES] } },
+          },
+          orderBy: [{ placement: 'asc' }, { slot: 'asc' }],
+          include: {
+            parentUser: {
+              select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
+            },
+          },
+        }),
         ctx.db.staffAttendance.findMany({
           where: { date },
           orderBy: [{ createdAt: 'asc' }],
@@ -1203,17 +1228,17 @@ export const attendanceRouter = router({
           },
         }),
         ctx.db.user.findMany({
-          where: { active: true, role: { in: [...ATTENDANCE_ROLES] } },
+          where: { active: true, role: { in: [...ATTENDANCE_PERSON_ROLES] } },
           orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
           select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
         }),
       ]);
 
       const attendanceByStaffId = new Map(attendanceRows.map((row) => [row.staffUserId, row]));
-      const scheduledByStaffId = new Map<
+      const scheduledByPersonId = new Map<
         string,
         {
-          staffUser: (typeof shifts)[number]['staffUser'];
+          person: (typeof activePeople)[number];
           shifts: {
             id: string;
             startsAt: Date;
@@ -1221,11 +1246,16 @@ export const attendanceRouter = router({
             bandName: string | null;
             bandColour: string | null;
           }[];
+          volunteerPlacements: {
+            id: string;
+            placement: keyof typeof PARENT_VOLUNTEER_PLACEMENT_LABELS;
+            label: string;
+          }[];
         }
       >();
 
       for (const shift of shifts) {
-        const existing = scheduledByStaffId.get(shift.staffUserId);
+        const existing = scheduledByPersonId.get(shift.staffUserId);
         const mappedShift = {
           id: shift.id,
           startsAt: shift.startsAt,
@@ -1236,29 +1266,53 @@ export const attendanceRouter = router({
         if (existing) {
           existing.shifts.push(mappedShift);
         } else {
-          scheduledByStaffId.set(shift.staffUserId, {
-            staffUser: shift.staffUser,
+          scheduledByPersonId.set(shift.staffUserId, {
+            person: shift.staffUser,
             shifts: [mappedShift],
+            volunteerPlacements: [],
           });
         }
       }
 
-      const rows = [...scheduledByStaffId.entries()].map(([staffUserId, scheduled]) => {
+      for (const volunteerDay of parentVolunteerDays) {
+        const existing = scheduledByPersonId.get(volunteerDay.parentUserId);
+        const placement = volunteerDay.placement;
+        const mappedPlacement = {
+          id: volunteerDay.id,
+          placement,
+          label: PARENT_VOLUNTEER_PLACEMENT_LABELS[placement],
+        };
+        if (existing) {
+          existing.volunteerPlacements.push(mappedPlacement);
+        } else {
+          scheduledByPersonId.set(volunteerDay.parentUserId, {
+            person: volunteerDay.parentUser,
+            shifts: [],
+            volunteerPlacements: [mappedPlacement],
+          });
+        }
+      }
+
+      const rows = [...scheduledByPersonId.entries()].map(([staffUserId, scheduled]) => {
         const attendance = attendanceByStaffId.get(staffUserId) ?? null;
         const staffName = decryptRequired(
           ctx.db.$enc.decrypt,
-          scheduled.staffUser.fullNameEnc,
+          scheduled.person.fullNameEnc,
           'user',
         );
         return {
           staffUserId,
           staffName,
-          email: decryptRequired(ctx.db.$enc.decrypt, scheduled.staffUser.emailEnc, 'user'),
-          role: scheduled.staffUser.role,
-          active: scheduled.staffUser.active,
+          email: decryptOptional(ctx.db.$enc.decrypt, scheduled.person.emailEnc),
+          role: scheduled.person.role,
+          personKind: scheduled.person.role === 'Parent' ? 'parentVolunteer' : 'staff',
+          isParentVolunteer:
+            scheduled.person.role === 'Parent' || scheduled.volunteerPlacements.length > 0,
+          active: scheduled.person.active,
           date: dateKey(date),
           scheduled: true,
           shifts: scheduled.shifts,
+          volunteerPlacements: scheduled.volunteerPlacements,
           attendanceId: attendance?.id ?? null,
           status: attendance?.status ?? null,
           absenceReason: attendance?.absenceReason ?? null,
@@ -1269,16 +1323,19 @@ export const attendanceRouter = router({
       });
 
       for (const attendance of attendanceRows) {
-        if (scheduledByStaffId.has(attendance.staffUserId)) continue;
+        if (scheduledByPersonId.has(attendance.staffUserId)) continue;
         rows.push({
           staffUserId: attendance.staffUserId,
           staffName: decryptRequired(ctx.db.$enc.decrypt, attendance.staffUser.fullNameEnc, 'user'),
-          email: decryptRequired(ctx.db.$enc.decrypt, attendance.staffUser.emailEnc, 'user'),
+          email: decryptOptional(ctx.db.$enc.decrypt, attendance.staffUser.emailEnc),
           role: attendance.staffUser.role,
+          personKind: attendance.staffUser.role === 'Parent' ? 'parentVolunteer' : 'staff',
+          isParentVolunteer: attendance.staffUser.role === 'Parent',
           active: attendance.staffUser.active,
           date: dateKey(date),
           scheduled: false,
           shifts: [],
+          volunteerPlacements: [],
           attendanceId: attendance.id,
           status: attendance.status,
           absenceReason: attendance.absenceReason,
@@ -1289,16 +1346,21 @@ export const attendanceRouter = router({
       }
 
       const visibleStaffIds = new Set(rows.map((row) => row.staffUserId));
-      const unscheduledOptions = activeStaff
+      const unscheduledOptions = activePeople
         .filter((staff) => !visibleStaffIds.has(staff.id))
         .map((staff) => {
           const staffName = decryptRequired(ctx.db.$enc.decrypt, staff.fullNameEnc, 'user');
+          const personKind = staff.role === 'Parent' ? 'parentVolunteer' : 'staff';
           return {
             id: staff.id,
-            label: `${staffName} · ${staff.role}`,
+            label:
+              personKind === 'parentVolunteer'
+                ? `${staffName} · Parent volunteer`
+                : `${staffName} · ${staff.role}`,
             name: staffName,
-            email: decryptRequired(ctx.db.$enc.decrypt, staff.emailEnc, 'user'),
+            email: decryptOptional(ctx.db.$enc.decrypt, staff.emailEnc),
             role: staff.role,
+            personKind,
           };
         });
 
@@ -1328,7 +1390,7 @@ export const attendanceRouter = router({
       const date = normalizeDate(input.date);
       await assertOperatingDate(ctx.db, date);
       const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
-      await assertActiveStaffUser(ctx, input.staffUserId);
+      await assertActiveAttendancePerson(ctx, input.staffUserId);
 
       const existing = await ctx.db.staffAttendance.findUnique({
         where: { staffUserId_date: { staffUserId: input.staffUserId, date } },
@@ -1437,9 +1499,10 @@ export const attendanceRouter = router({
     const csv = buildCsv(
       [
         'Date',
-        'Supervisor User ID',
-        'Supervisor Name',
+        'Person User ID',
+        'Person Name',
         'Email',
+        'Attendance Group',
         'Role',
         'Status',
         'Absence Reason',
@@ -1449,7 +1512,8 @@ export const attendanceRouter = router({
         dateKey(row.date),
         row.staffUser.id,
         decryptRequired(ctx.db.$enc.decrypt, row.staffUser.fullNameEnc, 'user'),
-        decryptRequired(ctx.db.$enc.decrypt, row.staffUser.emailEnc, 'user'),
+        decryptOptional(ctx.db.$enc.decrypt, row.staffUser.emailEnc) ?? '',
+        row.staffUser.role === 'Parent' ? 'Parent volunteer' : 'Staff',
         row.staffUser.role,
         row.status,
         row.status === 'Absent' ? (reasonLabel(row.absenceReason) ?? 'Unknown') : '',
@@ -1482,7 +1546,7 @@ export const attendanceRouter = router({
     });
 
     return {
-      filename: `supervisor-attendance-${dateKey(from)}-to-${dateKey(to)}.csv`,
+      filename: `staff-and-volunteer-attendance-${dateKey(from)}-to-${dateKey(to)}.csv`,
       contentType: 'text/csv; charset=utf-8',
       csv,
     };
@@ -1628,7 +1692,7 @@ export const attendanceRouter = router({
 
     const [peopleRows, attendanceRows] = await Promise.all([
       ctx.db.user.findMany({
-        where: { role: { in: [...ATTENDANCE_ROLES] } },
+        where: { role: { in: [...ATTENDANCE_PERSON_ROLES] } },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
       }),
@@ -1663,11 +1727,12 @@ export const attendanceRouter = router({
 
     const people = peopleRows.map((staff) => {
       const name = decryptRequired(ctx.db.$enc.decrypt, staff.fullNameEnc, 'user');
+      const detail = staff.role === 'Parent' ? 'Parent volunteer' : staff.role;
       return {
         id: staff.id,
-        label: `${name} · ${staff.role}${staff.active ? '' : ' · Inactive'}`,
+        label: `${name} · ${detail}${staff.active ? '' : ' · Inactive'}`,
         name,
-        detail: staff.role,
+        detail,
         active: staff.active,
       };
     });
@@ -1676,7 +1741,7 @@ export const attendanceRouter = router({
       date: dateKey(row.date),
       subjectId: row.staffUser.id,
       subjectName: decryptRequired(ctx.db.$enc.decrypt, row.staffUser.fullNameEnc, 'user'),
-      detail: row.staffUser.role,
+      detail: row.staffUser.role === 'Parent' ? 'Parent volunteer' : row.staffUser.role,
       status: row.status,
       absenceReason: row.absenceReason,
       absenceReasonLabel: reasonLabel(row.absenceReason),

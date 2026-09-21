@@ -18,7 +18,7 @@ type AttendanceTabsProps = {
 
 const tabLabels = {
   student: 'Student register',
-  staff: 'Staff register',
+  staff: 'Staff & volunteers',
   special: 'Special attendance',
   center: 'Attendance center',
 } as const satisfies Record<AttendanceTab, string>;

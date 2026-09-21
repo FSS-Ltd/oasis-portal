@@ -1,8 +1,9 @@
 'use client';
 
-import { BarChart3, RefreshCw, TrendingUp } from 'lucide-react';
+import { BarChart3, Download, RefreshCw, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { downloadCsv } from '@/components/attendance/download-csv';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -12,7 +13,7 @@ import { friendlyErrorMessage } from '@/lib/notifications';
 const ALL_RECORDS = '__all';
 const insightTabs = [
   { id: 'students', label: 'Students' },
-  { id: 'staff', label: 'Supervisors' },
+  { id: 'staff', label: 'Staff & volunteers' },
 ] as const;
 
 type InsightKind = (typeof insightTabs)[number]['id'];
@@ -128,6 +129,14 @@ export function AttendanceExportCentre() {
     { kind, from: fromDate, to: toDate, subjectId: selectedSubjectId },
     { retry: false },
   );
+  const staffExportQuery = api.attendance.exportStaffCsv.useQuery(
+    {
+      from: fromDate,
+      to: toDate,
+      ...(selectedSubjectId ? { staffUserId: selectedSubjectId } : {}),
+    },
+    { enabled: false, retry: false },
+  );
 
   const data = insightsQuery.data;
   const statusPoints = data ? statusBreakdownPoints(data) : [];
@@ -136,6 +145,14 @@ export function AttendanceExportCentre() {
       .filter((reason) => reason.count > 0 || reason.reason !== 'Unknown')
       .map((reason) => ({ label: reason.label, count: reason.count })) ?? [];
 
+  function exportStaffAndVolunteers() {
+    void staffExportQuery.refetch().then((result) => {
+      if (result.data) {
+        downloadCsv(result.data.filename, result.data.csv, result.data.contentType);
+      }
+    });
+  }
+
   return (
     <section className="attendance-export-centre">
       <div className="section-title">
@@ -143,17 +160,30 @@ export function AttendanceExportCentre() {
           <h2>Visual attendance center</h2>
           <p className="muted">View trends, overviews, and individual records.</p>
         </div>
-        <Button
-          onClick={() => {
-            void insightsQuery.refetch();
-          }}
-          pending={insightsQuery.isFetching}
-          type="button"
-          variant="secondary"
-        >
-          <RefreshCw aria-hidden="true" size={16} />
-          Refresh
-        </Button>
+        <div className="row-actions">
+          {kind === 'staff' ? (
+            <Button
+              disabled={!from || !to}
+              onClick={exportStaffAndVolunteers}
+              pending={staffExportQuery.isFetching}
+              type="button"
+            >
+              <Download aria-hidden="true" size={16} />
+              Export CSV
+            </Button>
+          ) : null}
+          <Button
+            onClick={() => {
+              void insightsQuery.refetch();
+            }}
+            pending={insightsQuery.isFetching}
+            type="button"
+            variant="secondary"
+          >
+            <RefreshCw aria-hidden="true" size={16} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="attendance-insights-tabs" role="tablist" aria-label="Attendance view">
@@ -196,7 +226,7 @@ export function AttendanceExportCentre() {
           />
         </label>
         <label className="field">
-          <span className="field__label">{kind === 'students' ? 'Student' : 'Supervisor'}</span>
+          <span className="field__label">{kind === 'students' ? 'Student' : 'Person'}</span>
           <SelectInput
             onChange={(event) => {
               setSelectedId(event.target.value);
@@ -204,7 +234,7 @@ export function AttendanceExportCentre() {
             value={selectedId}
           >
             <option value={ALL_RECORDS}>
-              {kind === 'students' ? 'All students' : 'All supervisors'}
+              {kind === 'students' ? 'All students' : 'All staff & volunteers'}
             </option>
             {(data?.people ?? []).map((person) => (
               <option key={person.id} value={person.id}>
@@ -218,6 +248,11 @@ export function AttendanceExportCentre() {
       {insightsQuery.error ? (
         <p className="status--error attendance-export-centre__error">
           {friendlyErrorMessage(insightsQuery.error)}
+        </p>
+      ) : null}
+      {kind === 'staff' && staffExportQuery.error ? (
+        <p className="status--error attendance-export-centre__error">
+          {friendlyErrorMessage(staffExportQuery.error)}
         </p>
       ) : null}
       {insightsQuery.isLoading ? (
