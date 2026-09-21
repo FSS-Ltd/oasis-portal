@@ -73,6 +73,7 @@ const navGroups: NavGroup[] = [
       { href: '/admin/homework', label: 'Homework', icon: ClipboardList },
       { href: '/admin/timetables', label: 'Timetables', icon: Table2 },
       { href: '/admin/academic', label: 'Academics', icon: BookOpen },
+      { href: '/admin/library', label: 'Library', icon: BookOpen },
       { href: '/admin/faith-corner', label: 'Faith Corner', icon: BookOpenText },
       { href: '/admin/leaderboard', label: 'Leaderboard', icon: Medal },
       { href: '/admin/student-portal', label: 'Student Portal', icon: MonitorCheck },
@@ -142,6 +143,7 @@ type AdminNavProps = {
   canUseShop: boolean;
   canUseAdminOperations: boolean;
   canUsePersonalTasks: boolean;
+  canUseLibrary: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
   isHead: boolean;
@@ -189,6 +191,7 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
   if (item.label === 'My tasks') return access.canUsePersonalTasks;
   if (item.label === 'Mobile App') return true;
   if (item.label === 'PACE Inventory') return access.isHead;
+  if (item.label === 'Library') return access.canUseLibrary;
   if (item.label === 'Timetables') return access.isHead;
   if (item.label === 'User Access') return access.canManageUserAccounts;
   if (access.fullAdmin) {

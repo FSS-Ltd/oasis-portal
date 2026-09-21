@@ -72,6 +72,19 @@ enum ParentEmailNotificationCategory {
   Report
 }
 
+enum LibraryReminderStage {
+  DueInTwoDays
+  DueToday
+  OverdueOneDay
+}
+
+enum LibraryReminderEmailStatus {
+  Pending
+  Sent
+  Failed
+  NoEmail
+}
+
 enum PaceInventoryOrderStatus {
   Ordered
   InTransit
@@ -246,6 +259,11 @@ model User {
   timetableSchedulesUpdated        TimetableAgeGroupSchedule[]      @relation("TimetableSchedulesUpdated")
   studentTimetablesUpdated         StudentTimetable[]               @relation("StudentTimetablesUpdated")
   timetablePublicationsPublished   StudentTimetablePublication[]    @relation("TimetablePublicationsPublished")
+  libraryBooksCreated              LibraryBook[]                    @relation("LibraryBooksCreated")
+  libraryBooksUpdated              LibraryBook[]                    @relation("LibraryBooksUpdated")
+  libraryLoansCheckedOut           LibraryLoan[]                    @relation("LibraryLoansCheckedOut")
+  libraryLoansReturned             LibraryLoan[]                    @relation("LibraryLoansReturned")
+  libraryEmailReminders            LibraryEmailReminder[]           @relation("LibraryEmailRemindersRecipient")
 
   @@index([role])
 }
@@ -377,10 +395,78 @@ model Student {
   timetables                StudentTimetable[]
   timetablePublications     StudentTimetablePublication[]
   ageBand                   YearGroupBand?                @relation(fields: [ageBandId], references: [id], onDelete: SetNull)
+  libraryLoans              LibraryLoan[]
 
   @@index([yearGroup])
   @@index([ageBandId, active])
   @@index([nameBidx])
+}
+
+model LibraryBook {
+  id             String   @id @default(cuid())
+  barcode        String   @unique
+  title          String
+  author         String
+  coverUrl       String
+  coverBucket    String
+  coverPath      String
+  coverMimeType  String
+  coverSizeBytes Int
+  active         Boolean  @default(true)
+  createdById    String
+  updatedById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdBy User          @relation("LibraryBooksCreated", fields: [createdById], references: [id])
+  updatedBy User          @relation("LibraryBooksUpdated", fields: [updatedById], references: [id])
+  loans     LibraryLoan[]
+
+  @@index([active, title])
+  @@index([active, author])
+}
+
+model LibraryLoan {
+  id             String    @id @default(cuid())
+  bookId         String
+  studentId      String
+  checkedOutById String
+  checkedOutAt   DateTime  @default(now())
+  dueOn          DateTime  @db.Date
+  returnedAt     DateTime?
+  returnedById   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  book         LibraryBook           @relation(fields: [bookId], references: [id])
+  student      Student               @relation(fields: [studentId], references: [id])
+  checkedOutBy User                  @relation("LibraryLoansCheckedOut", fields: [checkedOutById], references: [id])
+  returnedBy   User?                 @relation("LibraryLoansReturned", fields: [returnedById], references: [id])
+  reminders    LibraryEmailReminder[]
+
+  @@index([bookId, returnedAt])
+  @@index([studentId, returnedAt, dueOn])
+  @@index([dueOn, returnedAt])
+}
+
+model LibraryEmailReminder {
+  id              String                     @id @default(cuid())
+  loanId          String
+  recipientUserId String
+  stage           LibraryReminderStage
+  status          LibraryReminderEmailStatus @default(Pending)
+  attempts        Int                        @default(0)
+  emailMessageId  String?
+  emailSentAt     DateTime?
+  lastError       String?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  loan          LibraryLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  recipientUser User        @relation("LibraryEmailRemindersRecipient", fields: [recipientUserId], references: [id])
+
+  @@unique([loanId, recipientUserId, stage])
+  @@index([recipientUserId, createdAt])
 }
 
 model StudentRegistrationCode {

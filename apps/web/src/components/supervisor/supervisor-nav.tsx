@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BookOpenCheck,
+  BookOpen,
   Bell,
   CalendarCheck,
   CalendarDays,
@@ -24,7 +25,7 @@ import {
 } from 'lucide-react';
 import { SidebarNavGroup } from '@/components/navigation/sidebar-nav-group';
 
-type NavPermission = 'canManageClubs' | 'canManageInvoices' | 'canUseShop';
+type NavPermission = 'canManageClubs' | 'canManageInvoices' | 'canUseLibrary' | 'canUseShop';
 
 type NavItem = {
   href: string;
@@ -61,6 +62,12 @@ const navGroups: NavGroup[] = [
       { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays },
       { href: '/supervisor/calendar', label: 'Calendar', icon: CalendarDays },
       { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck },
+      {
+        href: '/supervisor/library',
+        label: 'Library',
+        icon: BookOpen,
+        permission: 'canUseLibrary',
+      },
     ],
   },
   {
@@ -114,6 +121,7 @@ const navIconSize = 15;
 type SupervisorNavProps = {
   canManageClubs: boolean;
   canManageInvoices: boolean;
+  canUseLibrary: boolean;
   canUseShop: boolean;
   unreadMessageCount: number;
   unreadNoticeCount: number;
@@ -121,7 +129,7 @@ type SupervisorNavProps = {
 
 type SupervisorNavAccess = Pick<
   SupervisorNavProps,
-  'canManageClubs' | 'canManageInvoices' | 'canUseShop'
+  'canManageClubs' | 'canManageInvoices' | 'canUseLibrary' | 'canUseShop'
 >;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
@@ -185,12 +193,13 @@ function groupTotalBadge(
 export function SupervisorSidebarNav({
   canManageClubs,
   canManageInvoices,
+  canUseLibrary,
   canUseShop,
   unreadMessageCount,
   unreadNoticeCount,
 }: SupervisorNavProps) {
   const pathname = usePathname() ?? '';
-  const access = { canManageClubs, canManageInvoices, canUseShop };
+  const access = { canManageClubs, canManageInvoices, canUseLibrary, canUseShop };
   const groups = visibleGroupsFor(access);
   const activeGroupLabel =
     groups.find((group) =>
@@ -271,12 +280,13 @@ export function SupervisorSidebarNav({
 export function SupervisorBottomNav({
   canManageClubs,
   canManageInvoices,
+  canUseLibrary,
   canUseShop,
   unreadMessageCount,
   unreadNoticeCount,
 }: SupervisorNavProps) {
   const pathname = usePathname() ?? '';
-  const access = { canManageClubs, canManageInvoices, canUseShop };
+  const access = { canManageClubs, canManageInvoices, canUseLibrary, canUseShop };
   const allItems = allVisibleFlatItemsFor(access);
 
   return (

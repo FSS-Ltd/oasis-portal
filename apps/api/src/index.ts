@@ -18,6 +18,7 @@ export {
 } from './trpc.js';
 export { adminRouter, createAdminRouter, type AdminRouterDeps } from './routers/admin.js';
 export { profileRouter } from './routers/profile.js';
+export { libraryRouter } from './routers/library.js';
 export {
   createDefaultClerkInvitationClient,
   resolveClerkSessionFromBearerToken,
@@ -37,6 +38,7 @@ export {
   CLUB_NOTIFICATION_EMAIL_SUBJECT,
   INVOICE_PAST_DUE_REMINDER_EMAIL_SUBJECT_PREFIX,
   INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
+  LIBRARY_REMINDER_EMAIL_SUBJECT,
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   NOTICE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
@@ -50,6 +52,7 @@ export {
   buildHelloWorldEmail,
   buildInvoicePastDueReminderEmail,
   buildInvoicePaymentNotificationEmail,
+  buildLibraryReminderEmail,
   buildMessageNotificationEmail,
   buildNoticeNotificationEmail,
   buildSmokeTestEmail,
@@ -63,6 +66,7 @@ export {
   type ClubNotificationEmailInput,
   type InvoicePastDueReminderEmailInput,
   type InvoicePaymentNotificationEmailInput,
+  type LibraryReminderEmailInput,
   type MessageNotificationEmailInput,
   type NoticeNotificationEmailInput,
   type SendEmailInput,
@@ -98,6 +102,7 @@ export {
   type MonthlySavingsInterestSummary,
   type SavingsInterestRunResultDto,
 } from './services/savings-interest.js';
+export { sendLibraryReminders, type LibraryReminderSummary } from './services/library-reminders.js';
 export {
   readCachedInvestmentMarketData,
   readInvestmentInstrumentDetail,

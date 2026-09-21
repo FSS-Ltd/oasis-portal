@@ -18,6 +18,7 @@ import { ParentFeesInvoicesScreen } from './parent-fees-invoices-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
+import { ParentLibraryScreen } from './parent-library-screen';
 import { ParentMessagesScreen } from './parent-messages-screen';
 import { ParentNoticesScreen } from './parent-notices-screen';
 import { ParentPaceScreen } from './parent-pace-screen';
@@ -48,7 +49,8 @@ type ParentPortalRoute =
   | 'volunteer'
   | 'slips'
   | 'profile'
-  | 'settings';
+  | 'settings'
+  | 'library';
 const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
@@ -68,6 +70,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'shop', icon: 'shop', label: 'Shop' },
   { id: 'profile', icon: 'profile', label: 'Profile' },
   { id: 'settings', icon: 'settings', label: 'Settings' },
+  { id: 'library', icon: 'reports', label: 'Library' },
 ];
 
 export function ParentPortalScreen({
@@ -160,6 +163,10 @@ export function ParentPortalScreen({
     enabled: canUseParentVolunteer && route === 'volunteer',
     retry: false,
   });
+  const librarySummary = api.library.parentSummary.useQuery(undefined, {
+    enabled: route === 'library',
+    retry: false,
+  });
   const utils = api.useUtils();
   const conversations = useMemo(
     () => messagePages.flatMap(({ page }) => page.items),
@@ -231,6 +238,7 @@ export function ParentPortalScreen({
         ? parentVolunteerSlots.refetch()
         : Promise.resolve(),
       route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
+      route === 'library' ? librarySummary.refetch() : Promise.resolve(),
     ]);
   }
 
@@ -251,7 +259,8 @@ export function ParentPortalScreen({
     timetableTerms.isFetching ||
     publishedTimetable.isFetching ||
     parentVolunteerSlots.isFetching ||
-    permissionSlips.isFetching;
+    permissionSlips.isFetching ||
+    librarySummary.isFetching;
   const routeQueryError =
     route === 'messages'
       ? (conversationsQuery.error?.message ?? recipients.error?.message ?? null)
@@ -274,7 +283,9 @@ export function ParentPortalScreen({
                     ? (parentVolunteerSlots.error?.message ?? null)
                     : route === 'slips'
                       ? (permissionSlips.error?.message ?? null)
-                      : null;
+                      : route === 'library'
+                        ? (librarySummary.error?.message ?? null)
+                        : null;
   const bottomNav = (
     <PortalMobileBottomNav
       activeId={route}
@@ -500,6 +511,9 @@ export function ParentPortalScreen({
               selectedTermKey={timetableTermKey}
               terms={timetableTerms.data ?? []}
             />
+          ) : null}
+          {route === 'library' ? (
+            <ParentLibraryScreen data={librarySummary.data} loading={librarySummary.isLoading} />
           ) : null}
           {canUseParentVolunteer && route === 'volunteer' ? (
             <ParentVolunteerScreen

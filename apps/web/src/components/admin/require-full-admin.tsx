@@ -8,6 +8,7 @@ import {
   canManageInvoices,
   canManagePermissionSlips,
   canManageShop,
+  canManageLibrary,
   canManageCalendar,
   canManageClubs,
   canRespondToParentMessages,
@@ -83,7 +84,8 @@ function canUseAdminShell(user: SessionUser): boolean {
     canManageClubs(user) ||
     canManageInvoices(user) ||
     canManageShop(user) ||
-    canSellInShop(user)
+    canSellInShop(user) ||
+    canManageLibrary(user)
   );
 }
 

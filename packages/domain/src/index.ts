@@ -10,6 +10,7 @@ export * from './investmentMarketData.js';
 export * from './investmentTransactions.js';
 export * from './shop.js';
 export * from './leaderboard.js';
+export * from './library.js';
 export * from './clubs.js';
 export * from './report.js';
 export * from './schoolYears.js';
