@@ -83,8 +83,6 @@ Required env vars (copy from `.env.example`):
 - `YAHOO_FINANCE_BASE_URL` — optional, defaults to
   `https://query1.finance.yahoo.com`
 - `CRON_SECRET` — required for cron route authorization
-- `SUPABASE_LIBRARY_BOOK_COVERS_BUCKET` — optional; defaults to
-  `library-book-covers` for public library-cover objects
 
 ## 3. Supabase Postgres setup
 
@@ -102,11 +100,9 @@ key for Supabase client features.
    `packages/db/scripts/apply-rls.ts`.
 4. Run `pnpm db:integration` against the same database. The smoke test proves
    Head/full-admin can read Sensitive behaviour rows and Supervisor cannot.
-5. The library migration provisions the public `library-book-covers` bucket with
-   JPEG, PNG, and WebP files limited to 5 MB. If
-   `SUPABASE_LIBRARY_BOOK_COVERS_BUCKET` overrides that default, create the
-   replacement public bucket with the same restrictions. The server validates file
-   signatures after upload; never grant anonymous write access. The daily
+5. Library covers are stored under `library-books/` in the public
+   `SUPABASE_SHOP_ITEM_PHOTOS_BUCKET` bucket. The server validates JPEG, PNG, and
+   WebP file signatures after upload; never grant anonymous write access. The daily
    `/api/cron/library-reminders` Vercel cron uses `CRON_SECRET` and sends required
    due reminders using Europe/London calendar dates.
 6. Create the runtime role and grant table access from the migration owner:

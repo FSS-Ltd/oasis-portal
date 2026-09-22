@@ -38,7 +38,7 @@ function hasExpectedSignature(mimeType: string, bytes: Uint8Array): boolean {
 }
 
 export function libraryCoverBucket(): string {
-  return process.env['SUPABASE_LIBRARY_BOOK_COVERS_BUCKET'] ?? 'library-book-covers';
+  return process.env['SUPABASE_SHOP_ITEM_PHOTOS_BUCKET'] ?? 'shop-item-photos';
 }
 
 export function libraryCoverPublicUrl(
