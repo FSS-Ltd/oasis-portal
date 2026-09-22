@@ -142,7 +142,7 @@ interface FakeDb {
   $queryRaw: ReturnType<typeof vi.fn>;
   $transaction: ReturnType<typeof vi.fn>;
   auditLog: { create: ReturnType<typeof vi.fn> };
-  calendarEvent: { findFirst: ReturnType<typeof vi.fn> };
+  calendarEvent: { findFirst: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   user: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -366,10 +366,13 @@ function makeFakeDb() {
       },
     ),
     $transaction: vi.fn(async (input: ((tx: FakeDb) => Promise<unknown>) | Promise<unknown>[]) =>
-        Array.isArray(input) ? Promise.all(input) : input(db),
+      Array.isArray(input) ? Promise.all(input) : input(db),
     ),
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
-    calendarEvent: { findFirst: vi.fn().mockResolvedValue(null) },
+    calendarEvent: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     user: {
       findMany: vi.fn(
         ({
@@ -749,14 +752,14 @@ function makeFakeDb() {
             candidates
               .slice(index + 1)
               .some(
-              (other) =>
-                (other.parentUserId === row.parentUserId &&
-                  dateKey(other.date) === dateKey(row.date) &&
-                  other.placement === row.placement) ||
-                (dateKey(other.date) === dateKey(row.date) &&
-                  other.placement === row.placement &&
-                  other.slot === row.slot),
-            ),
+                (other) =>
+                  (other.parentUserId === row.parentUserId &&
+                    dateKey(other.date) === dateKey(row.date) &&
+                    other.placement === row.placement) ||
+                  (dateKey(other.date) === dateKey(row.date) &&
+                    other.placement === row.placement &&
+                    other.slot === row.slot),
+              ),
           );
           if (duplicate) throw new Error('duplicate parent volunteer day');
 
@@ -1362,142 +1365,142 @@ describe('parent volunteer days', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-29T09:00:00.000Z'));
     try {
-    const { db, parentVolunteerDays } = makeFakeDb();
-    const parentCaller = makeCaller(parentUser, db);
+      const { db, parentVolunteerDays } = makeFakeDb();
+      const parentCaller = makeCaller(parentUser, db);
 
-    const initialSlots = await parentCaller.rota.parentVolunteerSlots();
-    const initialTerm = firstAvailableParentVolunteerTerm(initialSlots);
-    const [firstDay, secondDay] = initialTerm.centreVolunteer.days;
-    if (!firstDay || !secondDay) throw new Error('Expected at least two parent volunteer days');
-    const firstDate = firstDay.date;
-    const secondDate = secondDay.date;
-    expect(initialTerm).toMatchObject({
-      centreVolunteer: { dailyCapacity: 2 },
-      lunchAndClubs: {
-        primary: { dailyCapacity: 3 },
-        secondary: { dailyCapacity: 2 },
-      },
-    });
-    expect(initialTerm.from).toBe('2026-04-13');
-    expect(initialTerm.centreVolunteer.days[0]).toMatchObject({ date: firstDate });
-    expect(initialTerm.centreVolunteer.days[0]).not.toHaveProperty('parent');
-    expect(initialTerm.lunchAndClubs.primary.days[0]).not.toHaveProperty('volunteers');
+      const initialSlots = await parentCaller.rota.parentVolunteerSlots();
+      const initialTerm = firstAvailableParentVolunteerTerm(initialSlots);
+      const [firstDay, secondDay] = initialTerm.centreVolunteer.days;
+      if (!firstDay || !secondDay) throw new Error('Expected at least two parent volunteer days');
+      const firstDate = firstDay.date;
+      const secondDate = secondDay.date;
+      expect(initialTerm).toMatchObject({
+        centreVolunteer: { dailyCapacity: 2 },
+        lunchAndClubs: {
+          primary: { dailyCapacity: 3 },
+          secondary: { dailyCapacity: 2 },
+        },
+      });
+      expect(initialTerm.from).toBe('2026-04-13');
+      expect(initialTerm.centreVolunteer.days[0]).toMatchObject({ date: firstDate });
+      expect(initialTerm.centreVolunteer.days[0]).not.toHaveProperty('parent');
+      expect(initialTerm.lunchAndClubs.primary.days[0]).not.toHaveProperty('volunteers');
 
-    const parentSelection = firstAvailableParentVolunteerTerm(
-      await parentCaller.rota.setMyParentVolunteerDays({
-        termId: initialTerm.id,
-        centreDates: [firstDate, secondDate],
-        primaryLunchAndClubsDates: [firstDate],
-        secondaryLunchAndClubsDates: [],
-      }),
-    );
-    expect(
-      parentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
-    ).toMatchObject({
-      selected: true,
-      spacesRemaining: 1,
-      status: 'Selected',
-    });
-    expect(
-      parentSelection.centreVolunteer.days.find((slot) => slot.date === secondDate),
-    ).toMatchObject({
-      selected: true,
-      spacesRemaining: 1,
-      status: 'Selected',
-    });
-    expect(
-      parentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
-    ).toMatchObject({ selected: true, spacesRemaining: 2, status: 'Selected' });
-
-    const secondParentSelection = firstAvailableParentVolunteerTerm(
-      await makeCaller(secondParentUser, db).rota.setMyParentVolunteerDays({
-        termId: initialTerm.id,
-        centreDates: [firstDate],
-        primaryLunchAndClubsDates: [firstDate],
-        secondaryLunchAndClubsDates: [secondDate],
-      }),
-    );
-    expect(
-      secondParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
-    ).toMatchObject({
-      selected: true,
-      spacesRemaining: 0,
-      status: 'Selected',
-    });
-    await expect(
-      makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({
-        termId: initialTerm.id,
-        centreDates: [firstDate],
-        primaryLunchAndClubsDates: [],
-        secondaryLunchAndClubsDates: [],
-      }),
-    ).rejects.toMatchObject({
-      code: 'BAD_REQUEST',
-      message: `${firstDate} already has no centre volunteer spaces`,
-    });
-
-    const thirdParentSelection = firstAvailableParentVolunteerTerm(
-      await makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({
-        termId: initialTerm.id,
-        centreDates: [],
-        primaryLunchAndClubsDates: [firstDate],
-        secondaryLunchAndClubsDates: [secondDate],
-      }),
-    );
-    expect(
-      thirdParentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
-    ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
-    expect(
-      thirdParentSelection.lunchAndClubs.secondary.days.find((slot) => slot.date === secondDate),
-    ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
-    expect(parentVolunteerDays).toHaveLength(8);
-
-    const updatedParentSelection = firstAvailableParentVolunteerTerm(
-      await parentCaller.rota.setMyParentVolunteerDays({
-        termId: initialTerm.id,
-        centreDates: [secondDate],
-        primaryLunchAndClubsDates: [firstDate],
-        secondaryLunchAndClubsDates: [],
-      }),
-    );
-    expect(
-      updatedParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
-    ).toMatchObject({
-      selected: false,
-      spacesRemaining: 1,
-      status: 'Available',
-    });
-    expect(
-      updatedParentSelection.centreVolunteer.days.find((slot) => slot.date === secondDate),
-    ).toMatchObject({
-      selected: true,
-      spacesRemaining: 1,
-      status: 'Selected',
-    });
-
-    const scheduleStart = new Date(`${firstDate}T00:00:00.000Z`);
-    const scheduleEnd = new Date(scheduleStart);
-    scheduleEnd.setUTCDate(scheduleEnd.getUTCDate() + 13);
-    const scheduleInput = { from: scheduleStart, to: scheduleEnd };
-    for (const user of [headUser, technicalSupportUser]) {
-      const volunteerSchedule = await makeCaller(user, db).rota.parentVolunteerSchedule(
-        scheduleInput,
+      const parentSelection = firstAvailableParentVolunteerTerm(
+        await parentCaller.rota.setMyParentVolunteerDays({
+          termId: initialTerm.id,
+          centreDates: [firstDate, secondDate],
+          primaryLunchAndClubsDates: [firstDate],
+          secondaryLunchAndClubsDates: [],
+        }),
       );
-      expect(volunteerSchedule).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            date: firstDate,
-            placement: 'LunchAndClubsPrimary',
-            parent: { id: secondParentUser.id, fullName: 'Second Parent' },
-          }),
-          expect.objectContaining({
-            date: secondDate,
-            placement: 'LunchAndClubsSecondary',
-            parent: { id: thirdParentUser.id, fullName: 'Third Parent' },
-          }),
-        ]),
+      expect(
+        parentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
+      ).toMatchObject({
+        selected: true,
+        spacesRemaining: 1,
+        status: 'Selected',
+      });
+      expect(
+        parentSelection.centreVolunteer.days.find((slot) => slot.date === secondDate),
+      ).toMatchObject({
+        selected: true,
+        spacesRemaining: 1,
+        status: 'Selected',
+      });
+      expect(
+        parentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
+      ).toMatchObject({ selected: true, spacesRemaining: 2, status: 'Selected' });
+
+      const secondParentSelection = firstAvailableParentVolunteerTerm(
+        await makeCaller(secondParentUser, db).rota.setMyParentVolunteerDays({
+          termId: initialTerm.id,
+          centreDates: [firstDate],
+          primaryLunchAndClubsDates: [firstDate],
+          secondaryLunchAndClubsDates: [secondDate],
+        }),
       );
-    }
+      expect(
+        secondParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
+      ).toMatchObject({
+        selected: true,
+        spacesRemaining: 0,
+        status: 'Selected',
+      });
+      await expect(
+        makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({
+          termId: initialTerm.id,
+          centreDates: [firstDate],
+          primaryLunchAndClubsDates: [],
+          secondaryLunchAndClubsDates: [],
+        }),
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: `${firstDate} already has no centre volunteer spaces`,
+      });
+
+      const thirdParentSelection = firstAvailableParentVolunteerTerm(
+        await makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({
+          termId: initialTerm.id,
+          centreDates: [],
+          primaryLunchAndClubsDates: [firstDate],
+          secondaryLunchAndClubsDates: [secondDate],
+        }),
+      );
+      expect(
+        thirdParentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
+      ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
+      expect(
+        thirdParentSelection.lunchAndClubs.secondary.days.find((slot) => slot.date === secondDate),
+      ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
+      expect(parentVolunteerDays).toHaveLength(8);
+
+      const updatedParentSelection = firstAvailableParentVolunteerTerm(
+        await parentCaller.rota.setMyParentVolunteerDays({
+          termId: initialTerm.id,
+          centreDates: [secondDate],
+          primaryLunchAndClubsDates: [firstDate],
+          secondaryLunchAndClubsDates: [],
+        }),
+      );
+      expect(
+        updatedParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
+      ).toMatchObject({
+        selected: false,
+        spacesRemaining: 1,
+        status: 'Available',
+      });
+      expect(
+        updatedParentSelection.centreVolunteer.days.find((slot) => slot.date === secondDate),
+      ).toMatchObject({
+        selected: true,
+        spacesRemaining: 1,
+        status: 'Selected',
+      });
+
+      const scheduleStart = new Date(`${firstDate}T00:00:00.000Z`);
+      const scheduleEnd = new Date(scheduleStart);
+      scheduleEnd.setUTCDate(scheduleEnd.getUTCDate() + 13);
+      const scheduleInput = { from: scheduleStart, to: scheduleEnd };
+      for (const user of [headUser, technicalSupportUser]) {
+        const volunteerSchedule = await makeCaller(user, db).rota.parentVolunteerSchedule(
+          scheduleInput,
+        );
+        expect(volunteerSchedule).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              date: firstDate,
+              placement: 'LunchAndClubsPrimary',
+              parent: { id: secondParentUser.id, fullName: 'Second Parent' },
+            }),
+            expect.objectContaining({
+              date: secondDate,
+              placement: 'LunchAndClubsSecondary',
+              parent: { id: thirdParentUser.id, fullName: 'Third Parent' },
+            }),
+          ]),
+        );
+      }
     } finally {
       vi.useRealTimers();
     }
@@ -1665,6 +1668,142 @@ describe('rota scheduling', () => {
     expect(db.staffShift.createManyAndReturn).toHaveBeenCalledTimes(1);
     expect(db.staffShift.create).not.toHaveBeenCalled();
     expect(shifts).toHaveLength(13);
+  });
+
+  it('skips unavailable term dates without issuing a conflict query for every date', async () => {
+    const { db, monthlyAvailability } = makeFakeDb();
+    monthlyAvailability.push({
+      id: 'monthly_day_off',
+      staffUserId: supervisorUser.id,
+      date: day('2026-06-02'),
+      startMinute: 510,
+      endMinute: 750,
+      createdAt: at('2026-04-29T09:00:00.000Z'),
+      updatedAt: at('2026-04-29T09:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(headUser, db).rota.createShiftBatch({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        yearGroupBandId: 'band_lower',
+        dates: ['2026-05-19'],
+        startMinute: 510,
+        endMinute: 750,
+        repeatScope: 'term',
+      }),
+    ).resolves.toMatchObject({
+      count: 12,
+      skipped: [{ date: '2026-06-02', reason: 'unavailable' }],
+    });
+    expect(db.staffShift.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('keeps a term batch and reports existing shift conflicts without rejecting eligible dates', async () => {
+    const { db, shifts } = makeFakeDb();
+    shifts.push({
+      id: 'existing_shift',
+      staffUserId: supervisorUser.id,
+      kind: 'Cover',
+      yearGroupBandId: 'band_lower',
+      date: day('2026-06-02'),
+      startsAt: at('2026-06-02T08:30:00.000Z'),
+      endsAt: at('2026-06-02T12:30:00.000Z'),
+      notes: null,
+      createdAt: at('2026-04-29T09:00:00.000Z'),
+      updatedAt: at('2026-04-29T09:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(headUser, db).rota.createShiftBatch({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        yearGroupBandId: 'band_lower',
+        dates: ['2026-05-19'],
+        startMinute: 510,
+        endMinute: 750,
+        repeatScope: 'term',
+      }),
+    ).resolves.toMatchObject({
+      count: 12,
+      skipped: [{ date: '2026-06-02', reason: 'existingShift' }],
+    });
+  });
+
+  it('rejects a manual shift that overlaps saved unavailability', async () => {
+    const { db, monthlyAvailability } = makeFakeDb();
+    monthlyAvailability.push({
+      id: 'monthly_partial_day_off',
+      staffUserId: supervisorUser.id,
+      date: day('2026-05-05'),
+      startMinute: 540,
+      endMinute: 720,
+      createdAt: at('2026-04-29T09:00:00.000Z'),
+      updatedAt: at('2026-04-29T09:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(headUser, db).rota.createShift({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        yearGroupBandId: 'band_lower',
+        date: day('2026-05-05'),
+        startsAt: at('2026-05-05T08:30:00.000Z'),
+        endsAt: at('2026-05-05T12:30:00.000Z'),
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'Supervisor is unavailable during the requested shift on 2026-05-05',
+    });
+  });
+
+  it('keeps a shift when monthly unavailability does not overlap its time', async () => {
+    const { db, monthlyAvailability } = makeFakeDb();
+    monthlyAvailability.push({
+      id: 'monthly_afternoon_only',
+      staffUserId: supervisorUser.id,
+      date: day('2026-05-05'),
+      startMinute: 13 * 60,
+      endMinute: 15 * 60,
+      createdAt: at('2026-04-29T09:00:00.000Z'),
+      updatedAt: at('2026-04-29T09:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(headUser, db).rota.createShiftBatch({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        yearGroupBandId: 'band_lower',
+        dates: ['2026-05-05'],
+        startMinute: 510,
+        endMinute: 750,
+        repeatScope: 'week',
+      }),
+    ).resolves.toMatchObject({ count: 1, skipped: [] });
+  });
+
+  it('returns a successful empty batch when every selected date is closed', async () => {
+    const { db } = makeFakeDb();
+    db.calendarEvent.findMany.mockResolvedValueOnce([
+      { category: 'HalfTerm', startDate: day('2026-05-05'), endDate: day('2026-05-05') },
+    ]);
+
+    await expect(
+      makeCaller(headUser, db).rota.createShiftBatch({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        yearGroupBandId: 'band_lower',
+        dates: ['2026-05-05'],
+        startMinute: 510,
+        endMinute: 750,
+        repeatScope: 'week',
+      }),
+    ).resolves.toMatchObject({
+      count: 0,
+      dates: [],
+      skipped: [{ date: '2026-05-05', reason: 'closed' }],
+    });
+    expect(db.staffShift.createManyAndReturn).not.toHaveBeenCalled();
   });
 
   it('lists active staff candidates with decrypted display fields for full-admin users', async () => {

@@ -13071,9 +13071,17 @@ button.club-assignment-row {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.admin-rota-tabs--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 @media (max-width: 1100px) {
   .admin-rota-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-rota-planning-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -13111,6 +13119,39 @@ button.club-assignment-row {
 .admin-rota-tab:focus-visible {
   outline: 3px solid rgb(91 144 197 / 35%);
   outline-offset: 2px;
+}
+
+.admin-rota-planning-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-rota-planning-layout > .panel {
+  min-width: 0;
+}
+
+.rota-schedule-result {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a5f;
+  font-size: 0.82rem;
+}
+
+.rota-schedule-result strong {
+  color: #173e6b;
+}
+
+.rota-schedule-result ul {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0;
+  padding-left: 18px;
 }
 
 .rota-volunteer-access {
@@ -13267,6 +13308,24 @@ button.club-assignment-row {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.rota-day header span strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+  text-transform: none;
+}
+
+.rota-day header .button {
+  flex: 0 0 auto;
+}
+
+.rota-shift__warning {
+  color: #991b1b;
+  font-size: 0.7rem;
+  font-weight: 800;
 }
 
 .rota-day__status {

@@ -9,11 +9,11 @@ import {
 test('shows volunteer access only to managers and includes it in keyboard navigation', () => {
   assert.deepEqual(
     adminRotaWorkspaceTabs(true).map((tab) => tab.id),
-    ['week', 'shifts', 'availability', 'swaps', 'volunteerAccess'],
+    ['week', 'availability', 'swaps', 'volunteerAccess'],
   );
   assert.deepEqual(
     adminRotaWorkspaceTabs(false).map((tab) => tab.id),
-    ['week', 'shifts', 'availability', 'swaps'],
+    ['week', 'availability', 'swaps'],
   );
 
   assert.equal(
@@ -24,8 +24,7 @@ test('shows volunteer access only to managers and includes it in keyboard naviga
 
 test('keeps non-manager admin rota navigation focused on planning actions', () => {
   const expectations: Array<[AdminRotaWorkspaceTab, string, AdminRotaWorkspaceTab | null]> = [
-    ['week', 'ArrowRight', 'shifts'],
-    ['shifts', 'ArrowRight', 'availability'],
+    ['week', 'ArrowRight', 'availability'],
     ['availability', 'ArrowRight', 'swaps'],
     ['swaps', 'ArrowRight', 'week'],
     ['week', 'ArrowLeft', 'swaps'],
