@@ -20,8 +20,16 @@ import {
 import { authedProcedure, router } from '../trpc.js';
 
 const PAGE_SIZE = 100;
+const CATALOGUE_PAGE_SIZE = 24;
 const bookInput = libraryBookDraftSchema;
 const updateBookInput = bookInput.extend({ id: z.string().cuid() });
+const cataloguePageInput = z
+  .object({
+    search: z.string().trim().max(200).optional(),
+    availability: z.enum(['All', 'Available', 'OnLoan']).default('All'),
+    page: z.number().int().min(1).default(1),
+  })
+  .optional();
 
 function isConflict(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -104,6 +112,42 @@ function mapBook(
   };
 }
 
+function catalogueWhere(input: z.infer<typeof cataloguePageInput>) {
+  const search = input?.search ?? '';
+  return {
+    active: true,
+    ...(input?.availability === 'Available' ? { loans: { none: { returnedAt: null } } } : {}),
+    ...(input?.availability === 'OnLoan' ? { loans: { some: { returnedAt: null } } } : {}),
+    ...(search
+      ? {
+          OR: [
+            { barcode: { contains: search } },
+            { title: { contains: search, mode: 'insensitive' as const } },
+            { author: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
+  };
+}
+
+function mapPublicBook(book: {
+  id: string;
+  barcode: string;
+  title: string;
+  author: string;
+  coverUrl: string;
+  loans: Array<{ id: string }>;
+}) {
+  return {
+    id: book.id,
+    barcode: book.barcode,
+    title: book.title,
+    author: book.author,
+    coverUrl: book.coverUrl,
+    availability: book.loans.length > 0 ? 'On loan' : 'Available',
+  };
+}
+
 function librarianProcedure() {
   return authedProcedure.use(({ ctx, next }) => {
     try {
@@ -160,6 +204,68 @@ export const libraryRouter = router({
       );
       return books.map((book) => mapBook(ctx, book));
     }),
+
+  cataloguePage: librarianProcedure()
+    .input(cataloguePageInput)
+    .query(async ({ ctx, input }) => {
+      const page = input?.page ?? 1;
+      const books = await ctx.withRls((tx) =>
+        tx.libraryBook.findMany({
+          where: catalogueWhere(input),
+          include: {
+            loans: {
+              where: { returnedAt: null },
+              include: { student: { select: { id: true, fullNameEnc: true, yearGroup: true } } },
+              take: 1,
+            },
+          },
+          orderBy: [{ title: 'asc' }, { id: 'asc' }],
+          skip: (page - 1) * CATALOGUE_PAGE_SIZE,
+          take: CATALOGUE_PAGE_SIZE + 1,
+        }),
+      );
+      const hasMore = books.length > CATALOGUE_PAGE_SIZE;
+      return {
+        items: books.slice(0, CATALOGUE_PAGE_SIZE).map((book) => mapBook(ctx, book)),
+        nextPage: hasMore ? page + 1 : null,
+      };
+    }),
+
+  parentCatalogue: authedProcedure.input(cataloguePageInput).query(async ({ ctx, input }) => {
+    const linkedChild = await ctx.withRls((tx) =>
+      tx.student.findFirst({
+        where: { guardians: { some: { userId: ctx.user.id } } },
+        select: { id: true },
+      }),
+    );
+    if (!linkedChild)
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'library catalogue requires a linked child',
+      });
+    const page = input?.page ?? 1;
+    const books = await ctx.withRls((tx) =>
+      tx.libraryBook.findMany({
+        where: catalogueWhere(input),
+        select: {
+          id: true,
+          barcode: true,
+          title: true,
+          author: true,
+          coverUrl: true,
+          loans: { where: { returnedAt: null }, select: { id: true }, take: 1 },
+        },
+        orderBy: [{ title: 'asc' }, { id: 'asc' }],
+        skip: (page - 1) * CATALOGUE_PAGE_SIZE,
+        take: CATALOGUE_PAGE_SIZE + 1,
+      }),
+    );
+    const hasMore = books.length > CATALOGUE_PAGE_SIZE;
+    return {
+      items: books.slice(0, CATALOGUE_PAGE_SIZE).map(mapPublicBook),
+      nextPage: hasMore ? page + 1 : null,
+    };
+  }),
 
   lookupBarcode: librarianProcedure()
     .input(z.object({ barcode: libraryBarcodeSchema }))
