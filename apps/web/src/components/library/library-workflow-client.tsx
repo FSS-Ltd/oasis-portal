@@ -1,9 +1,11 @@
 'use client';
 
 import { type ChangeEvent, useMemo, useRef, useState } from 'react';
+import { useSession } from '@clerk/nextjs';
 import { BookOpen, Camera, ImageUp, Search } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { LibraryBarcodeScanner } from './library-barcode-scanner';
+import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/trpc';
 
 type UploadedCover = {
@@ -22,6 +24,7 @@ function dateAfter(days: number): string {
 }
 
 export function LibraryWorkflowClient() {
+  const { session } = useSession();
   const [barcode, setBarcode] = useState('');
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
@@ -33,7 +36,15 @@ export function LibraryWorkflowClient() {
   const [page, setPage] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [isCoverUploading, setIsCoverUploading] = useState(false);
   const barcodeImageInput = useRef<HTMLInputElement>(null);
+  const supabase = useMemo(
+    () =>
+      createClient({
+        accessToken: async () => session?.getToken() ?? null,
+      }),
+    [session],
+  );
   const utils = api.useUtils();
   const catalogue = api.library.cataloguePage.useQuery({ availability, page, search });
   const lookup = api.library.lookupBarcode.useQuery(
@@ -101,6 +112,7 @@ export function LibraryWorkflowClient() {
       setMessage('Choose a JPEG, PNG, or WebP cover no larger than 5 MB.');
       return;
     }
+    setIsCoverUploading(true);
     try {
       const response = await fetch('/api/library/cover/upload', {
         method: 'POST',
@@ -117,8 +129,7 @@ export function LibraryWorkflowClient() {
       if (!response.ok || !payload.cover || !payload.bucket)
         throw new Error(payload.error ?? 'Cover upload could not be prepared.');
       const { token, ...storedCover } = payload.cover;
-      const { createClient } = await import('@/lib/supabase/client');
-      const { error } = await createClient()
+      const { error } = await supabase
         .storage.from(payload.bucket)
         .uploadToSignedUrl(storedCover.storagePath, token, file, {
           contentType: storedCover.mimeType,
@@ -128,6 +139,8 @@ export function LibraryWorkflowClient() {
       setMessage('Cover uploaded.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Cover upload failed.');
+    } finally {
+      setIsCoverUploading(false);
     }
   }
 
@@ -267,9 +280,11 @@ export function LibraryWorkflowClient() {
               <span className="field__label">Cover image</span>
               <input
                 accept="image/jpeg,image/png,image/webp"
+                disabled={isCoverUploading}
                 onChange={(event) => void uploadCover(event)}
                 type="file"
               />
+              {isCoverUploading ? <span className="muted">Uploading cover…</span> : null}
             </label>
             <button
               className="button button--primary button--md"
