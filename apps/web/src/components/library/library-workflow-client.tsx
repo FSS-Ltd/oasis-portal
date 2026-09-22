@@ -28,6 +28,7 @@ export function LibraryWorkflowClient() {
   const [barcode, setBarcode] = useState('');
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
+  const [quantity, setQuantity] = useState(1);
   const [cover, setCover] = useState<UploadedCover | null>(null);
   const [studentId, setStudentId] = useState('');
   const [dueOn, setDueOn] = useState(dateAfter(14));
@@ -55,6 +56,11 @@ export function LibraryWorkflowClient() {
   const createBook = api.library.createBook.useMutation({
     onSuccess: async () => {
       await utils.library.cataloguePage.invalidate();
+      setBarcode('');
+      setTitle('');
+      setAuthor('');
+      setQuantity(1);
+      setCover(null);
       setMessage('Book added to the library.');
     },
   });
@@ -149,7 +155,7 @@ export function LibraryWorkflowClient() {
       setMessage('Upload a book cover before adding this book.');
       return;
     }
-    createBook.mutate({ barcode, title, author, cover });
+    createBook.mutate({ barcode, title, author, cover, quantity });
   }
 
   return (
@@ -277,6 +283,17 @@ export function LibraryWorkflowClient() {
               />
             </label>
             <label className="field">
+              <span className="field__label">Quantity</span>
+              <input
+                min={1}
+                onChange={(event) => {
+                  setQuantity(Math.max(1, event.currentTarget.valueAsNumber || 1));
+                }}
+                type="number"
+                value={quantity}
+              />
+            </label>
+            <label className="field">
               <span className="field__label">Cover image</span>
               <input
                 accept="image/jpeg,image/png,image/webp"
@@ -357,6 +374,7 @@ export function LibraryWorkflowClient() {
                 <span className="library-book-card__body">
                   <strong>{book.title}</strong>
                   <small>{book.author}</small>
+                  <small>{book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}</small>
                   <em
                     className={
                       book.openLoan

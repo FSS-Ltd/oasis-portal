@@ -412,6 +412,7 @@ model LibraryBook {
   coverPath      String
   coverMimeType  String
   coverSizeBytes Int
+  quantity       Int      @default(1)
   active         Boolean  @default(true)
   createdById    String
   updatedById    String
