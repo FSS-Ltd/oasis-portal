@@ -1,4 +1,5 @@
-import { ChevronLeft, ChevronRight, Plus, RefreshCw } from 'lucide-react';
+import { CheckSquare, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   dateKey,
@@ -31,15 +32,21 @@ interface RotaWeekScheduleProps {
   errorMessage?: string | undefined;
   isFetching: boolean;
   isLoading: boolean;
+  isBulkActionPending: boolean;
+  onBulkDelete: () => void;
+  onBulkEdit: () => void;
+  onClearShiftSelection: () => void;
   onNextWeek: () => void;
   onPreviousWeek: () => void;
   onCreateShift: (date: string) => void;
   onRefresh: () => void;
   onSelectShift: (shift: RotaShift) => void;
   onThisWeek: () => void;
+  onToggleShiftSelection: (shiftId: string) => void;
   parentVolunteerErrorMessage?: string | undefined;
   parentVolunteers: readonly ParentVolunteerDay[];
   shifts: readonly RotaShift[];
+  selectedShiftIds: readonly string[];
   weekDays: readonly Date[];
   weekEnd: Date;
   weekStart: Date;
@@ -51,23 +58,56 @@ export function RotaWeekSchedule({
   errorMessage,
   isFetching,
   isLoading,
+  isBulkActionPending,
+  onBulkDelete,
+  onBulkEdit,
+  onClearShiftSelection,
   onNextWeek,
   onPreviousWeek,
   onCreateShift,
   onRefresh,
   onSelectShift,
   onThisWeek,
+  onToggleShiftSelection,
   parentVolunteerErrorMessage,
   parentVolunteers,
   shifts,
+  selectedShiftIds,
   weekDays,
   weekEnd,
   weekStart,
 }: RotaWeekScheduleProps) {
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const operatingDays = weekDays.filter((day) => {
     const status = dateStatuses.find((candidate) => candidate.date === dateKey(day));
     return day.getUTCDay() >= 2 && day.getUTCDay() <= 5 && status?.kind === 'operating';
   });
+  const selectedShiftIdSet = new Set(selectedShiftIds);
+
+  function closeSelectionMode(): void {
+    setIsSelectionMode(false);
+    onClearShiftSelection();
+  }
+
+  function renderShiftDetails(shift: RotaShift, shiftColour: string) {
+    return (
+      <>
+        <span>
+          {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
+        </span>
+        <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
+        <span className="rota-role-chip is-staff">Staff</span>
+        <small>
+          <i style={{ backgroundColor: shiftColour }} />
+          {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Band')}
+        </small>
+        {shift.availabilityConflict ? (
+          <span className="rota-shift__warning">Unavailable — review shift</span>
+        ) : null}
+        {shift.notes ? <em>{shift.notes}</em> : null}
+      </>
+    );
+  }
 
   return (
     <section className="panel rota-week-board">
@@ -105,6 +145,54 @@ export function RotaWeekSchedule({
           <span className="rota-role-chip is-parent">Parent volunteer</span>
           <span className="rota-source-chip is-centre">Centre volunteer</span>
           <span className="rota-source-chip is-clubs">Clubs volunteer</span>
+        </div>
+        <div className="rota-selection-toolbar">
+          {isSelectionMode ? (
+            <>
+              <span aria-live="polite" className="rota-selection-toolbar__count">
+                {selectedShiftIds.length === 0
+                  ? 'Select two or more staff shifts'
+                  : `${String(selectedShiftIds.length)} shifts selected`}
+              </span>
+              <Button
+                disabled={selectedShiftIds.length < 2}
+                onClick={onBulkEdit}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <CheckSquare aria-hidden="true" size={15} />
+                Bulk edit
+              </Button>
+              <Button
+                disabled={selectedShiftIds.length < 2}
+                onClick={onBulkDelete}
+                pending={isBulkActionPending}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Trash2 aria-hidden="true" size={15} />
+                Delete selected
+              </Button>
+              <Button onClick={closeSelectionMode} size="sm" type="button" variant="ghost">
+                <X aria-hidden="true" size={15} />
+                Done
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={() => {
+                setIsSelectionMode(true);
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <CheckSquare aria-hidden="true" size={15} />
+              Select shifts
+            </Button>
+          )}
         </div>
 
         {isLoading ? <div className="empty-state">Loading rota...</div> : null}
@@ -174,7 +262,27 @@ export function RotaWeekSchedule({
                       const shiftColour =
                         shift.kind === 'Meeting' ? MEETING_COLOUR : (shift.bandColour ?? '#5B90C5');
 
-                      return (
+                      return isSelectionMode ? (
+                        <label
+                          className={`rota-shift rota-shift--selectable${
+                            selectedShiftIdSet.has(shift.id) ? ' is-selected' : ''
+                          }`}
+                          key={shift.id}
+                          style={{ borderLeftColor: shiftColour }}
+                        >
+                          <input
+                            aria-label={`Select ${shift.staff?.fullName ?? 'unassigned supervisor'} shift on ${key}`}
+                            checked={selectedShiftIdSet.has(shift.id)}
+                            onChange={() => {
+                              onToggleShiftSelection(shift.id);
+                            }}
+                            type="checkbox"
+                          />
+                          <span className="rota-shift--selectable__content">
+                            {renderShiftDetails(shift, shiftColour)}
+                          </span>
+                        </label>
+                      ) : (
                         <button
                           className="rota-shift"
                           key={shift.id}
@@ -184,19 +292,7 @@ export function RotaWeekSchedule({
                           style={{ borderLeftColor: shiftColour }}
                           type="button"
                         >
-                          <span>
-                            {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
-                          </span>
-                          <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
-                          <span className="rota-role-chip is-staff">Staff</span>
-                          <small>
-                            <i style={{ backgroundColor: shiftColour }} />
-                            {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Band')}
-                          </small>
-                          {shift.availabilityConflict ? (
-                            <span className="rota-shift__warning">Unavailable — review shift</span>
-                          ) : null}
-                          {shift.notes ? <em>{shift.notes}</em> : null}
+                          {renderShiftDetails(shift, shiftColour)}
                         </button>
                       );
                     })}
