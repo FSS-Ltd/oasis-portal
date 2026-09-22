@@ -61,6 +61,7 @@ export type RotaShift = {
   notes: string | null;
   bandName: string | null;
   bandColour: string | null;
+  availabilityConflict?: boolean;
   staff: { fullName: string; email: string; role: string } | null;
 };
 

@@ -691,6 +691,139 @@ async function assertNoShiftOverlap(
   }
 }
 
+type RotaBatchSkipReason = 'closed' | 'unavailable' | 'existingShift';
+
+type RotaShiftCandidate = {
+  date: Date;
+  startsAt: Date;
+  endsAt: Date;
+  staffUserId: string;
+};
+
+function timeRangesOverlap(
+  leftStartMinute: number,
+  leftEndMinute: number,
+  rightStartMinute: number,
+  rightEndMinute: number,
+): boolean {
+  return leftStartMinute < rightEndMinute && leftEndMinute > rightStartMinute;
+}
+
+function candidateOverlapsShift(
+  candidate: RotaShiftCandidate,
+  shift: { date: Date; startsAt: Date; endsAt: Date },
+): boolean {
+  return (
+    dateKey(candidate.date) === dateKey(shift.date) &&
+    candidate.startsAt.getTime() < shift.endsAt.getTime() &&
+    candidate.endsAt.getTime() > shift.startsAt.getTime()
+  );
+}
+
+async function assertNoMonthlyUnavailabilityOverlap(
+  ctx: RouterCtx,
+  candidate: RotaShiftCandidate,
+): Promise<void> {
+  const date = normalizeDate(candidate.date);
+  const windows = await ctx.db.staffMonthlyAvailabilityWindow.findMany({
+    where: { staffUserId: candidate.staffUserId, date: { gte: date, lte: date } },
+    select: { startMinute: true, endMinute: true },
+  });
+  const startMinute = candidate.startsAt.getUTCHours() * 60 + candidate.startsAt.getUTCMinutes();
+  const endMinute = candidate.endsAt.getUTCHours() * 60 + candidate.endsAt.getUTCMinutes();
+  if (
+    windows.some((window) =>
+      timeRangesOverlap(startMinute, endMinute, window.startMinute, window.endMinute),
+    )
+  ) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `Supervisor is unavailable during the requested shift on ${dateKey(date)}`,
+    });
+  }
+}
+
+async function classifyRotaBatchCandidates(
+  ctx: RouterCtx,
+  input: { staffUserId: string; startMinute: number; endMinute: number },
+  dates: readonly Date[],
+): Promise<{
+  candidates: RotaShiftCandidate[];
+  skipped: { date: string; reason: RotaBatchSkipReason }[];
+}> {
+  const candidates = dates.map((date) => ({
+    date,
+    startsAt: dateAtMinute(date, input.startMinute),
+    endsAt: dateAtMinute(date, input.endMinute),
+    staffUserId: input.staffUserId,
+  }));
+  const firstDate = candidates[0]?.date;
+  const lastDate = candidates.at(-1)?.date;
+  if (!firstDate || !lastDate) return { candidates: [], skipped: [] };
+
+  const calendarEvents = await ctx.db.calendarEvent.findMany({
+    where: {
+      active: true,
+      category: { in: ['HalfTerm', 'Trips'] },
+      startDate: { lte: lastDate },
+      endDate: { gte: firstDate },
+    },
+    select: { category: true, startDate: true, endDate: true },
+  });
+  const unavailableWindows = await ctx.db.staffMonthlyAvailabilityWindow.findMany({
+    where: {
+      staffUserId: input.staffUserId,
+      date: { gte: firstDate, lte: lastDate },
+    },
+    select: { date: true, startMinute: true, endMinute: true },
+  });
+  const existingShifts = await ctx.db.staffShift.findMany({
+    where: {
+      staffUserId: input.staffUserId,
+      date: { gte: firstDate, lte: lastDate },
+    },
+    select: { date: true, startsAt: true, endsAt: true },
+  });
+
+  const skipped: { date: string; reason: RotaBatchSkipReason }[] = [];
+  const eligibleCandidates = candidates.filter((candidate) => {
+    const candidateDate = normalizeDate(candidate.date);
+    const eventsForDate = calendarEvents.filter(
+      (event) =>
+        normalizeDate(event.startDate).getTime() <= candidateDate.getTime() &&
+        normalizeDate(event.endDate).getTime() >= candidateDate.getTime(),
+    );
+    const isClosed =
+      eventsForDate.some((event) => event.category === 'HalfTerm') ||
+      (!isOasisOperatingDay(candidateDate) &&
+        !eventsForDate.some((event) => event.category === 'Trips'));
+    if (isClosed) {
+      skipped.push({ date: dateKey(candidateDate), reason: 'closed' });
+      return false;
+    }
+
+    const startMinute = candidate.startsAt.getUTCHours() * 60 + candidate.startsAt.getUTCMinutes();
+    const endMinute = candidate.endsAt.getUTCHours() * 60 + candidate.endsAt.getUTCMinutes();
+    const isUnavailable = unavailableWindows.some(
+      (window) =>
+        dateKey(window.date) === dateKey(candidateDate) &&
+        timeRangesOverlap(startMinute, endMinute, window.startMinute, window.endMinute),
+    );
+    if (isUnavailable) {
+      skipped.push({ date: dateKey(candidateDate), reason: 'unavailable' });
+      return false;
+    }
+
+    if (existingShifts.some((shift) => candidateOverlapsShift(candidate, shift))) {
+      skipped.push({ date: dateKey(candidateDate), reason: 'existingShift' });
+      return false;
+    }
+    return true;
+  });
+
+  return { candidates: eligibleCandidates, skipped };
+}
+
 function mapShift(shift: {
   id: string;
   staffUserId: string;
@@ -742,7 +875,10 @@ function mapShiftWithStaff(
   };
 }
 
-function isVisibleCombinedRotaDate(date: Date, halfTerms: readonly { startDate: Date; endDate: Date }[]) {
+function isVisibleCombinedRotaDate(
+  date: Date,
+  halfTerms: readonly { startDate: Date; endDate: Date }[],
+) {
   if (!isOasisOperatingDay(date)) return false;
   const value = normalizeDate(date).getTime();
   return !halfTerms.some(
@@ -807,7 +943,11 @@ function mapCombinedClubShift(
     participant: shift.participantUser
       ? {
           id: shift.participantUser.id,
-          fullName: decryptRequired(decrypt, shift.participantUser.fullNameEnc, 'club rota participant'),
+          fullName: decryptRequired(
+            decrypt,
+            shift.participantUser.fullNameEnc,
+            'club rota participant',
+          ),
           role: shift.participantUser.role,
         }
       : null,
@@ -837,7 +977,10 @@ async function listCombinedRota(
       select: { startDate: true, endDate: true },
     }),
     ctx.db.staffShift.findMany({
-      where: { date: { gte: from, lte: to }, ...(participantUserId ? { staffUserId: participantUserId } : {}) },
+      where: {
+        date: { gte: from, lte: to },
+        ...(participantUserId ? { staffUserId: participantUserId } : {}),
+      },
       orderBy: [{ date: 'asc' }, { startsAt: 'asc' }],
       include: {
         staffUser: { select: { id: true, role: true, fullNameEnc: true } },
@@ -860,9 +1003,17 @@ async function listCombinedRota(
     }),
   ]);
 
-  return [...centreRows.map((row) => mapCombinedCentreShift(ctx.db.$enc.decrypt, row)), ...clubRows.map((row) => mapCombinedClubShift(ctx.db.$enc.decrypt, row))]
-    .filter((shift) => isVisibleCombinedRotaDate(new Date(`${shift.date}T00:00:00.000Z`), halfTerms))
-    .sort((left, right) => left.date.localeCompare(right.date) || left.startsAt.getTime() - right.startsAt.getTime());
+  return [
+    ...centreRows.map((row) => mapCombinedCentreShift(ctx.db.$enc.decrypt, row)),
+    ...clubRows.map((row) => mapCombinedClubShift(ctx.db.$enc.decrypt, row)),
+  ]
+    .filter((shift) =>
+      isVisibleCombinedRotaDate(new Date(`${shift.date}T00:00:00.000Z`), halfTerms),
+    )
+    .sort(
+      (left, right) =>
+        left.date.localeCompare(right.date) || left.startsAt.getTime() - right.startsAt.getTime(),
+    );
 }
 
 async function listScheduleWithStaff(
@@ -885,7 +1036,27 @@ async function listScheduleWithStaff(
     },
   });
 
-  const shifts = rows.map((row) => mapShiftWithStaff(ctx.db.$enc.decrypt, row));
+  const monthlyUnavailable = await ctx.db.staffMonthlyAvailabilityWindow.findMany({
+    where: {
+      staffUserId: { in: rows.map((row) => row.staffUserId) },
+      date: { gte: from, lte: to },
+    },
+    select: { staffUserId: true, date: true, startMinute: true, endMinute: true },
+  });
+  const shifts = rows.map((row) => ({
+    ...mapShiftWithStaff(ctx.db.$enc.decrypt, row),
+    availabilityConflict: monthlyUnavailable.some(
+      (window) =>
+        window.staffUserId === row.staffUserId &&
+        dateKey(window.date) === dateKey(row.date) &&
+        timeRangesOverlap(
+          row.startsAt.getUTCHours() * 60 + row.startsAt.getUTCMinutes(),
+          row.endsAt.getUTCHours() * 60 + row.endsAt.getUTCMinutes(),
+          window.startMinute,
+          window.endMinute,
+        ),
+    ),
+  }));
 
   await ctx.db.auditLog.create({
     data: {
@@ -1281,14 +1452,14 @@ export const rotaRouter = router({
             }
           }
 
-        if (recordsToRemove.length > 0) {
-          await tx.parentVolunteerDay.deleteMany({
-            where: { id: { in: recordsToRemove.map((row) => row.id) } },
-          });
-        }
-        if (recordsToCreate.length > 0) {
-          await tx.parentVolunteerDay.createMany({ data: recordsToCreate });
-        }
+          if (recordsToRemove.length > 0) {
+            await tx.parentVolunteerDay.deleteMany({
+              where: { id: { in: recordsToRemove.map((row) => row.id) } },
+            });
+          }
+          if (recordsToCreate.length > 0) {
+            await tx.parentVolunteerDay.createMany({ data: recordsToCreate });
+          }
         });
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -1571,7 +1742,8 @@ export const rotaRouter = router({
     .mutation(async ({ ctx, input }) => {
       const selectedDates = input.dates.map(dateFromKey);
       const firstDate = selectedDates[0];
-      if (!firstDate) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose at least one date' });
+      if (!firstDate)
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose at least one date' });
       const firstWeekStart = mondayFor(firstDate);
       const firstTermId = currentOasisTerm(firstDate).id;
       const invalidDate = selectedDates.find(
@@ -1592,50 +1764,23 @@ export const rotaRouter = router({
       const yearGroupBand = yearGroupBandId ? await assertActiveBand(ctx, yearGroupBandId) : null;
 
       const dates = expandOasisRotaDates(selectedDates, input.repeatScope);
-      for (const date of dates) {
-        await assertRotaDate(ctx.db, date);
-      }
-
-      const candidates = dates.map((date) => ({
-        date,
-        startsAt: dateAtMinute(date, input.startMinute),
-        endsAt: dateAtMinute(date, input.endMinute),
-      }));
-      const conflicts = await Promise.all(
-        candidates.map(async (candidate) => {
-          const overlap = await ctx.db.staffShift.findFirst({
-            where: {
-              staffUserId: input.staffUserId,
-              date: candidate.date,
-              startsAt: { lt: candidate.endsAt },
-              endsAt: { gt: candidate.startsAt },
-            },
-            select: { id: true },
-          });
-          return overlap ? dateKey(candidate.date) : null;
-        }),
-      );
-      const conflictDates = conflicts.filter((date): date is string => date !== null);
-      if (conflictDates.length > 0) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: `Centre shifts already exist for: ${conflictDates.join(', ')}`,
-        });
-      }
-
-      const shifts = await ctx.db.$transaction((tx) =>
-        tx.staffShift.createManyAndReturn({
-          data: candidates.map(({ date, startsAt, endsAt }) => ({
-            staffUserId: input.staffUserId,
-            kind: input.kind,
-            yearGroupBandId,
-            date,
-            startsAt,
-            endsAt,
-            notes: input.notes ?? null,
-          })),
-        }),
-      );
+      const { candidates, skipped } = await classifyRotaBatchCandidates(ctx, input, dates);
+      const shifts =
+        candidates.length === 0
+          ? []
+          : await ctx.db.$transaction((tx) =>
+              tx.staffShift.createManyAndReturn({
+                data: candidates.map(({ date, startsAt, endsAt }) => ({
+                  staffUserId: input.staffUserId,
+                  kind: input.kind,
+                  yearGroupBandId,
+                  date,
+                  startsAt,
+                  endsAt,
+                  notes: input.notes ?? null,
+                })),
+              }),
+            );
 
       await ctx.db.auditLog.create({
         data: {
@@ -1647,6 +1792,8 @@ export const rotaRouter = router({
             staffUserId: input.staffUserId,
             repeatScope: input.repeatScope,
             dates: candidates.map((candidate) => dateKey(candidate.date)),
+            createdCount: shifts.length,
+            skippedCount: skipped.length,
           },
         },
       });
@@ -1654,6 +1801,7 @@ export const rotaRouter = router({
       return {
         count: shifts.length,
         dates: candidates.map((candidate) => dateKey(candidate.date)),
+        skipped,
         shifts: shifts
           .sort((left, right) => left.date.getTime() - right.date.getTime())
           .map((shift) => mapShift({ ...shift, yearGroupBand })),
@@ -1669,6 +1817,7 @@ export const rotaRouter = router({
     if (input.kind === 'Cover' && yearGroupBandId) {
       await assertActiveBand(ctx, yearGroupBandId);
     }
+    await assertNoMonthlyUnavailabilityOverlap(ctx, { ...input, date });
     await assertNoShiftOverlap(ctx, { ...input, date });
 
     const shift = await ctx.db.staffShift.create({
@@ -1739,6 +1888,7 @@ export const rotaRouter = router({
     if (next.kind === 'Cover' && next.yearGroupBandId) {
       await assertActiveBand(ctx, next.yearGroupBandId);
     }
+    await assertNoMonthlyUnavailabilityOverlap(ctx, next);
     await assertNoShiftOverlap(ctx, { ...next, exceptShiftId: existing.id });
 
     const data = {

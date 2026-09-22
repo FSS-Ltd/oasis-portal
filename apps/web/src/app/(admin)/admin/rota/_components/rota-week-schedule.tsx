@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   dateKey,
@@ -33,6 +33,7 @@ interface RotaWeekScheduleProps {
   isLoading: boolean;
   onNextWeek: () => void;
   onPreviousWeek: () => void;
+  onCreateShift: (date: string) => void;
   onRefresh: () => void;
   onSelectShift: (shift: RotaShift) => void;
   onThisWeek: () => void;
@@ -52,6 +53,7 @@ export function RotaWeekSchedule({
   isLoading,
   onNextWeek,
   onPreviousWeek,
+  onCreateShift,
   onRefresh,
   onSelectShift,
   onThisWeek,
@@ -110,7 +112,9 @@ export function RotaWeekSchedule({
         {parentVolunteerErrorMessage ? (
           <p className="status--error">{parentVolunteerErrorMessage}</p>
         ) : null}
-        {operatingDays.length === 0 ? <p className="empty-state">No operating days this week.</p> : null}
+        {operatingDays.length === 0 ? (
+          <p className="empty-state">No operating days this week.</p>
+        ) : null}
         <div className="rota-week-grid rota-week-grid--operating">
           {operatingDays.map((day) => {
             const key = dateKey(day);
@@ -123,8 +127,21 @@ export function RotaWeekSchedule({
             return (
               <article className="rota-day" key={key}>
                 <header>
-                  <span>{dayLabels[day.getUTCDay()]}</span>
-                  <strong>{formatDateLabel(day)}</strong>
+                  <span>
+                    {dayLabels[day.getUTCDay()]}
+                    <strong>{formatDateLabel(day)}</strong>
+                  </span>
+                  <Button
+                    onClick={() => {
+                      onCreateShift(key);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Plus aria-hidden="true" size={14} />
+                    Add shift
+                  </Button>
                 </header>
                 {dateStatus?.kind === 'closed' ? (
                   <p className="rota-day__status">{dateStatus.label}</p>
@@ -176,6 +193,9 @@ export function RotaWeekSchedule({
                             <i style={{ backgroundColor: shiftColour }} />
                             {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Band')}
                           </small>
+                          {shift.availabilityConflict ? (
+                            <span className="rota-shift__warning">Unavailable — review shift</span>
+                          ) : null}
                           {shift.notes ? <em>{shift.notes}</em> : null}
                         </button>
                       );

@@ -16,6 +16,12 @@ type RotaYearGroupBand = {
   name: string;
 };
 
+export type RotaBatchScheduleResult = {
+  count: number;
+  dates: string[];
+  skipped: { date: string; reason: 'closed' | 'unavailable' | 'existingShift' }[];
+};
+
 type RotaShiftEditorProps = {
   activeBands: readonly RotaYearGroupBand[];
   availableDates: readonly { label: string; value: string }[];
@@ -32,8 +38,22 @@ type RotaShiftEditorProps = {
   onSubmit: () => void;
   repeatScope: 'week' | 'term';
   selectedDates: readonly string[];
+  scheduleResult?: RotaBatchScheduleResult | undefined;
   staff: readonly RotaStaffMember[];
 };
+
+function skippedDateReasonLabel(
+  reason: RotaBatchScheduleResult['skipped'][number]['reason'],
+): string {
+  switch (reason) {
+    case 'closed':
+      return 'Centre closed';
+    case 'unavailable':
+      return 'Supervisor unavailable';
+    default:
+      return 'Existing shift';
+  }
+}
 
 export function RotaShiftEditor({
   activeBands,
@@ -50,6 +70,7 @@ export function RotaShiftEditor({
   onDelete,
   onSubmit,
   repeatScope,
+  scheduleResult,
   selectedDates,
   staff,
 }: RotaShiftEditorProps) {
@@ -170,7 +191,14 @@ export function RotaShiftEditor({
                   })}
                 </div>
               </Field>
-              <Field label="Repeat">
+              <Field
+                hint={
+                  repeatScope === 'term'
+                    ? 'Schedules the selected weekdays through the term and skips unavailable dates.'
+                    : 'Schedules only the selected dates this week.'
+                }
+                label="Repeat"
+              >
                 <SelectInput
                   onChange={(event) => {
                     onChangeRepeatScope(event.target.value === 'term' ? 'term' : 'week');
@@ -214,6 +242,33 @@ export function RotaShiftEditor({
             />
           </Field>
           {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
+          {scheduleResult ? (
+            <section aria-live="polite" className="rota-schedule-result" role="status">
+              <strong>
+                {scheduleResult.count === 1
+                  ? '1 shift scheduled'
+                  : `${String(scheduleResult.count)} shifts scheduled`}
+              </strong>
+              {scheduleResult.skipped.length > 0 ? (
+                <div>
+                  <span>
+                    {scheduleResult.skipped.length === 1
+                      ? '1 date skipped'
+                      : `${String(scheduleResult.skipped.length)} dates skipped`}
+                  </span>
+                  <ul>
+                    {scheduleResult.skipped.map((skipped) => (
+                      <li key={`${skipped.date}-${skipped.reason}`}>
+                        {skipped.date}: {skippedDateReasonLabel(skipped.reason)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <span>All selected dates were scheduled.</span>
+              )}
+            </section>
+          ) : null}
           <div className="row-actions">
             {form.id ? (
               <Button onClick={onCancel} type="button" variant="secondary">

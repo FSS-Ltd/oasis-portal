@@ -1,6 +1,5 @@
 const planningTabs = [
   { id: 'week', label: 'Week board' },
-  { id: 'shifts', label: 'Shift editor' },
   { id: 'availability', label: 'Availability' },
   { id: 'swaps', label: 'Swap review' },
 ] as const;

@@ -14,7 +14,8 @@ const schedulerSource = readFileSync(
 
 test('admin rota tabs resolve to two columns before narrow desktop tabs can crowd', () => {
   const baseRule = '.admin-rota-tabs {';
-  const responsiveRule = /@media \(max-width: 1100px\) \{\s*\.admin-rota-tabs \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/gu;
+  const responsiveRule =
+    /@media \(max-width: 1100px\) \{\s*\.admin-rota-tabs \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/gu;
   const responsiveRules = [...adminCss.matchAll(responsiveRule)];
   const lastResponsiveRule = responsiveRules.at(-1);
 
@@ -22,14 +23,14 @@ test('admin rota tabs resolve to two columns before narrow desktop tabs can crow
   assert.ok(lastResponsiveRule.index > adminCss.indexOf(baseRule));
 });
 
-test('non-manager rota tabs use all four desktop columns', () => {
+test('non-manager rota tabs use all three desktop columns', () => {
   assert.match(
     adminCss,
-    /\.admin-rota-tabs--four \{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/u,
+    /\.admin-rota-tabs--three \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/u,
   );
   assert.match(
     schedulerSource,
-    /className=\{`admin-rota-tabs\$\{hasVolunteerAccessTab \? '' : ' admin-rota-tabs--four'\}`\}/u,
+    /className=\{`admin-rota-tabs\$\{hasVolunteerAccessTab \? '' : ' admin-rota-tabs--three'\}`\}/u,
   );
 });
 
@@ -48,8 +49,5 @@ test('volunteer access pending state disables only the affected row', () => {
   assert.doesNotMatch(volunteerAccessSource, /disabled=\{updateAccess\.isPending/u);
   assert.match(volunteerAccessSource, /variables\.userId/u);
   assert.match(volunteerAccessSource, /onSettled\(_data, _error, variables\)/u);
-  assert.match(
-    volunteerAccessSource,
-    /invalidate\(\)\.catch\(\(\) => undefined\)/u,
-  );
+  assert.match(volunteerAccessSource, /invalidate\(\)\.catch\(\(\) => undefined\)/u);
 });
