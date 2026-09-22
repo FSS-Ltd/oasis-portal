@@ -102,12 +102,13 @@ key for Supabase client features.
    `packages/db/scripts/apply-rls.ts`.
 4. Run `pnpm db:integration` against the same database. The smoke test proves
    Head/full-admin can read Sensitive behaviour rows and Supervisor cannot.
-5. Create a public Supabase Storage bucket named `library-book-covers` (or use
-   `SUPABASE_LIBRARY_BOOK_COVERS_BUCKET`). Allow signed uploads only for
-   authenticated library staff. The server validates JPEG, PNG, and WebP file
-   signatures and the 5 MB limit after upload; never grant anonymous write access.
-   The daily `/api/cron/library-reminders` Vercel cron uses `CRON_SECRET` and
-   sends required due reminders using Europe/London calendar dates.
+5. The library migration provisions the public `library-book-covers` bucket with
+   JPEG, PNG, and WebP files limited to 5 MB. If
+   `SUPABASE_LIBRARY_BOOK_COVERS_BUCKET` overrides that default, create the
+   replacement public bucket with the same restrictions. The server validates file
+   signatures after upload; never grant anonymous write access. The daily
+   `/api/cron/library-reminders` Vercel cron uses `CRON_SECRET` and sends required
+   due reminders using Europe/London calendar dates.
 6. Create the runtime role and grant table access from the migration owner:
 
 ```sql

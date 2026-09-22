@@ -1,7 +1,42 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
+import {
+  BarcodeFormat,
+  BrowserMultiFormatReader,
+  type IScannerControls,
+} from '@zxing/browser';
+
+const LIBRARY_BARCODE_FORMATS = [
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.CODE_93,
+  BarcodeFormat.CODABAR,
+  BarcodeFormat.ITF,
+];
+
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    facingMode: { ideal: 'environment' },
+    height: { ideal: 1080 },
+    width: { ideal: 1920 },
+  },
+};
+
+function cameraErrorMessage(error: unknown): string {
+  if (error instanceof DOMException && error.name === 'NotAllowedError') {
+    return 'Camera access was denied. Allow camera access, then try again or enter the barcode manually.';
+  }
+  if (error instanceof DOMException && error.name === 'NotFoundError') {
+    return 'No camera is available on this device. Enter the barcode manually or upload an image.';
+  }
+  return 'Camera access is unavailable. Enter the barcode manually or upload an image.';
+}
 
 export function LibraryBarcodeScanner({
   onClose,
@@ -19,25 +54,28 @@ export function LibraryBarcodeScanner({
   }, [onDetected]);
 
   useEffect(() => {
-    const reader = new BrowserMultiFormatReader();
+    const reader = new BrowserMultiFormatReader(undefined, {
+      delayBetweenScanAttempts: 100,
+      delayBetweenScanSuccess: 150,
+    });
+    reader.possibleFormats = LIBRARY_BARCODE_FORMATS;
     let controls: IScannerControls | undefined;
     let active = true;
 
     async function startScanner() {
       try {
         controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' } } },
+          CAMERA_CONSTRAINTS,
           videoRef.current ?? undefined,
-          (result) => {
+          (result, _scanError, scannerControls) => {
             if (!result || !active) return;
             active = false;
-            controls?.stop();
+            scannerControls.stop();
             onDetectedRef.current(result.getText().trim());
           },
         );
-      } catch {
-        if (active)
-          setError('Camera access is unavailable. Enter the barcode manually or upload an image.');
+      } catch (error) {
+        if (active) setError(cameraErrorMessage(error));
       }
     }
 
