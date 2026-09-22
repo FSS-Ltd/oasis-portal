@@ -9,6 +9,7 @@ import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
 import { MonthlyAvailabilityEditor } from '@/components/rota/monthly-availability-editor';
 import { RotaAvailabilityBoard } from './_components/rota-availability-board';
 import { buildStaffAvailabilityByDay } from './_components/rota-availability-utils';
+import { RotaBulkShiftEditor } from './_components/rota-bulk-shift-editor';
 import { RotaShiftEditor, type RotaBatchScheduleResult } from './_components/rota-shift-editor';
 import { RotaSwapReview } from './_components/rota-swap-review';
 import { RotaVolunteerAccess } from './_components/rota-volunteer-access';
@@ -51,6 +52,8 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
   ]);
   const [repeatScope, setRepeatScope] = useState<'week' | 'term'>('week');
   const [batchScheduleResult, setBatchScheduleResult] = useState<RotaBatchScheduleResult>();
+  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
   const utils = api.useUtils();
   const canManageVolunteerAccess = canManageStaffParentVolunteerAccess({ role: currentUserRole });
   const tabs = useMemo(
@@ -198,7 +201,35 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     },
   });
 
+  const bulkReassignShifts = api.rota.bulkReassignShifts.useMutation({
+    async onSuccess(data) {
+      setIsBulkEditing(false);
+      setSelectedShiftIds([]);
+      showSuccessToast(
+        data.count === 1 ? '1 shift reassigned.' : `${String(data.count)} shifts reassigned.`,
+      );
+      await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Selected shifts could not be reassigned.');
+    },
+  });
+  const bulkDeleteShifts = api.rota.bulkDeleteShifts.useMutation({
+    async onSuccess(data) {
+      setIsBulkEditing(false);
+      setSelectedShiftIds([]);
+      showSuccessToast(
+        data.count === 1 ? '1 shift removed.' : `${String(data.count)} shifts removed.`,
+      );
+      await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Selected shifts could not be removed.');
+    },
+  });
+
   const shiftMutationError = createShiftBatch.error ?? updateShift.error ?? deleteShift.error;
+  const bulkShiftMutationError = bulkReassignShifts.error ?? bulkDeleteShifts.error;
 
   function selectTab(event: KeyboardEvent<HTMLButtonElement>): void {
     if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
@@ -215,6 +246,7 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     if (shift) {
       setShiftForm(shiftToForm(shift));
     }
+    setIsBulkEditing(false);
     setBatchScheduleResult(undefined);
     setActiveTab('week');
     requestAnimationFrame(() => {
@@ -223,6 +255,7 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
   }
 
   function createShiftForDate(date: string): void {
+    setIsBulkEditing(false);
     setShiftForm((current) => ({ ...current, id: null, date }));
     setSelectedDates([date]);
     setBatchScheduleResult(undefined);
@@ -233,6 +266,16 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
     setWeekStart(nextWeek);
     setShiftForm((current) => ({ ...current, date: firstOperatingDate }));
     setSelectedDates([firstOperatingDate]);
+    setSelectedShiftIds([]);
+    setIsBulkEditing(false);
+  }
+
+  function toggleShiftSelection(shiftId: string): void {
+    setSelectedShiftIds((current) =>
+      current.includes(shiftId)
+        ? current.filter((id) => id !== shiftId)
+        : [...current, shiftId],
+    );
   }
 
   return (
@@ -301,7 +344,23 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
             }
             isFetching={scheduleQuery.isFetching || combinedScheduleQuery.isFetching}
             isLoading={scheduleQuery.isLoading || combinedScheduleQuery.isLoading}
+            isBulkActionPending={bulkDeleteShifts.isPending || bulkReassignShifts.isPending}
             dateStatuses={operationalDatesQuery.data ?? []}
+            onBulkDelete={() => {
+              if (
+                selectedShiftIds.length >= 2 &&
+                window.confirm(`Remove ${String(selectedShiftIds.length)} selected shifts?`)
+              ) {
+                bulkDeleteShifts.mutate({ ids: selectedShiftIds });
+              }
+            }}
+            onBulkEdit={() => {
+              if (selectedShiftIds.length >= 2) setIsBulkEditing(true);
+            }}
+            onClearShiftSelection={() => {
+              setSelectedShiftIds([]);
+              setIsBulkEditing(false);
+            }}
             onCreateShift={createShiftForDate}
             onNextWeek={() => {
               selectWeek(addDays(weekStart, 7));
@@ -318,6 +377,7 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
             onThisWeek={() => {
               selectWeek(mondayFor(today()));
             }}
+            onToggleShiftSelection={toggleShiftSelection}
             parentVolunteerErrorMessage={
               parentVolunteerScheduleQuery.error
                 ? friendlyErrorMessage(parentVolunteerScheduleQuery.error)
@@ -325,74 +385,92 @@ export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProp
             }
             parentVolunteers={parentVolunteers}
             shifts={shifts}
+            selectedShiftIds={selectedShiftIds}
             weekDays={weekDays}
             weekEnd={weekEnd}
             weekStart={weekStart}
           />
-          <RotaShiftEditor
-            activeBands={activeBands}
-            availableDates={availableDates}
-            dateStatus={operationalDatesQuery.data?.find(
-              (status) => status.date === shiftForm.date,
-            )}
-            errorMessage={shiftMutationError ? friendlyErrorMessage(shiftMutationError) : undefined}
-            form={shiftForm}
-            isDeleting={deleteShift.isPending}
-            isSaving={createShiftBatch.isPending || updateShift.isPending}
-            onCancel={() => {
-              setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
-            }}
-            onChange={(nextForm) => {
-              setBatchScheduleResult(undefined);
-              setShiftForm(nextForm);
-            }}
-            onChangeRepeatScope={(nextRepeatScope) => {
-              setBatchScheduleResult(undefined);
-              setRepeatScope(nextRepeatScope);
-            }}
-            onChangeSelectedDates={(dates) => {
-              setBatchScheduleResult(undefined);
-              setSelectedDates(dates);
-            }}
-            onDelete={() => {
-              if (shiftForm.id) {
-                deleteShift.mutate({ id: shiftForm.id });
+          {isBulkEditing ? (
+            <RotaBulkShiftEditor
+              errorMessage={
+                bulkShiftMutationError ? friendlyErrorMessage(bulkShiftMutationError) : undefined
               }
-            }}
-            onSubmit={() => {
-              const payload = {
-                staffUserId: shiftForm.staffUserId,
-                kind: shiftForm.kind,
-                ...(shiftForm.kind === 'Cover'
-                  ? { yearGroupBandId: shiftForm.yearGroupBandId }
-                  : {}),
-                date: asDateTime(shiftForm.date, '00:00'),
-                startsAt: asDateTime(shiftForm.date, shiftForm.startsAt),
-                endsAt: asDateTime(shiftForm.date, shiftForm.endsAt),
-                notes: shiftForm.notes || undefined,
-              };
-              if (shiftForm.id) {
-                updateShift.mutate({ id: shiftForm.id, ...payload });
-              } else {
-                createShiftBatch.mutate({
+              isSaving={bulkReassignShifts.isPending}
+              onCancel={() => {
+                setIsBulkEditing(false);
+              }}
+              onSubmit={(staffUserId) => {
+                bulkReassignShifts.mutate({ ids: selectedShiftIds, staffUserId });
+              }}
+              selectedCount={selectedShiftIds.length}
+              staff={staffQuery.data ?? []}
+            />
+          ) : (
+            <RotaShiftEditor
+              activeBands={activeBands}
+              availableDates={availableDates}
+              dateStatus={operationalDatesQuery.data?.find(
+                (status) => status.date === shiftForm.date,
+              )}
+              errorMessage={shiftMutationError ? friendlyErrorMessage(shiftMutationError) : undefined}
+              form={shiftForm}
+              isDeleting={deleteShift.isPending}
+              isSaving={createShiftBatch.isPending || updateShift.isPending}
+              onCancel={() => {
+                setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
+              }}
+              onChange={(nextForm) => {
+                setBatchScheduleResult(undefined);
+                setShiftForm(nextForm);
+              }}
+              onChangeRepeatScope={(nextRepeatScope) => {
+                setBatchScheduleResult(undefined);
+                setRepeatScope(nextRepeatScope);
+              }}
+              onChangeSelectedDates={(dates) => {
+                setBatchScheduleResult(undefined);
+                setSelectedDates(dates);
+              }}
+              onDelete={() => {
+                if (shiftForm.id) {
+                  deleteShift.mutate({ id: shiftForm.id });
+                }
+              }}
+              onSubmit={() => {
+                const payload = {
                   staffUserId: shiftForm.staffUserId,
                   kind: shiftForm.kind,
                   ...(shiftForm.kind === 'Cover'
                     ? { yearGroupBandId: shiftForm.yearGroupBandId }
                     : {}),
-                  dates: selectedDates,
-                  startMinute: minuteFromTime(shiftForm.startsAt),
-                  endMinute: minuteFromTime(shiftForm.endsAt),
-                  repeatScope,
+                  date: asDateTime(shiftForm.date, '00:00'),
+                  startsAt: asDateTime(shiftForm.date, shiftForm.startsAt),
+                  endsAt: asDateTime(shiftForm.date, shiftForm.endsAt),
                   notes: shiftForm.notes || undefined,
-                });
-              }
-            }}
-            repeatScope={repeatScope}
-            scheduleResult={batchScheduleResult}
-            selectedDates={selectedDates}
-            staff={staffQuery.data ?? []}
-          />
+                };
+                if (shiftForm.id) {
+                  updateShift.mutate({ id: shiftForm.id, ...payload });
+                } else {
+                  createShiftBatch.mutate({
+                    staffUserId: shiftForm.staffUserId,
+                    kind: shiftForm.kind,
+                    ...(shiftForm.kind === 'Cover'
+                      ? { yearGroupBandId: shiftForm.yearGroupBandId }
+                      : {}),
+                    dates: selectedDates,
+                    startMinute: minuteFromTime(shiftForm.startsAt),
+                    endMinute: minuteFromTime(shiftForm.endsAt),
+                    repeatScope,
+                    notes: shiftForm.notes || undefined,
+                  });
+                }
+              }}
+              repeatScope={repeatScope}
+              scheduleResult={batchScheduleResult}
+              selectedDates={selectedDates}
+              staff={staffQuery.data ?? []}
+            />
+          )}
         </div>
       </div>
 

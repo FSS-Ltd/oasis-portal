@@ -166,7 +166,9 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     createManyAndReturn: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
   };
   parentVolunteerDay: {
     findMany: ReturnType<typeof vi.fn>;
@@ -557,6 +559,7 @@ function makeFakeDb() {
           where,
         }: {
           where: {
+            id?: { in: string[] };
             staffUserId?: string;
             date?: { gte: Date; lte: Date };
             staffUser?: { active?: boolean; role?: { in?: string[] } };
@@ -564,6 +567,7 @@ function makeFakeDb() {
         }) =>
           Promise.resolve(
             shifts
+              .filter((shift) => where.id === undefined || where.id.in.includes(shift.id))
               .filter(
                 (shift) =>
                   where.staffUserId === undefined || shift.staffUserId === where.staffUserId,
@@ -653,12 +657,30 @@ function makeFakeDb() {
         Object.assign(shift, data, { updatedAt: at('2026-04-29T11:00:00.000Z') });
         return Promise.resolve(withStaffAndBand(shift));
       }),
+      updateMany: vi.fn(
+        ({ where, data }: { where: { id: { in: string[] } }; data: Partial<StoredShift> }) => {
+          let count = 0;
+          for (const shift of shifts) {
+            if (!where.id.in.includes(shift.id)) continue;
+            Object.assign(shift, data, { updatedAt: at('2026-04-29T11:00:00.000Z') });
+            count += 1;
+          }
+          return Promise.resolve({ count });
+        },
+      ),
       delete: vi.fn(({ where }: { where: { id: string } }) => {
         const index = shifts.findIndex((candidate) => candidate.id === where.id);
         if (index === -1) throw new Error('shift missing');
         const [shift] = shifts.splice(index, 1);
         if (!shift) throw new Error('shift missing');
         return Promise.resolve(withStaffAndBand(shift));
+      }),
+      deleteMany: vi.fn(({ where }: { where: { id: { in: string[] } } }) => {
+        const before = shifts.length;
+        for (let index = shifts.length - 1; index >= 0; index -= 1) {
+          if (where.id.in.includes(shifts[index]?.id ?? '')) shifts.splice(index, 1);
+        }
+        return Promise.resolve({ count: before - shifts.length });
       }),
     },
     parentVolunteerDay: {
@@ -782,7 +804,10 @@ function makeFakeDb() {
         }: {
           where: {
             status: StoredSwap['status'];
-            OR: { fromShiftId?: string; toShiftId?: string }[];
+            OR: {
+              fromShiftId?: string | { in: string[] };
+              toShiftId?: string | { in: string[] };
+            }[];
           };
         }) =>
           Promise.resolve(
@@ -790,9 +815,14 @@ function makeFakeDb() {
               (swap) =>
                 swap.status === where.status &&
                 where.OR.some(
-                  (condition) =>
-                    condition.fromShiftId === swap.fromShiftId ||
-                    condition.toShiftId === swap.toShiftId,
+                  (condition) => {
+                    const matches = (value: string | { in: string[] } | undefined, id: string) =>
+                      typeof value === 'string' ? value === id : (value?.in.includes(id) ?? false);
+                    return (
+                      matches(condition.fromShiftId, swap.fromShiftId) ||
+                      matches(condition.toShiftId, swap.toShiftId)
+                    );
+                  },
                 ),
             ) ?? null,
           ),
@@ -2290,6 +2320,50 @@ describe('rota scheduling', () => {
         },
       },
     });
+  });
+
+  it('bulk reassigns selected shifts and blocks bulk deletion when a pending swap references one', async () => {
+    const { db, shifts, swaps } = makeFakeDb();
+    const head = makeCaller(headUser, db);
+    for (const date of ['2026-04-29', '2026-04-30']) {
+      await head.rota.createShift({
+        staffUserId: supervisorUser.id,
+        yearGroupBandId: 'band_lower',
+        date: day(date),
+        startsAt: at(`${date}T09:00:00.000Z`),
+        endsAt: at(`${date}T12:00:00.000Z`),
+      });
+    }
+
+    await expect(
+      head.rota.bulkReassignShifts({
+        ids: ['shift_1', 'shift_2'],
+        staffUserId: secondSupervisorUser.id,
+      }),
+    ).resolves.toEqual({ count: 2 });
+    expect(shifts.map((shift) => shift.staffUserId)).toEqual([
+      secondSupervisorUser.id,
+      secondSupervisorUser.id,
+    ]);
+
+    swaps.push({
+      id: 'swap_pending',
+      requesterUserId: supervisorUser.id,
+      targetUserId: secondSupervisorUser.id,
+      fromShiftId: 'shift_1',
+      toShiftId: 'shift_2',
+      status: 'Pending',
+      approvedById: null,
+      reviewedAt: null,
+      createdAt: at('2026-04-29T12:00:00.000Z'),
+      updatedAt: at('2026-04-29T12:00:00.000Z'),
+    });
+
+    await expect(head.rota.bulkDeleteShifts({ ids: ['shift_1', 'shift_2'] })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'one or more selected shifts have a pending swap request',
+    });
+    expect(shifts).toHaveLength(2);
   });
 });
 

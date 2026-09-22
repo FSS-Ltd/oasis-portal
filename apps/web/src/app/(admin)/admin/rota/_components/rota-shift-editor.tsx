@@ -165,10 +165,11 @@ export function RotaShiftEditor({
             </Field>
           ) : (
             <>
-              <Field label="Dates" hint="Choose one or more operating days from this week">
-                <div className="staff-rota-day-picker">
+              <Field label="Schedule dates" hint="Choose the operating days to include">
+                <div aria-label="Operating days" className="staff-rota-day-picker">
                   {availableDates.map((date) => {
                     const selected = selectedDates.includes(date.value);
+                    const calendarDate = new Date(`${date.value}T00:00:00.000Z`);
                     return (
                       <label
                         className={`staff-rota-day-picker__day${selected ? ' is-selected' : ''}`}
@@ -185,11 +186,31 @@ export function RotaShiftEditor({
                           }}
                           type="checkbox"
                         />
-                        {date.label}
+                        <span>
+                          {calendarDate.toLocaleDateString('en-GB', {
+                            weekday: 'short',
+                            timeZone: 'UTC',
+                          })}
+                        </span>
+                        <strong>
+                          {calendarDate.getUTCDate()}
+                          <small>
+                            {calendarDate.toLocaleDateString('en-GB', {
+                              month: 'short',
+                              timeZone: 'UTC',
+                            })}
+                          </small>
+                        </strong>
+                        <em>{selected ? 'Selected' : 'Select'}</em>
                       </label>
                     );
                   })}
                 </div>
+                <p aria-live="polite" className="staff-rota-day-picker__summary">
+                  {selectedDates.length === 1
+                    ? '1 day selected'
+                    : `${String(selectedDates.length)} days selected`}
+                </p>
               </Field>
               <Field
                 hint={

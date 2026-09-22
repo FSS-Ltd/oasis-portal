@@ -284,6 +284,32 @@ const deleteShiftInput = z.object({
   id: z.string().min(1),
 });
 
+const bulkShiftIdsInput = z.object({
+  ids: z.array(z.string().min(1)).min(2).max(50),
+});
+
+const bulkReassignShiftsInput = bulkShiftIdsInput
+  .extend({ staffUserId: z.string().min(1) })
+  .superRefine((input, ctx) => {
+    if (new Set(input.ids).size !== input.ids.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose each shift only once',
+        path: ['ids'],
+      });
+    }
+  });
+
+const bulkDeleteShiftsInput = bulkShiftIdsInput.superRefine((input, ctx) => {
+  if (new Set(input.ids).size !== input.ids.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Choose each shift only once',
+      path: ['ids'],
+    });
+  }
+});
+
 function dateFromKey(value: string): Date {
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || dateKey(date) !== value) {
@@ -822,6 +848,102 @@ async function classifyRotaBatchCandidates(
   });
 
   return { candidates: eligibleCandidates, skipped };
+}
+
+async function findBulkShifts(ctx: RouterCtx, ids: readonly string[]) {
+  const shifts = await ctx.db.staffShift.findMany({
+    where: { id: { in: [...ids] } },
+    select: { id: true, staffUserId: true, date: true, startsAt: true, endsAt: true },
+  });
+  if (shifts.length !== ids.length) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'one or more supervisor shifts were not found' });
+  }
+  return shifts;
+}
+
+async function assertNoPendingSwapForShifts(ctx: RouterCtx, ids: readonly string[]): Promise<void> {
+  const pendingSwap = await ctx.db.shiftSwapRequest.findFirst({
+    where: {
+      status: 'Pending',
+      OR: [{ fromShiftId: { in: [...ids] } }, { toShiftId: { in: [...ids] } }],
+    },
+    select: { id: true },
+  });
+  if (pendingSwap) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'one or more selected shifts have a pending swap request',
+    });
+  }
+}
+
+async function assertBulkReassignmentIsAvailable(
+  ctx: RouterCtx,
+  shifts: readonly { id: string; date: Date; startsAt: Date; endsAt: Date }[],
+  staffUserId: string,
+): Promise<void> {
+  const firstShift = shifts[0];
+  if (!firstShift) return;
+  let firstDate = firstShift.date;
+  let lastDate = firstShift.date;
+  for (const shift of shifts.slice(1)) {
+    if (shift.date.getTime() < firstDate.getTime()) firstDate = shift.date;
+    if (shift.date.getTime() > lastDate.getTime()) lastDate = shift.date;
+  }
+
+  const unavailability = await ctx.db.staffMonthlyAvailabilityWindow.findMany({
+    where: { staffUserId, date: { gte: firstDate, lte: lastDate } },
+    select: { date: true, startMinute: true, endMinute: true },
+  });
+  const existingShifts = await ctx.db.staffShift.findMany({
+    where: { staffUserId, date: { gte: firstDate, lte: lastDate } },
+    select: { id: true, date: true, startsAt: true, endsAt: true },
+  });
+  const selectedIds = new Set(shifts.map((shift) => shift.id));
+
+  for (const shift of shifts) {
+    const startMinute = shift.startsAt.getUTCHours() * 60 + shift.startsAt.getUTCMinutes();
+    const endMinute = shift.endsAt.getUTCHours() * 60 + shift.endsAt.getUTCMinutes();
+    if (
+      unavailability.some(
+        (window) =>
+          dateKey(window.date) === dateKey(shift.date) &&
+          timeRangesOverlap(startMinute, endMinute, window.startMinute, window.endMinute),
+      )
+    ) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Supervisor is unavailable for one or more selected shifts',
+      });
+    }
+    if (
+      existingShifts.some(
+        (existing) =>
+          !selectedIds.has(existing.id) &&
+          candidateOverlapsShift({ ...shift, staffUserId }, existing),
+      )
+    ) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Supervisor has an overlapping shift in the selected dates',
+      });
+    }
+  }
+
+  for (let index = 0; index < shifts.length; index += 1) {
+    const shift = shifts[index];
+    if (!shift) continue;
+    if (
+      shifts.slice(index + 1).some((other) =>
+        candidateOverlapsShift({ ...shift, staffUserId }, other),
+      )
+    ) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Selected shifts would overlap for the replacement supervisor',
+      });
+    }
+  }
 }
 
 function mapShift(shift: {
@@ -1971,6 +2093,61 @@ export const rotaRouter = router({
 
     return { id: shift.id };
   }),
+
+  bulkReassignShifts: adminOperationsProcedure
+    .input(bulkReassignShiftsInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertActiveStaffUser(ctx, input.staffUserId);
+      const shifts = await findBulkShifts(ctx, input.ids);
+      await assertNoPendingSwapForShifts(ctx, input.ids);
+      await assertBulkReassignmentIsAvailable(ctx, shifts, input.staffUserId);
+
+      const shiftsToReassign = shifts.filter((shift) => shift.staffUserId !== input.staffUserId);
+      if (shiftsToReassign.length === 0) return { count: 0 };
+
+      const result = await ctx.db.$transaction((tx) =>
+        tx.staffShift.updateMany({
+          where: { id: { in: shiftsToReassign.map((shift) => shift.id) } },
+          data: { staffUserId: input.staffUserId },
+        }),
+      );
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'StaffShift',
+          meta: {
+            source: 'rota.bulkReassignShifts',
+            staffUserId: input.staffUserId,
+            count: result.count,
+          },
+        },
+      });
+
+      return { count: result.count };
+    }),
+
+  bulkDeleteShifts: adminOperationsProcedure
+    .input(bulkDeleteShiftsInput)
+    .mutation(async ({ ctx, input }) => {
+      await findBulkShifts(ctx, input.ids);
+      await assertNoPendingSwapForShifts(ctx, input.ids);
+      const result = await ctx.db.$transaction((tx) =>
+        tx.staffShift.deleteMany({ where: { id: { in: input.ids } } }),
+      );
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Delete',
+          entity: 'StaffShift',
+          meta: { source: 'rota.bulkDeleteShifts', count: result.count },
+        },
+      });
+
+      return { count: result.count };
+    }),
 
   pendingSwapRequests: adminOperationsProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.shiftSwapRequest.findMany({
