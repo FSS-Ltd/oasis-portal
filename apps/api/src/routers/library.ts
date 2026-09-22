@@ -79,6 +79,7 @@ function mapBook(
     title: string;
     author: string;
     coverUrl: string;
+    quantity: number;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -97,6 +98,7 @@ function mapBook(
     title: book.title,
     author: book.author,
     coverUrl: book.coverUrl,
+    quantity: book.quantity,
     active: book.active,
     createdAt: book.createdAt,
     updatedAt: book.updatedAt,
@@ -136,6 +138,7 @@ function mapPublicBook(book: {
   title: string;
   author: string;
   coverUrl: string;
+  quantity: number;
   loans: Array<{ id: string }>;
 }) {
   return {
@@ -144,6 +147,7 @@ function mapPublicBook(book: {
     title: book.title,
     author: book.author,
     coverUrl: book.coverUrl,
+    quantity: book.quantity,
     availability: book.loans.length > 0 ? 'On loan' : 'Available',
   };
 }
@@ -253,6 +257,7 @@ export const libraryRouter = router({
           title: true,
           author: true,
           coverUrl: true,
+          quantity: true,
           loans: { where: { returnedAt: null }, select: { id: true }, take: 1 },
         },
         orderBy: [{ title: 'asc' }, { id: 'asc' }],
@@ -392,6 +397,7 @@ export const libraryRouter = router({
               coverPath: cover.storagePath,
               coverMimeType: cover.mimeType,
               coverSizeBytes: cover.sizeBytes,
+              quantity: input.quantity,
               createdById: ctx.user.id,
               updatedById: ctx.user.id,
             },
@@ -452,6 +458,7 @@ export const libraryRouter = router({
               coverPath: cover.storagePath,
               coverMimeType: cover.mimeType,
               coverSizeBytes: cover.sizeBytes,
+              quantity: input.quantity,
               updatedById: ctx.user.id,
             },
           }),

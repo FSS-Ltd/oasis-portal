@@ -140,6 +140,7 @@ export function ParentLibraryClient() {
                 <span className="library-book-card__body">
                   <strong>{book.title}</strong>
                   <small>{book.author}</small>
+                  <small>{book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}</small>
                   <em
                     className={
                       book.availability === 'On loan'

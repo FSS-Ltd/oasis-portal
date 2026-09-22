@@ -119,6 +119,7 @@ function BookRow({
     title: string;
     author: string;
     coverUrl: string;
+    quantity: number;
     availability: string;
   }>;
   title: string;
@@ -142,6 +143,9 @@ function BookRow({
               </Text>
               <Text numberOfLines={1} style={styles.bookAuthor}>
                 {book.author}
+              </Text>
+              <Text style={styles.bookAuthor}>
+                {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
               </Text>
               <Text style={book.availability === 'Available' ? styles.available : styles.onLoan}>
                 {book.availability}

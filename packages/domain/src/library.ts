@@ -43,6 +43,7 @@ export const libraryBookDraftSchema = z.object({
     storageBucket: z.string().trim().min(1).max(120),
     storagePath: z.string().trim().min(1).max(1024),
   }),
+  quantity: z.number().int().min(1, 'Enter at least one copy').max(1_000).default(1),
   title: z.string().trim().min(1, 'Enter the title').max(200),
 });
 

@@ -234,6 +234,7 @@ function BookRow({
     title: string;
     author: string;
     coverUrl: string;
+    quantity: number;
     openLoan: unknown;
   }>;
   empty: string;
@@ -266,6 +267,9 @@ function BookRow({
               </Text>
               <Text numberOfLines={1} style={styles.bookAuthor}>
                 {book.author}
+              </Text>
+              <Text style={styles.bookAuthor}>
+                {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
               </Text>
               <Text style={book.openLoan ? styles.onLoan : styles.available}>
                 {book.openLoan ? 'On loan' : 'Available'}
