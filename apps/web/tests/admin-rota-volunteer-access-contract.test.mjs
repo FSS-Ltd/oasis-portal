@@ -11,6 +11,14 @@ const schedulerSource = readFileSync(
   'apps/web/src/app/(admin)/admin/rota/rota-scheduler-client.tsx',
   'utf8',
 );
+const shiftEditorSource = readFileSync(
+  'apps/web/src/app/(admin)/admin/rota/_components/rota-shift-editor.tsx',
+  'utf8',
+);
+const weekScheduleSource = readFileSync(
+  'apps/web/src/app/(admin)/admin/rota/_components/rota-week-schedule.tsx',
+  'utf8',
+);
 
 test('admin rota tabs resolve to two columns before narrow desktop tabs can crowd', () => {
   const baseRule = '.admin-rota-tabs {';
@@ -50,4 +58,15 @@ test('volunteer access pending state disables only the affected row', () => {
   assert.match(volunteerAccessSource, /variables\.userId/u);
   assert.match(volunteerAccessSource, /onSettled\(_data, _error, variables\)/u);
   assert.match(volunteerAccessSource, /invalidate\(\)\.catch\(\(\) => undefined\)/u);
+});
+
+test('rota planning exposes clear date selection and accessible bulk shift actions', () => {
+  assert.match(shiftEditorSource, /label="Schedule dates"/u);
+  assert.match(shiftEditorSource, /aria-live="polite" className="staff-rota-day-picker__summary"/u);
+  assert.match(weekScheduleSource, /Select shifts/u);
+  assert.match(weekScheduleSource, /Bulk edit/u);
+  assert.match(weekScheduleSource, /Delete selected/u);
+  assert.match(weekScheduleSource, /type="checkbox"/u);
+  assert.match(schedulerSource, /bulkReassignShifts\.mutate/u);
+  assert.match(schedulerSource, /bulkDeleteShifts\.mutate/u);
 });

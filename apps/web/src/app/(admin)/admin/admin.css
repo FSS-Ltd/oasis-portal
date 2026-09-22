@@ -7841,48 +7841,88 @@ button.club-assignment-row {
 }
 
 .staff-rota-day-picker {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .staff-rota-day-picker__day {
   display: grid;
-  min-width: 0;
-  min-height: 58px;
-  gap: 3px;
-  padding: 8px;
+  position: relative;
+  min-width: 70px;
+  min-height: 82px;
+  justify-items: start;
+  gap: 2px;
+  padding: 10px;
   border: 1px solid var(--oasis-border-light);
-  border-radius: 8px;
+  border-radius: 12px;
   background: #f8faff;
   color: var(--oasis-text-secondary);
   text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .staff-rota-day-picker__day:hover {
   border-color: var(--oasis-blue);
+  background: #f2f7ff;
 }
 
 .staff-rota-day-picker__day span {
-  overflow: hidden;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 800;
-  text-overflow: ellipsis;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .staff-rota-day-picker__day strong {
   color: var(--oasis-navy);
-  font-size: 0.78rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.staff-rota-day-picker__day strong small {
+  margin-left: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.staff-rota-day-picker__day em {
+  font-size: 0.67rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.staff-rota-day-picker__day input {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--oasis-blue);
 }
 
 .staff-rota-day-picker__day.is-selected {
-  border-color: var(--oasis-navy);
-  background: var(--oasis-navy);
-  color: #fff;
+  border-color: var(--oasis-blue);
+  background: #edf5ff;
+  box-shadow: 0 0 0 2px rgb(91 144 197 / 15%);
+  color: #234e7a;
 }
 
 .staff-rota-day-picker__day.is-selected strong {
-  color: #fff;
+  color: var(--oasis-navy);
+}
+
+.staff-rota-day-picker__day:focus-within {
+  outline: 3px solid rgb(91 144 197 / 35%);
+  outline-offset: 2px;
+}
+
+.staff-rota-day-picker__summary {
+  margin: 2px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .staff-rota-schedule__columns {
@@ -13503,6 +13543,53 @@ button.club-assignment-row {
   border-color: var(--oasis-blue);
 }
 
+.rota-selection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.rota-selection-toolbar__count {
+  flex: 1 1 160px;
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.rota-shift--selectable {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  cursor: pointer;
+}
+
+.rota-shift--selectable input {
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+  accent-color: var(--oasis-blue);
+}
+
+.rota-shift--selectable__content {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.rota-shift--selectable.is-selected {
+  border-color: var(--oasis-blue);
+  background: #edf5ff;
+}
+
+.rota-bulk-shift-editor .section-title {
+  align-items: flex-start;
+}
+
 .rota-shift span,
 .rota-shift small,
 .rota-shift em,
@@ -14196,8 +14283,8 @@ button.club-assignment-row {
     padding-inline: 8px;
   }
 
-  .staff-rota-day-picker {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .rota-selection-toolbar .button {
+    flex: 1 1 auto;
   }
 
   .report-actions .button,
