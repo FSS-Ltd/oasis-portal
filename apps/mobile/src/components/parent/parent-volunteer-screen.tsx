@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type RouterOutputs, api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
@@ -43,6 +43,24 @@ function splitIntoWeeks(days: readonly VolunteerDay[]): VolunteerDay[][] {
   return Array.from({ length: Math.ceil(days.length / 7) }, (_, index) =>
     days.slice(index * 7, (index + 1) * 7),
   );
+}
+
+function toggleExclusiveDate(
+  date: string,
+  updateSelection: Dispatch<SetStateAction<Set<string>>>,
+  clearOtherSelection: Dispatch<SetStateAction<Set<string>>>,
+): void {
+  updateSelection((current) => {
+    const next = new Set(current);
+    if (next.has(date)) next.delete(date);
+    else next.add(date);
+    return next;
+  });
+  clearOtherSelection((current) => {
+    const next = new Set(current);
+    next.delete(date);
+    return next;
+  });
 }
 
 function VolunteerDayButton({
@@ -231,7 +249,9 @@ function VolunteerTermPicker({
               }}
               style={[styles.termButton, selected ? styles.termButtonSelected : null]}
             >
-              <Text style={[styles.termButtonText, selected ? styles.termButtonTextSelected : null]}>
+              <Text
+                style={[styles.termButtonText, selected ? styles.termButtonTextSelected : null]}
+              >
                 {term.label} {term.id.slice(0, 4)}
               </Text>
             </Pressable>
@@ -290,21 +310,11 @@ function ParentVolunteerSchedule({ slots }: { slots: ParentVolunteerScheduleSlot
   }
 
   function toggleLunchAndClubsDate(date: string, placement: 'primary' | 'secondary'): void {
-    const updateSelection =
-      placement === 'primary' ? setPrimaryLunchAndClubsDates : setSecondaryLunchAndClubsDates;
-    const clearOtherSelection =
-      placement === 'primary' ? setSecondaryLunchAndClubsDates : setPrimaryLunchAndClubsDates;
-    updateSelection((current) => {
-      const next = new Set(current);
-      if (next.has(date)) next.delete(date);
-      else next.add(date);
-      return next;
-    });
-    clearOtherSelection((current) => {
-      const next = new Set(current);
-      next.delete(date);
-      return next;
-    });
+    toggleExclusiveDate(
+      date,
+      placement === 'primary' ? setPrimaryLunchAndClubsDates : setSecondaryLunchAndClubsDates,
+      placement === 'primary' ? setSecondaryLunchAndClubsDates : setPrimaryLunchAndClubsDates,
+    );
   }
 
   return (
@@ -396,21 +406,11 @@ function StaffVolunteerSchedule({ slots }: { slots: StaffVolunteerScheduleSlots 
   });
 
   function toggleLunchAndClubsDate(date: string, placement: 'primary' | 'secondary'): void {
-    const updateSelection =
-      placement === 'primary' ? setPrimaryLunchAndClubsDates : setSecondaryLunchAndClubsDates;
-    const clearOtherSelection =
-      placement === 'primary' ? setSecondaryLunchAndClubsDates : setPrimaryLunchAndClubsDates;
-    updateSelection((current) => {
-      const next = new Set(current);
-      if (next.has(date)) next.delete(date);
-      else next.add(date);
-      return next;
-    });
-    clearOtherSelection((current) => {
-      const next = new Set(current);
-      next.delete(date);
-      return next;
-    });
+    toggleExclusiveDate(
+      date,
+      placement === 'primary' ? setPrimaryLunchAndClubsDates : setSecondaryLunchAndClubsDates,
+      placement === 'primary' ? setSecondaryLunchAndClubsDates : setPrimaryLunchAndClubsDates,
+    );
   }
 
   return (

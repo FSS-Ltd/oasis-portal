@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  type Dispatch,
+  type KeyboardEvent,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { CalendarDays, Save } from 'lucide-react';
 import type { ParentVolunteerAccess } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
@@ -59,6 +67,24 @@ function splitIntoWeeks<T>(items: readonly T[]): T[][] {
   return Array.from({ length: Math.ceil(items.length / 7) }, (_, index) =>
     items.slice(index * 7, (index + 1) * 7),
   );
+}
+
+function toggleExclusiveDate(
+  date: string,
+  updateSelection: Dispatch<SetStateAction<Set<string>>>,
+  clearOtherSelection: Dispatch<SetStateAction<Set<string>>>,
+): void {
+  updateSelection((current) => {
+    const next = new Set(current);
+    if (next.has(date)) next.delete(date);
+    else next.add(date);
+    return next;
+  });
+  clearOtherSelection((current) => {
+    const next = new Set(current);
+    next.delete(date);
+    return next;
+  });
 }
 
 function VolunteerDayButton({
@@ -262,19 +288,11 @@ function LunchAndClubsPanel({
   const selectedDayCount = primaryDates.size + secondaryDates.size;
 
   function toggleDate(date: string, placement: 'primary' | 'secondary'): void {
-    const updateSelection = placement === 'primary' ? setPrimaryDates : setSecondaryDates;
-    const clearOtherSelection = placement === 'primary' ? setSecondaryDates : setPrimaryDates;
-    updateSelection((current) => {
-      const next = new Set(current);
-      if (next.has(date)) next.delete(date);
-      else next.add(date);
-      return next;
-    });
-    clearOtherSelection((current) => {
-      const next = new Set(current);
-      next.delete(date);
-      return next;
-    });
+    toggleExclusiveDate(
+      date,
+      placement === 'primary' ? setPrimaryDates : setSecondaryDates,
+      placement === 'primary' ? setSecondaryDates : setPrimaryDates,
+    );
   }
 
   return (

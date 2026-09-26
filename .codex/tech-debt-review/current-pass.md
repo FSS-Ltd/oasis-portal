@@ -3,19 +3,19 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 748
-- Files reviewed so far: 367
-- Files remaining estimate: 381
-- Last run: 2026-07-26
+- Current eligible files: 917
+- Files reviewed so far: 369
+- Files remaining estimate: 548
+- Last run: 2026-09-25
 - Last selected files:
-  - `apps/web/src/components/incidents/incident-report-detail.tsx`
-  - `apps/web/src/app/(admin)/admin/behaviour/behaviour-report-client.tsx`
-  - `apps/mobile/src/components/staff/staff-club-lead-utils.ts`
-  - `apps/web/src/components/parent/parent-usage-limit-controls.tsx`
-  - `apps/mobile/src/components/parent/parent-fees-invoices-list.tsx`
-  - `apps/mobile/src/components/student/student-markets-trend-card.tsx`
-  - `apps/mobile/src/components/smoke/student-smoke-leaderboard.tsx`
-  - `apps/web/src/app/(admin)/admin/rota/_components/rota-utils.ts`
-  - `apps/web/src/components/student/student-attendance-client.tsx`
-  - `apps/mobile/src/components/staff/staff-incident-review-panel.tsx`
-- Next selection strategy: continue pass 1 with clean unreviewed eligible source files, excluding dirty user files and paths already reviewed in this pass; prioritise current lint/type failures, then oversized files, then high-churn or least-recently reviewed files. Keep the existing clubs-lead typed-route failure and e2e project-service coverage issues deferred until selected for focused config/type cleanup.
+  - `apps/web/src/components/library/library-workflow-client.tsx`
+  - `apps/web/src/components/library/parent-library-client.tsx`
+  - `apps/mobile/src/components/parent/parent-pace-screen.tsx`
+  - `apps/api/src/routers/library.ts`
+  - `apps/mobile/src/components/parent/parent-volunteer-screen.tsx`
+  - `apps/web/src/components/timetable/head-timetable-client.tsx`
+  - `apps/web/src/components/pace/pace-inventory-client.tsx`
+  - `apps/web/src/components/parent/parent-volunteer-client.tsx`
+  - `apps/api/src/services/timetable-data.ts`
+  - `apps/api/src/routers/academicInventory.ts`
+- Next selection strategy: continue pass 1 with clean unreviewed eligible source files, excluding generated/build outputs and paths already reviewed in this pass; prioritise current lint/type failures, then oversized React files over 300 lines and backend or utility files over 400 lines, then high-churn or least-recently reviewed files. Direct package typechecks should be used when cached turbo output looks suspicious.

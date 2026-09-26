@@ -123,7 +123,10 @@ export function HeadTimetableClient() {
       return;
     }
     if (!isPublishedMode) return;
-    if (hasPublishedVersions && !publishedVersions.some((publication) => publication.id === selectedPublicationId)) {
+    if (
+      hasPublishedVersions &&
+      !publishedVersions.some((publication) => publication.id === selectedPublicationId)
+    ) {
       setSelectedPublicationId(publishedVersions[0]?.id ?? '');
     }
   }, [
@@ -288,11 +291,7 @@ export function HeadTimetableClient() {
     await deletePublication.mutateAsync({ publicationId });
   }
 
-  function pendingAction():
-    | 'subject'
-    | 'save'
-    | 'publish'
-    | null {
+  function pendingAction(): 'subject' | 'save' | 'publish' | null {
     if (createSubject.isPending) return 'subject';
     if (saveDraft.isPending || (isPublishedMode && publish.isPending)) return 'save';
     if (publish.isPending) return 'publish';
@@ -409,7 +408,9 @@ export function HeadTimetableClient() {
 
             <nav
               aria-label="Timetable editor mode"
-              className={[styles.ageTabs, styles.modeTabs].filter((item): item is string => item !== undefined).join(' ')}
+              className={[styles.ageTabs, styles.modeTabs]
+                .filter((item): item is string => item !== undefined)
+                .join(' ')}
             >
               <button
                 aria-current={!isPublishedMode ? 'page' : undefined}
@@ -441,7 +442,10 @@ export function HeadTimetableClient() {
                     const label = publication.label;
                     return (
                       <article
-                        className={[styles.versionItem, selected ? styles.selectedVersionItem : undefined]
+                        className={[
+                          styles.versionItem,
+                          selected ? styles.selectedVersionItem : undefined,
+                        ]
                           .filter((item): item is string => item !== undefined)
                           .join(' ')}
                         key={`${publication.id}-${label}`}
@@ -457,7 +461,10 @@ export function HeadTimetableClient() {
                           <strong>{publication.label}</strong>
                           <span>Published {formatVersionDate(publication.publishedAt)}</span>
                         </button>
-                        <a className={styles.downloadButton} href={`/api/timetables/${publication.id}/pdf`}>
+                        <a
+                          className={styles.downloadButton}
+                          href={`/api/timetables/${publication.id}/pdf`}
+                        >
                           <Download aria-hidden="true" size={16} /> Download PDF
                         </a>
                         <button
@@ -490,20 +497,20 @@ export function HeadTimetableClient() {
               <div className={styles.childPicker}>
                 {children.map((child) => (
                   <div className={styles.childCard} key={child.id}>
-                  <button
-                    aria-pressed={selectedStudentId === child.id}
-                    className={selectedStudentId === child.id ? styles.selectedChild : undefined}
-                    onClick={() => {
-                      setSelectedStudentId(child.id);
-                    }}
-                    type="button"
-                  >
-                    <span>{child.firstName.slice(0, 1).toUpperCase()}</span>
-                    <strong>{child.firstName}</strong>
-                    <small data-status={child.status}>
-                      {child.status === 'NotStarted' ? 'Not started' : child.status}
-                    </small>
-                  </button>
+                    <button
+                      aria-pressed={selectedStudentId === child.id}
+                      className={selectedStudentId === child.id ? styles.selectedChild : undefined}
+                      onClick={() => {
+                        setSelectedStudentId(child.id);
+                      }}
+                      type="button"
+                    >
+                      <span>{child.firstName.slice(0, 1).toUpperCase()}</span>
+                      <strong>{child.firstName}</strong>
+                      <small data-status={child.status}>
+                        {child.status === 'NotStarted' ? 'Not started' : child.status}
+                      </small>
+                    </button>
                     <button
                       className={styles.naAction}
                       disabled={setOwnTimetable.isPending}
@@ -558,7 +565,8 @@ export function HeadTimetableClient() {
             <div className={styles.errorCard}>{friendlyErrorMessage(publicationQuery.error)}</div>
           ) : draftQuery.error ? (
             <div className={styles.errorCard}>{friendlyErrorMessage(draftQuery.error)}</div>
-          ) : isPublishedMode && !hasPublishedVersions ? null : draftQuery.isLoading && selectedStudentId ? (
+          ) : isPublishedMode && !hasPublishedVersions ? null : draftQuery.isLoading &&
+            selectedStudentId ? (
             <div className={styles.loadingCard}>Loading this child’s timetable…</div>
           ) : draftWithPublishedEntries && workspace.schedule ? (
             <StudentTimetableEditor
@@ -580,8 +588,10 @@ export function HeadTimetableClient() {
               pendingAction={pendingAction()}
               publicationId={
                 isPublishedMode
-                  ? selectedPublication?.id ?? draftWithPublishedEntries.latestPublication?.id ?? null
-                  : draftWithPublishedEntries.latestPublication?.id ?? null
+                  ? (selectedPublication?.id ??
+                    draftWithPublishedEntries.latestPublication?.id ??
+                    null)
+                  : (draftWithPublishedEntries.latestPublication?.id ?? null)
               }
               slots={scheduledSlots(workspace)}
             />

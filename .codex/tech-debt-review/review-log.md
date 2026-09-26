@@ -1329,3 +1329,52 @@
 - Removed 75 stale reviewed-file records whose paths no longer exist, including 60 `.ts` aliases duplicated by canonical `.tsx` records.
 - Recalculated the current-pass reviewed and remaining counts from existing reviewed paths.
 - Added `pnpm tech-debt:validate-memory` to reject nonexistent reviewed paths and `.ts`/`.tsx` collisions before future review updates are published.
+
+## 2026-09-25 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/library/library-workflow-client.tsx`
+2. `apps/web/src/components/library/parent-library-client.tsx`
+3. `apps/mobile/src/components/parent/parent-pace-screen.tsx`
+4. `apps/api/src/routers/library.ts`
+5. `apps/mobile/src/components/parent/parent-volunteer-screen.tsx`
+6. `apps/web/src/components/timetable/head-timetable-client.tsx`
+7. `apps/web/src/components/pace/pace-inventory-client.tsx`
+8. `apps/web/src/components/parent/parent-volunteer-client.tsx`
+9. `apps/api/src/services/timetable-data.ts`
+10. `apps/api/src/routers/academicInventory.ts`
+
+### Baseline Findings
+- Lint: full `pnpm lint` passed at baseline with four real Next no-img warnings in the two selected library clients; selected-file ESLint passed after edits.
+- Typecheck: cached full `pnpm typecheck` passed initially, but direct affected package typechecks exposed stale Prisma generated types for the selected library router; `pnpm --filter @oasis/db generate` refreshed the client and affected package typechecks passed.
+- Formatting: selected-file Prettier changed six files and reported four selected files already clean.
+- Graphify: targeted query was run for library/PACE/volunteer/timetable/academic inventory cleanup; `graphify update .` completed and left no tracked graph diff.
+
+### Changes Made
+- `apps/web/src/components/library/library-workflow-client.tsx`: replaced the catalogue raw cover image with `next/image` plus a pass-through loader for user-uploaded storage URLs, clearing the selected no-img warning without changing URL handling.
+- `apps/web/src/components/library/parent-library-client.tsx`: replaced raw loan, returned-book, and catalogue cover images with the same pass-through `next/image` pattern, clearing three selected no-img warnings.
+- `apps/mobile/src/components/parent/parent-volunteer-screen.tsx`: extracted duplicated mutually exclusive lunch-and-clubs date toggle logic into a typed local helper.
+- `apps/web/src/components/parent/parent-volunteer-client.tsx`: extracted the same local exclusive toggle helper for the web volunteer panel.
+- `apps/web/src/components/timetable/head-timetable-client.tsx`: applied selected-file formatting to long conditions, className composition, and child-card JSX indentation.
+- `apps/api/src/services/timetable-data.ts`: applied selected-file formatting to nested Prisma select indentation and long timetable expressions.
+- Remaining selected files were reviewed for lint, type safety, hook dependencies, local duplication, imports, error states, and API boundary risk; no safe source edits were needed.
+
+### Validation
+- lint command: pass - `pnpm exec eslint <10 selected source files>`
+- formatting command: pass - `pnpm exec prettier --check <10 selected source files>`
+- affected typechecks: pass - `pnpm --filter @oasis/web typecheck`; pass - `pnpm --filter @oasis/mobile typecheck`; pass - `pnpm --filter @oasis/api typecheck` after `pnpm --filter @oasis/db generate`
+- full lint: pass - `pnpm lint`
+- full typecheck: pass - `pnpm typecheck`
+- full tests: pass - `pnpm test` with approval after sandboxed run failed only on `listen EPERM /tmp/tsx-*.pipe`
+- build: pass - `pnpm build`
+- graphify: pass - `graphify query "library pace volunteer timetable academic inventory review cleanup" --budget 1500`; pass - `graphify update .`
+- diff whitespace: pass - `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No public API path, request, response, validation, auth, role, tenancy, billing, safeguarding, migration, or schema semantics changed.
+- No generated clients, lock files, build output, or Graphify files are staged.
+- Behaviour preserved; changes are lint/type/editor hygiene and local duplication reduction only.
+
+### Follow-Ups Deferred
+- The first sandboxed `pnpm test` run failed because `tsx` could not create an IPC pipe under `/tmp`; the approved rerun passed and no product test failure remains.

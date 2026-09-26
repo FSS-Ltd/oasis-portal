@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-07-26",
+  "lastRunDate": "2026-09-25",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -4450,6 +4450,132 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as a clean unreviewed mobile staff UI file."
+    },
+    "apps/web/src/components/library/library-workflow-client.tsx": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 492,
+      "lineCountAfter": 507,
+      "issuesFixed": [
+        "Replaced the raw catalogue cover image with next/image using a pass-through loader for user-uploaded storage URLs.",
+        "Cleared the selected-file Next no-img lint warning without adding remote image configuration or changing cover URLs.",
+        "Applied selected-file formatting."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected for a real no-img lint warning and oversized React client review."
+    },
+    "apps/web/src/components/library/parent-library-client.tsx": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 182,
+      "lineCountAfter": 215,
+      "issuesFixed": [
+        "Replaced raw loan, return, and catalogue cover images with next/image using a pass-through loader for user-uploaded storage URLs.",
+        "Cleared three selected-file Next no-img lint warnings while preserving cover URL behaviour.",
+        "Applied selected-file formatting to pagination handlers and copy-count JSX."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected for current no-img lint warnings."
+    },
+    "apps/mobile/src/components/parent/parent-pace-screen.tsx": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 727,
+      "lineCountAfter": 728,
+      "issuesFixed": [
+        "Reviewed parent PACE mobile screen for lint, imports, pagination state, period selection, and hook dependencies; no safe source edit was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed React Native parent screen."
+    },
+    "apps/api/src/routers/library.ts": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 647,
+      "lineCountAfter": 648,
+      "issuesFixed": [
+        "Reviewed library router for selected-file type coverage and Prisma model alignment; no source edit was needed.",
+        "Regenerated the local Prisma client after direct package typechecks exposed stale generated types for the existing quantity field."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed API router and library module owner."
+    },
+    "apps/mobile/src/components/parent/parent-volunteer-screen.tsx": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 627,
+      "lineCountAfter": 628,
+      "issuesFixed": [
+        "Extracted the duplicated exclusive lunch-and-clubs date toggle logic into a typed local helper.",
+        "Applied selected-file formatting to the term picker label."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed React Native parent volunteer screen."
+    },
+    "apps/web/src/components/timetable/head-timetable-client.tsx": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 593,
+      "lineCountAfter": 604,
+      "issuesFixed": [
+        "Applied selected-file formatting to long published-version conditions, className composition, function return type layout, and child-card JSX indentation."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed timetable client with editor formatting issues."
+    },
+    "apps/web/src/components/pace/pace-inventory-client.tsx": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 592,
+      "lineCountAfter": 593,
+      "issuesFixed": [
+        "Reviewed PACE inventory client for selected-file lint, selection-state guards, stale assignment handling, mutation states, and imports; no safe source edit was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed PACE inventory client."
+    },
+    "apps/web/src/components/parent/parent-volunteer-client.tsx": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 566,
+      "lineCountAfter": 585,
+      "issuesFixed": [
+        "Extracted the duplicated exclusive lunch-and-clubs date toggle logic into a typed local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed parent volunteer web client."
+    },
+    "apps/api/src/services/timetable-data.ts": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 551,
+      "lineCountAfter": 555,
+      "issuesFixed": [
+        "Applied selected-file formatting to nested Prisma select indentation, long legacy slot mapping, and timetable status expressions."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed timetable service with editor formatting issues."
+    },
+    "apps/api/src/routers/academicInventory.ts": {
+      "lastReviewedAt": "2026-09-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 505,
+      "lineCountAfter": 506,
+      "issuesFixed": [
+        "Reviewed academic inventory router for lint, order status flow, assignment validation, serializable RLS handling, and duplicate PACE guards; no safe source edit was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed API router."
     }
   },
   "deferredFiles": {
