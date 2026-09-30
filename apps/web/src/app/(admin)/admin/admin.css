@@ -8567,6 +8567,33 @@ button.club-assignment-row {
   border-top: 1px solid var(--oasis-border);
 }
 
+.pace-inventory-order-dialog {
+  width: min(100% - 32px, 540px);
+  max-width: none;
+  max-height: min(640px, calc(100dvh - 32px));
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.pace-inventory-order-dialog::backdrop {
+  background: rgba(10, 18, 40, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.pace-inventory-order-dialog .pace-modal {
+  width: 100%;
+  max-height: min(640px, calc(100dvh - 32px));
+}
+
+.pace-inventory-order-dialog .button,
+.pace-inventory__alerts .button {
+  min-height: 44px;
+}
+
 .admin-confirmation-backdrop {
   position: fixed;
   inset: 0;
@@ -12927,7 +12954,7 @@ button.club-assignment-row {
 .pace-catalogue-picker__chip {
   display: grid;
   min-width: 0;
-  min-height: 40px;
+  min-height: 44px;
   place-items: center;
   border: 1px solid var(--oasis-border-light);
   border-radius: 8px;

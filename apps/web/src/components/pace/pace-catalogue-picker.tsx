@@ -1,7 +1,7 @@
 'use client';
 
 import { availablePacesAhead, PACE_CATALOGUE } from '@oasis/domain';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface PaceCataloguePickerProps {
@@ -27,6 +27,7 @@ export function PaceCataloguePicker({
   selectedPaceNumbers,
   subjectLabel,
 }: PaceCataloguePickerProps) {
+  const titleId = useId();
   const [visibleCount, setVisibleCount] = useState(PACE_PICKER_WINDOW_SIZE);
   const available = new Set(availablePaceNumbers);
   const selected = new Set(selectedPaceNumbers);
@@ -47,11 +48,11 @@ export function PaceCataloguePicker({
   }
 
   return (
-    <section aria-labelledby="pace-catalogue-picker-title" className="pace-catalogue-picker">
+    <section aria-labelledby={titleId} className="pace-catalogue-picker">
       <div className="pace-catalogue-picker__heading">
         <div>
           <p className="pace-catalogue-picker__eyebrow">{subjectLabel}</p>
-          <h2 id="pace-catalogue-picker-title">PACEs to plan next</h2>
+          <h2 id={titleId}>PACEs to plan next</h2>
           <p className="muted">
             Starting after PACE #{String(currentPaceNumber)}. Choose the future PACEs to add to this
             student&apos;s supply or track as an order.

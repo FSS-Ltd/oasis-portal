@@ -1,5 +1,6 @@
 import {
   availablePacesAhead,
+  ACE_SUBJECT_CODES,
   bulkPaceInventoryOrderInput,
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
@@ -151,14 +152,16 @@ export const academicInventoryRouter = router({
       const students = await tx.student.findMany({
         where: {
           active: true,
-          subjects: { some: { subject: { active: true } } },
+          subjects: {
+            some: { subject: { active: true, code: { in: [...ACE_SUBJECT_CODES] } } },
+          },
         },
         select: {
           id: true,
           fullNameEnc: true,
           yearGroup: true,
           subjects: {
-            where: { subject: { active: true } },
+            where: { subject: { active: true, code: { in: [...ACE_SUBJECT_CODES] } } },
             select: {
               id: true,
               studentId: true,

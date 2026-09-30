@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PackagePlus, RefreshCw, Truck } from 'lucide-react';
 import { availablePacesAhead, PACE_CATALOGUE } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
@@ -14,6 +14,7 @@ import { Field, SelectInput } from '@/components/ui/field';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
 import { PaceDiagnosticForm, type PaceDiagnosticSelection } from './pace-diagnostic-form';
+import { PaceInventoryOrderModal } from './pace-inventory-order-modal';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
@@ -79,11 +80,42 @@ export function PaceInventoryClient() {
     paceNumbers: [],
   });
   const [pendingDiagnosticId, setPendingDiagnosticId] = useState<string | null>(null);
+  const [quickOrderTarget, setQuickOrderTarget] = useState<{
+    studentId: string;
+    subjectId: string;
+  } | null>(null);
+  const quickOrderTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const summary = summaryQuery.data;
   const students = summary?.students ?? [];
   const student = selectedStudent(students, studentId);
   const assignment = selectedAssignment(student, subjectId);
+  const quickOrderStudent = quickOrderTarget
+    ? (students.find((row) => row.id === quickOrderTarget.studentId) ?? null)
+    : null;
+  const quickOrderAssignment = quickOrderTarget
+    ? (quickOrderStudent?.subjects.find((row) => row.subjectId === quickOrderTarget.subjectId) ??
+      null)
+    : null;
+  const quickOrderSupply = (summary?.supply ?? [])
+    .filter(
+      (supply) =>
+        supply.studentId === quickOrderTarget?.studentId &&
+        supply.subjectId === quickOrderTarget.subjectId,
+    )
+    .map((supply) => supply.paceNumber);
+  const quickOrderPending = (summary?.orders ?? [])
+    .filter(
+      (order) =>
+        order.studentId === quickOrderTarget?.studentId &&
+        order.subjectId === quickOrderTarget.subjectId &&
+        order.status !== 'Delivered',
+    )
+    .map((order) => order.paceNumber);
+  const quickOrderUnavailable = new Set([...quickOrderSupply, ...quickOrderPending]);
+  const quickOrderAvailablePaces = PACE_CATALOGUE.filter(
+    (paceNumber) => !quickOrderUnavailable.has(paceNumber),
+  );
   const selectedStudentId = student?.id ?? '';
   const selectedSubjectId = assignment?.subjectId ?? '';
   const selectionContextKey = `${selectedStudentId}:${selectedSubjectId}:${String(
@@ -146,7 +178,6 @@ export function PaceInventoryClient() {
   });
   const createOrders = api.academicInventory.createOrders.useMutation({
     async onSuccess(_, input) {
-      setPaceSelection((current) => ({ ...current, paceNumbers: [] }));
       showSuccessToast(
         input.paceNumbers.length === 1
           ? '1 PACE order created.'
@@ -210,11 +241,33 @@ export function PaceInventoryClient() {
 
   function createSelectedOrders(): void {
     if (!student || !assignment || !hasSelection || isBulkMutationPending) return;
-    createOrders.mutate({
-      studentId: student.id,
-      subjectId: assignment.subjectId,
-      paceNumbers: selectedPaceNumbers,
+    createOrders.mutate(
+      {
+        studentId: student.id,
+        subjectId: assignment.subjectId,
+        paceNumbers: selectedPaceNumbers,
+      },
+      {
+        onSuccess: () => {
+          setPaceSelection((current) => ({ ...current, paceNumbers: [] }));
+        },
+      },
+    );
+  }
+
+  function closeQuickOrder(): void {
+    setQuickOrderTarget(null);
+    window.requestAnimationFrame(() => quickOrderTriggerRef.current?.focus());
+  }
+
+  async function submitQuickOrder(paceNumbers: number[]): Promise<void> {
+    if (!quickOrderTarget || !quickOrderAssignment || createOrders.isPending) return;
+    await createOrders.mutateAsync({
+      studentId: quickOrderTarget.studentId,
+      subjectId: quickOrderTarget.subjectId,
+      paceNumbers,
     });
+    closeQuickOrder();
   }
 
   function recordSelectedDiagnostic(selection: PaceDiagnosticSelection): void {
@@ -380,6 +433,21 @@ export function PaceInventoryClient() {
                         </span>
                       ))}
                     </span>
+                    <Button
+                      aria-label={`Create order for ${alertStudent?.fullName ?? 'student'}, ${formatAssignment(alertAssignment ?? null)}`}
+                      onClick={(event) => {
+                        quickOrderTriggerRef.current = event.currentTarget;
+                        setQuickOrderTarget({
+                          studentId: alert.studentId,
+                          subjectId: alert.subjectId,
+                        });
+                      }}
+                      size="sm"
+                      type="button"
+                    >
+                      <PackagePlus aria-hidden="true" size={15} />
+                      Create order
+                    </Button>
                   </div>
                 );
               })}
@@ -586,6 +654,17 @@ export function PaceInventoryClient() {
           This removes the diagnostic reference only. It does not change the student&apos;s current
           PACE.
         </ConfirmationDialog>
+      ) : null}
+      {quickOrderTarget ? (
+        <PaceInventoryOrderModal
+          availablePaceNumbers={quickOrderAvailablePaces}
+          currentPaceNumber={quickOrderAssignment?.currentPaceNumber ?? null}
+          onClose={closeQuickOrder}
+          onSubmit={submitQuickOrder}
+          pending={createOrders.isPending}
+          studentName={quickOrderStudent?.fullName ?? 'Student unavailable'}
+          subjectLabel={formatAssignment(quickOrderAssignment)}
+        />
       ) : null}
     </div>
   );

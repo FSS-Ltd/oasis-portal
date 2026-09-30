@@ -1,26 +1,34 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, Field, MobileButton, MutedText } from '../core/mobile-ui';
-import { diagnosticPlacementLabel, nextOrderStatus } from './staff-academic-inventory-utils';
+import {
+  diagnosticPlacementLabel,
+  nextOrderStatus,
+  paceNumberValue,
+} from './staff-academic-inventory-utils';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
 type InventoryAssignment = InventoryStudent['subjects'][number];
 type InventoryOrder = InventorySummary['orders'][number];
+type InventoryAlert = InventorySummary['alerts'][number];
 type DiagnosticOutcome = 'Fail' | 'Pass';
 export type InventoryStatusMessage = { message: string; tone: 'error' | 'success' };
 
 export const diagnosticLevels = [1, 2, 3, 4, 5] as const;
 export type DiagnosticLevel = (typeof diagnosticLevels)[number];
 const diagnosticOutcomes: DiagnosticOutcome[] = ['Pass', 'Fail'];
-
-export function paceNumberValue(value: string): number | null {
-  const trimmed = value.trim();
-  if (!/^\d+$/.test(trimmed)) return null;
-  const paceNumber = Number(trimmed);
-  return Number.isSafeInteger(paceNumber) && paceNumber >= 1001 ? paceNumber : null;
-}
 
 function displayDate(value: string | Date): string {
   return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value));
@@ -64,7 +72,13 @@ export function InventoryStatusNotice({ status }: { status: InventoryStatusMessa
   );
 }
 
-export function InventoryAlerts({ summary }: { summary: InventorySummary }) {
+export function InventoryAlerts({
+  onCreateOrder,
+  summary,
+}: {
+  onCreateOrder: (alert: InventoryAlert) => void;
+  summary: InventorySummary;
+}) {
   return (
     <Card style={styles.compactCard}>
       <View style={styles.rowBetween}>
@@ -90,6 +104,14 @@ export function InventoryAlerts({ summary }: { summary: InventorySummary }) {
               <Text style={styles.alertPace}>
                 #{String(alert.currentPaceNumber)} · {String(alert.remainingPaceCount)} available
               </Text>
+              <MobileButton
+                accessibilityLabel={`Create order for ${student?.fullName ?? 'student'}, ${assignment ? assignmentLabel(assignment) : 'assigned subject'}`}
+                label="Create order"
+                onPress={() => {
+                  onCreateOrder(alert);
+                }}
+                variant="navy"
+              />
             </View>
           );
         })
@@ -159,6 +181,7 @@ export function InventorySubjectPicker({
 
 export function InventoryOrderForm({
   assignment,
+  errorMessage,
   onChangePaceNumber,
   onSubmit,
   paceNumber,
@@ -167,6 +190,7 @@ export function InventoryOrderForm({
   submitted,
 }: {
   assignment: InventoryAssignment | null;
+  errorMessage?: string | null;
   onChangePaceNumber: (value: string) => void;
   onSubmit: () => void;
   paceNumber: string;
@@ -179,12 +203,13 @@ export function InventoryOrderForm({
     : !assignment
       ? 'Select an assigned subject.'
       : paceNumberValue(paceNumber) === null
-        ? 'Enter a whole PACE number of 1001 or above.'
+        ? 'Enter a whole PACE number from 1001 to 1144.'
         : null;
   return (
     <Card style={styles.compactCard}>
       <Text style={styles.cardTitle}>Create PACE order</Text>
       <Field
+        disabled={pending}
         keyboardType="numeric"
         label="PACE number"
         onChangeText={onChangePaceNumber}
@@ -192,13 +217,101 @@ export function InventoryOrderForm({
         value={paceNumber}
       />
       {submitted && validation ? <ErrorText>{validation}</ErrorText> : null}
+      {errorMessage ? <ErrorText>{errorMessage}</ErrorText> : null}
       <MobileButton
-        disabled={pending}
+        disabled={pending || validation !== null}
         label={pending ? 'Creating order...' : 'Create order'}
         onPress={onSubmit}
         variant="navy"
       />
     </Card>
+  );
+}
+
+export function InventoryQuickOrderModal({
+  assignment,
+  errorMessage,
+  onChangePaceNumber,
+  onClose,
+  onSubmit,
+  paceNumber,
+  pending,
+  student,
+  submitted,
+  visible,
+}: {
+  assignment: InventoryAssignment | null;
+  errorMessage: string | null;
+  onChangePaceNumber: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  paceNumber: string;
+  pending: boolean;
+  student: InventoryStudent | null;
+  submitted: boolean;
+  visible: boolean;
+}) {
+  return (
+    <Modal
+      animationType="slide"
+      onRequestClose={() => {
+        if (!pending) onClose();
+      }}
+      presentationStyle="overFullScreen"
+      transparent
+      visible={visible}
+    >
+      <SafeAreaView style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <View accessibilityViewIsModal style={styles.modalSheet}>
+            <ScrollView
+              contentContainerStyle={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.modalHeader}>
+                <MobileButton
+                  disabled={pending}
+                  label="Cancel"
+                  onPress={onClose}
+                  variant="secondary"
+                />
+                <View style={styles.modalHeading}>
+                  <Text style={styles.eyebrow}>Quick order</Text>
+                  <Text accessibilityRole="header" style={styles.cardTitle}>
+                    Create PACE order
+                  </Text>
+                </View>
+              </View>
+              <Card style={styles.compactCard}>
+                <Text style={styles.cardTitle}>{student?.fullName ?? 'Student'}</Text>
+                <MutedText>
+                  {assignment
+                    ? assignmentLabel(assignment)
+                    : 'This subject assignment is unavailable.'}
+                </MutedText>
+                {assignment ? (
+                  <MutedText>Current PACE #{String(assignment.currentPaceNumber)}</MutedText>
+                ) : null}
+              </Card>
+              <InventoryOrderForm
+                assignment={assignment}
+                errorMessage={errorMessage}
+                onChangePaceNumber={onChangePaceNumber}
+                onSubmit={onSubmit}
+                paceNumber={paceNumber}
+                pending={pending}
+                student={student}
+                submitted={submitted}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -384,10 +497,11 @@ function SegmentButton({
 const styles = StyleSheet.create({
   alertPace: { color: C.warning, fontSize: 12, fontWeight: '900' },
   alertRow: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: C.warningBg,
     borderRadius: 10,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     padding: 12,
   },
@@ -420,6 +534,28 @@ const styles = StyleSheet.create({
   optionList: { gap: 8 },
   optionText: { color: C.textSecondary, fontSize: 12, fontWeight: '800' },
   optionTextActive: { color: C.navy },
+  modalBackdrop: {
+    backgroundColor: 'rgba(10, 18, 40, 0.6)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: C.bg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '92%',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  modalContent: { gap: 12, paddingBottom: 20 },
+  modalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  modalHeading: { flex: 1, gap: 4 },
+  keyboardAvoidingView: { flex: 1, justifyContent: 'flex-end' },
   orderRow: {
     backgroundColor: C.bg,
     borderColor: C.border,

@@ -34,6 +34,11 @@ interface StudentRow {
   subjects: Assignment[];
 }
 
+interface StudentFindManyArgs {
+  where?: { subjects?: { some?: { subject?: { code?: { in: string[] } } } } };
+  select?: { subjects?: { where?: { subject?: { code?: { in: string[] } } } } };
+}
+
 interface OrderRow {
   id: string;
   studentId: string;
@@ -511,12 +516,28 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
       ),
     },
     student: {
-      findMany: vi.fn(() =>
+      findMany: vi.fn(({ where, select }: StudentFindManyArgs = {}) =>
         Promise.resolve(
-          students.filter(
-            (student) =>
-              student.active && student.subjects.some((assignment) => assignment.subject.active),
-          ),
+          students
+            .filter(
+              (student) =>
+                student.active &&
+                student.subjects.some(
+                  (assignment) =>
+                    assignment.subject.active &&
+                    (!where?.subjects?.some?.subject?.code ||
+                      where.subjects.some.subject.code.in.includes(assignment.subject.code)),
+                ),
+            )
+            .map((student) => ({
+              ...student,
+              subjects: student.subjects.filter(
+                (assignment) =>
+                  assignment.subject.active &&
+                  (!select?.subjects?.where?.subject?.code ||
+                    select.subjects.where.subject.code.in.includes(assignment.subject.code)),
+              ),
+            })),
         ),
       ),
     },
@@ -1214,6 +1235,111 @@ describe('academic inventory router', () => {
         meta: { source: 'academicInventory.summary', count: 1 },
       },
     });
+  });
+
+  it('returns only active ACE assignments and related inventory records', async () => {
+    const defaultStudent = defaultStudents[0];
+    if (!defaultStudent) throw new Error('expected default student fixture');
+    const customStudentId = 'student_custom_only';
+    const students: StudentRow[] = [
+      {
+        ...defaultStudent,
+        subjects: [
+          ...defaultStudent.subjects,
+          {
+            id: 'assignment_math',
+            studentId: STUDENT_ID,
+            subjectId: SUBJECT_2_ID,
+            currentPaceNumber: 1011,
+            subject: { id: SUBJECT_2_ID, code: 'MATH', name: 'Mathematics', active: true },
+          },
+          {
+            id: 'assignment_custom',
+            studentId: STUDENT_ID,
+            subjectId: 'subject_custom',
+            currentPaceNumber: 1011,
+            subject: {
+              id: 'subject_custom',
+              code: 'CUSTOM-ANIMAL',
+              name: 'Animal Science',
+              active: true,
+            },
+          },
+          {
+            id: 'assignment_inactive',
+            studentId: STUDENT_ID,
+            subjectId: 'subject_inactive',
+            currentPaceNumber: 1011,
+            subject: { id: 'subject_inactive', code: 'SCI', name: 'Science', active: false },
+          },
+        ],
+      },
+      {
+        id: customStudentId,
+        active: true,
+        fullNameEnc: 'enc:Custom Only',
+        yearGroup: 'Year 6',
+        subjects: [
+          {
+            id: 'assignment_custom_only',
+            studentId: customStudentId,
+            subjectId: 'subject_special',
+            currentPaceNumber: 1011,
+            subject: {
+              id: 'subject_special',
+              code: 'SPECIAL',
+              name: 'Special Subject',
+              active: true,
+            },
+          },
+        ],
+      },
+    ];
+    const { caller, diagnostics, orders, supply } = makeCaller(HEAD, students);
+    const now = new Date();
+    orders.push({
+      id: 'custom-order',
+      studentId: STUDENT_ID,
+      subjectId: 'subject_custom',
+      paceNumber: 1012,
+      status: 'Ordered',
+      orderedAt: now,
+      inTransitAt: null,
+      deliveredAt: null,
+      createdById: HEAD.id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    diagnostics.push({
+      id: 'custom-diagnostic',
+      studentId: STUDENT_ID,
+      subjectId: 'subject_custom',
+      level: 1,
+      outcome: 'Pass',
+      recordedById: HEAD.id,
+      recordedAt: now,
+      createdAt: now,
+      deletedAt: null,
+      deletedById: null,
+    });
+    supply.push({
+      id: 'custom-supply',
+      studentId: STUDENT_ID,
+      subjectId: 'subject_custom',
+      paceNumber: 1012,
+      source: 'CurrentStock',
+      createdById: HEAD.id,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const summary = await caller.academicInventory.summary();
+
+    expect(summary.students.map((student) => student.id)).toEqual([STUDENT_ID]);
+    expect(summary.students[0]?.subjects.map((row) => row.subject.code)).toEqual(['ENG', 'MATH']);
+    expect(summary.orders).toEqual([]);
+    expect(summary.diagnostics).toEqual([]);
+    expect(summary.supply).toEqual([]);
   });
 
   it('returns history only for active student-subject assignments', async () => {

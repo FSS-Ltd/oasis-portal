@@ -17,6 +17,7 @@ type BadgeVariant = 'neutral' | 'success' | 'warning' | 'danger' | 'blue' | 'cri
 
 interface MobileButtonProps {
   label: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   variant?: ButtonVariant;
   disabled?: boolean;
@@ -100,6 +101,7 @@ export function StatCard({ label, value, accent = C.blue }: StatCardProps) {
 
 export function MobileButton({
   label,
+  accessibilityLabel,
   onPress,
   variant = 'primary',
   disabled = false,
@@ -108,6 +110,7 @@ export function MobileButton({
   const palette = buttonPalette[variant];
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
@@ -131,6 +134,7 @@ interface FieldProps {
   keyboardType?: 'default' | 'email-address' | 'numeric';
   secureTextEntry?: boolean;
   multiline?: boolean;
+  disabled?: boolean;
 }
 
 export function Field({
@@ -141,11 +145,14 @@ export function Field({
   keyboardType = 'default',
   secureTextEntry = false,
   multiline = false,
+  disabled = false,
 }: FieldProps) {
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
+        accessibilityLabel={label}
+        editable={!disabled}
         autoCapitalize="none"
         keyboardType={keyboardType}
         multiline={multiline}
@@ -153,7 +160,11 @@ export function Field({
         placeholder={placeholder}
         placeholderTextColor={C.textMuted}
         secureTextEntry={secureTextEntry}
-        style={[styles.input, multiline ? styles.multiline : null]}
+        style={[
+          styles.input,
+          multiline ? styles.multiline : null,
+          disabled ? styles.disabled : null,
+        ]}
         value={value}
       />
     </View>
@@ -185,7 +196,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     borderWidth: 1.5,
-    minHeight: 40,
+    minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 9,
