@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { Route } from 'next';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { ActiveScoreKeysReport } from './active-score-keys-report';
 import { ReportWorkflowClient } from './report-workflow-client';
 import styles from './reports-workspace.module.css';
@@ -15,7 +14,6 @@ export function ReportsWorkspaceClient({
   canViewStudentReports: boolean;
 }) {
   const pathname = usePathname() ?? '/admin/reports';
-  const router = useRouter();
   const searchParams = useSearchParams();
   const tabs: readonly ReportTab[] = canViewStudentReports
     ? ['student-reports', 'score-keys']
@@ -37,7 +35,7 @@ export function ReportsWorkspaceClient({
     setSelectedTab(tab);
     const params = new URLSearchParams(searchParams?.toString() ?? '');
     params.set('tab', tab);
-    router.replace(`${pathname}?${params.toString()}` as Route, { scroll: false });
+    window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
     if (focusIndex !== undefined) tabRefs.current[focusIndex]?.focus();
   }
 
