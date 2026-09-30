@@ -135,6 +135,7 @@ type AdminNavProps = {
   canViewAudit: boolean;
   canViewBehaviour: boolean;
   canViewPace: boolean;
+  canViewScoreKeyReport: boolean;
   canViewStudents: boolean;
   canManageUserAccounts: boolean;
   canManageClubs: boolean;
@@ -204,6 +205,7 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
   if (item.label === 'Students') return access.canViewStudents;
   if (item.label === 'Behaviour') return access.canViewBehaviour;
   if (item.label === 'PACE') return access.canViewPace;
+  if (item.label === 'Reports') return access.canViewScoreKeyReport;
   return false;
 }
 

@@ -19,6 +19,7 @@ import { StaffCommunicationsScreen } from '../staff/staff-communications-screen'
 import { StaffIncidentScreen } from '../staff/staff-incident-screen';
 import { StaffPaceScreen } from '../staff/staff-pace-screen';
 import { StaffShopCounterScreen } from '../staff/staff-shop-counter-screen';
+import { StaffScoreKeyReportScreen } from '../reports/staff-score-key-report-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type SupportPortalRoute =
@@ -30,6 +31,7 @@ type SupportPortalRoute =
   | 'communications'
   | 'incidents'
   | 'pace'
+  | 'reports'
   | 'shop';
 
 const supportTabs: Array<PortalMobileNavItem<SupportPortalRoute>> = [
@@ -41,6 +43,7 @@ const supportTabs: Array<PortalMobileNavItem<SupportPortalRoute>> = [
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'incidents', icon: 'incidents', label: 'Incidents' },
   { id: 'pace', icon: 'pace', label: 'PACE' },
+  { id: 'reports', icon: 'profile', label: 'Reports' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
 ];
 
@@ -102,6 +105,7 @@ export function TechnicalSupportPortalScreen({
     return <StaffCommunicationsScreen onBack={openAccessRoute} user={user} />;
   if (route === 'incidents') return <StaffIncidentScreen onBack={openAccessRoute} user={user} />;
   if (route === 'pace') return <StaffPaceScreen onBack={openAccessRoute} user={user} />;
+  if (route === 'reports') return <StaffScoreKeyReportScreen onBack={openAccessRoute} />;
   if (route === 'shop') return <StaffShopCounterScreen onBack={openAccessRoute} user={user} />;
 
   return (

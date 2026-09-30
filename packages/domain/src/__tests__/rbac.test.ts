@@ -19,6 +19,7 @@ import {
   canUsePersonalTasks,
   canUseStaffMessaging,
   canViewAnyStudentDrillThrough,
+  canViewScoreKeyReport,
   canViewAuditLog,
   canViewBehaviourReports,
   canViewSensitiveBehaviour,
@@ -70,6 +71,22 @@ const clubsLead: SessionUser = { id: 'u10', role: 'ClubsLead', tags: [], require
 const supervisor: SessionUser = { id: 'u7', role: 'Supervisor', tags: [], requires2fa: false };
 const parent: SessionUser = { id: 'u8', role: 'Parent', tags: [], requires2fa: false };
 const student: SessionUser = { id: 'u9', role: 'Student', tags: [], requires2fa: false };
+
+describe('canViewScoreKeyReport', () => {
+  it('allows staff and admin operations roles', () => {
+    expect(canViewScoreKeyReport(head)).toBe(true);
+    expect(canViewScoreKeyReport(technicalSupport)).toBe(true);
+    expect(canViewScoreKeyReport(clubsAdmin)).toBe(true);
+    expect(canViewScoreKeyReport(supervisor)).toBe(true);
+  });
+
+  it('does not grant aggregate counts to parents, students, or club leads by tag alone', () => {
+    expect(canViewScoreKeyReport(parent)).toBe(false);
+    expect(canViewScoreKeyReport(student)).toBe(false);
+    expect(canViewScoreKeyReport(clubsLead)).toBe(false);
+    expect(canViewScoreKeyReport({ ...parent, tags: ['pace-full-access'] })).toBe(false);
+  });
+});
 
 describe('isFullAdmin', () => {
   it('treats Head, Principal, Pastor, HeadOfDiscipline as full admins', () => {

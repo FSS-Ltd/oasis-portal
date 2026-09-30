@@ -1,0 +1,50 @@
+.workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.tabs {
+  display: flex;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.3rem;
+  border: 1px solid var(--oasis-border, #dde3f0);
+  border-radius: 0.8rem;
+  background: var(--oasis-surface, #fff);
+}
+.tabs button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 0.55rem;
+  color: var(--oasis-text-secondary, #5a6a8a);
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tabs button:focus-visible {
+  outline: 3px solid #2463a6;
+  outline-offset: 2px;
+}
+.tabs button.selected {
+  color: #fff;
+  background: var(--oasis-navy, #1b2b5e);
+}
+.tabPanel {
+  min-width: 0;
+}
+.tabPanel[hidden] {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .tabs {
+    width: 100%;
+  }
+  .tabs button {
+    flex: 1;
+    padding-inline: 0.5rem;
+  }
+}

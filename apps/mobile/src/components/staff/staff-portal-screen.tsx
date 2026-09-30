@@ -16,6 +16,7 @@ import { StaffRotaScreen } from './staff-rota-screen';
 import { StaffShopCounterScreen } from './staff-shop-counter-screen';
 import { MobileHeadTimetableScreen } from '../timetable/mobile-head-timetable-screen';
 import { StaffLibraryScreen } from './staff-library-screen';
+import { StaffScoreKeyReportScreen } from '../reports/staff-score-key-report-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StaffPortalRoute =
@@ -29,6 +30,7 @@ type StaffPortalRoute =
   | 'incidents'
   | 'library'
   | 'pace'
+  | 'reports'
   | 'rota'
   | 'shop'
   | 'timetables'
@@ -116,6 +118,16 @@ export function StaffPortalScreen({
           setRoute('home');
         }}
         user={user}
+      />
+    );
+  }
+
+  if (route === 'reports') {
+    return (
+      <StaffScoreKeyReportScreen
+        onBack={() => {
+          setRoute('home');
+        }}
       />
     );
   }
@@ -239,6 +251,9 @@ export function StaffPortalScreen({
       }}
       onOpenRota={() => {
         setRoute('rota');
+      }}
+      onOpenReports={() => {
+        setRoute('reports');
       }}
       onOpenShop={() => {
         setRoute('shop');

@@ -1,13 +1,16 @@
 import { MotionPage } from '@/components/admin/motion';
-import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
-import { ReportWorkflowClient } from '@/components/reports/report-workflow-client';
+import { canUseAdminOperations, canViewScoreKeyReport } from '@oasis/domain';
+import { notFound } from 'next/navigation';
+import { getAdminShellUser } from '@/components/admin/require-full-admin';
+import { ReportsWorkspaceClient } from '@/components/reports/reports-workspace-client';
 
 export default async function AdminReportsPage() {
-  await getAdminOperationsUser();
+  const user = await getAdminShellUser();
+  if (!canViewScoreKeyReport(user)) notFound();
 
   return (
     <MotionPage>
-      <ReportWorkflowClient mode="admin" />
+      <ReportsWorkspaceClient canViewStudentReports={canUseAdminOperations(user)} />
     </MotionPage>
   );
 }
