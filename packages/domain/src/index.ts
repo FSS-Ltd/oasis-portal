@@ -13,6 +13,7 @@ export * from './leaderboard.js';
 export * from './library.js';
 export * from './clubs.js';
 export * from './report.js';
+export * from './scoreKeyReport.js';
 export * from './schoolYears.js';
 export * from './registration.js';
 export * from './invoice.js';

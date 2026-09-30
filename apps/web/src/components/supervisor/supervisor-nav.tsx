@@ -76,6 +76,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/supervisor/leaderboard', label: 'Leaderboard', icon: Medal },
       { href: '/supervisor/notes-history', label: 'Notes History', icon: FileText },
+      { href: '/supervisor/reports', label: 'Reports', icon: FileText },
       {
         href: '/supervisor/shop',
         label: 'Merit Shop',

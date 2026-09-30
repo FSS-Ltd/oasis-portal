@@ -33,6 +33,7 @@ import {
   type ParentEmailNotificationRecipient,
 } from '../services/parent-email-notifications.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
+import { scoreKeyReportRouter } from './scoreKeyReport.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
@@ -1002,6 +1003,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
   const pdfGenerator = deps.pdfGenerator ?? generateStudentReportPdf;
 
   return router({
+    scoreKeys: scoreKeyReportRouter,
     draft: adminOperationsProcedure.input(draftInput).mutation(async ({ ctx, input }) => {
       const period = resolveDraftPeriod(input.period);
       const existing = await ctx.db.termReport.findUnique({

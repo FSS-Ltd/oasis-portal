@@ -91,6 +91,7 @@ export function StaffHomeScreen({
   onOpenLibrary,
   onOpenPace,
   onOpenRota,
+  onOpenReports,
   onOpenShop,
   onOpenTimetables,
   onOpenUserAccess,
@@ -107,6 +108,7 @@ export function StaffHomeScreen({
   onOpenLibrary?: () => void;
   onOpenPace?: () => void;
   onOpenRota?: () => void;
+  onOpenReports?: () => void;
   onOpenShop?: () => void;
   onOpenTimetables?: (() => void) | undefined;
   onOpenUserAccess?: (() => void) | undefined;
@@ -131,6 +133,7 @@ export function StaffHomeScreen({
     incidents: onOpenIncidents,
     pace: onOpenPace,
     rota: onOpenRota,
+    reports: onOpenReports,
     shop: onOpenShop,
   };
 

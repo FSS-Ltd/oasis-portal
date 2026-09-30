@@ -42,6 +42,7 @@ export type StaffHomeQuickActionId =
   | 'communications'
   | 'incidents'
   | 'pace'
+  | 'reports'
   | 'rota'
   | 'shop';
 
@@ -101,6 +102,11 @@ export function buildStaffHomeViewModel(
       id: 'pace',
       label: 'Record PACE score',
       meta: `${String(summary.pace.testsRecordedToday)} today`,
+    },
+    {
+      id: 'reports',
+      label: 'Active score keys',
+      meta: 'Current centre-wide PACE needs',
     },
     {
       id: 'rota',

@@ -379,6 +379,10 @@ export function canUseFullPaceAccess(user: SessionUser): boolean {
   return canUseAdminOperations(user) || hasTag(user, 'pace-full-access');
 }
 
+export function canViewScoreKeyReport(user: SessionUser): boolean {
+  return isStaff(user) || canUseAdminOperations(user);
+}
+
 export function canUseAllStudentSupervisorWorkflow(user: SessionUser): boolean {
   return (
     canUseAdminOperations(user) ||

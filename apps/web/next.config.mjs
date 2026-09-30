@@ -9,6 +9,10 @@ const nextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
   outputFileTracingRoot: repoRoot,
+  outputFileTracingIncludes: {
+    '/api/reports/score-keys/pdf': ['./public/oasis-logo-email.png'],
+    '/api/trpc/*': ['./public/oasis-logo-email.png'],
+  },
   transpilePackages: ['@oasis/api', '@oasis/db', '@oasis/domain'],
   env: {
     NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? '',
