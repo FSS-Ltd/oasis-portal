@@ -1,34 +1,41 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { PackagePlus } from 'lucide-react';
 import { friendlyErrorMessage } from '@/lib/notifications';
 import { Button } from '@/components/ui/button';
+import { Field, SelectInput } from '@/components/ui/field';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
 
+export interface PaceInventoryOrderSubjectChoice {
+  subjectId: string;
+  subjectLabel: string;
+  currentPaceNumber: number;
+  availablePaceNumbers: readonly number[];
+}
+
 export function PaceInventoryOrderModal({
-  availablePaceNumbers,
-  currentPaceNumber,
   onClose,
   onSubmit,
   pending,
   studentName,
-  subjectLabel,
+  subjects,
 }: {
-  availablePaceNumbers: readonly number[];
-  currentPaceNumber: number | null;
   onClose: () => void;
-  onSubmit: (paceNumbers: number[]) => Promise<void>;
+  onSubmit: (subjectId: string, paceNumbers: number[]) => Promise<void>;
   pending: boolean;
   studentName: string;
-  subjectLabel: string;
+  subjects: readonly PaceInventoryOrderSubjectChoice[];
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const submittingRef = useRef(false);
+  const subjectSelectId = `pace-order-subject-${useId()}`;
+  const [subjectId, setSubjectId] = useState(subjects[0]?.subjectId ?? '');
   const [paceNumbers, setPaceNumbers] = useState<number[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const subject = subjects.find((choice) => choice.subjectId === subjectId) ?? null;
   const hasUnavailableSelection = paceNumbers.some(
-    (paceNumber) => !availablePaceNumbers.includes(paceNumber),
+    (paceNumber) => !subject?.availablePaceNumbers.includes(paceNumber),
   );
 
   useEffect(() => {
@@ -44,11 +51,16 @@ export function PaceInventoryOrderModal({
     };
   }, []);
 
+  useEffect(() => {
+    setPaceNumbers([]);
+    setSubmitError(null);
+  }, [subjectId]);
+
   async function submitOrder(): Promise<void> {
     if (
+      !subject ||
       paceNumbers.length === 0 ||
       hasUnavailableSelection ||
-      currentPaceNumber === null ||
       pending ||
       submittingRef.current
     ) {
@@ -57,7 +69,7 @@ export function PaceInventoryOrderModal({
     submittingRef.current = true;
     setSubmitError(null);
     try {
-      await onSubmit(paceNumbers);
+      await onSubmit(subject.subjectId, paceNumbers);
     } catch (error) {
       setSubmitError(friendlyErrorMessage(error));
     } finally {
@@ -85,30 +97,57 @@ export function PaceInventoryOrderModal({
         <header className="pace-modal__header">
           <div>
             <h2 id="pace-inventory-order-title">Create PACE order</h2>
-            <p>
-              {studentName} · {subjectLabel}
-            </p>
+            <p>{studentName}</p>
           </div>
           <Button disabled={pending} onClick={onClose} type="button" variant="secondary">
             Cancel
           </Button>
         </header>
         <div className="pace-modal__body">
-          {currentPaceNumber === null ? (
+          <Field label="Subject">
+            <SelectInput
+              aria-label="Order subject"
+              disabled={pending || subjects.length === 0}
+              id={subjectSelectId}
+              onChange={(event) => {
+                setSubjectId(event.currentTarget.value);
+              }}
+              value={subjectId}
+            >
+              {subjects.length === 0 ? <option value="">No eligible subjects</option> : null}
+              {subjectId && !subject ? (
+                <option disabled value={subjectId}>
+                  Subject no longer available
+                </option>
+              ) : null}
+              {subjects.map((choice) => (
+                <option key={choice.subjectId} value={choice.subjectId}>
+                  {choice.subjectLabel}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+          {!subject ? (
             <p className="status--error" role="alert">
-              This subject assignment is no longer available. Close this order and refresh
-              inventory.
+              {subjectId
+                ? 'This subject assignment is no longer available. Close this order and refresh inventory.'
+                : 'No subjects need attention for this student now. Close this order and refresh inventory.'}
             </p>
           ) : (
             <>
-              <p className="muted">Current PACE #{String(currentPaceNumber)}</p>
+              <p className="pace-inventory-order__current">
+                <span>Current PACE</span>
+                <strong>#{String(subject.currentPaceNumber)}</strong>
+              </p>
               <PaceCataloguePicker
-                availablePaceNumbers={availablePaceNumbers}
-                currentPaceNumber={currentPaceNumber}
+                availablePaceNumbers={subject.availablePaceNumbers}
+                currentPaceNumber={subject.currentPaceNumber}
                 disabled={pending}
                 onChange={setPaceNumbers}
                 selectedPaceNumbers={paceNumbers}
-                subjectLabel={`${studentName} · ${subjectLabel}`}
+                subjectLabel=""
+                title="Choose PACEs to order"
+                description="Select the remaining future PACEs you want to order."
               />
             </>
           )}
@@ -126,12 +165,7 @@ export function PaceInventoryOrderModal({
         </div>
         <footer className="pace-modal__footer">
           <Button
-            disabled={
-              pending ||
-              currentPaceNumber === null ||
-              paceNumbers.length === 0 ||
-              hasUnavailableSelection
-            }
+            disabled={pending || !subject || paceNumbers.length === 0 || hasUnavailableSelection}
             pending={pending}
             type="submit"
           >

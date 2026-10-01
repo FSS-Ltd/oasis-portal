@@ -8454,7 +8454,7 @@ button.club-assignment-row {
   font-size: 0.78rem;
 }
 
-.pace-modal__header .button {
+.pace-modal__header .button:not(.button--secondary) {
   color: #fff;
 }
 
@@ -8592,6 +8592,98 @@ button.club-assignment-row {
 .pace-inventory-order-dialog .button,
 .pace-inventory__alerts .button {
   min-height: 44px;
+}
+
+.pace-inventory__alerts .button {
+  justify-self: start;
+  padding-inline: 12px;
+}
+
+.pace-inventory-alert-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.pace-inventory-alert-row__details {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.pace-inventory-alert-row__details > strong {
+  color: var(--oasis-navy);
+  font-size: 0.92rem;
+}
+
+.pace-inventory-alert-row__subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pace-inventory-alert-subject {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  padding: 6px 9px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+  font-size: 0.75rem;
+}
+
+.pace-inventory-alert-subject > span:first-child {
+  color: var(--oasis-navy);
+  font-weight: 750;
+}
+
+.pace-inventory-alert-subject > span + span {
+  white-space: nowrap;
+}
+
+.pace-inventory-order-dialog .pace-modal__body {
+  gap: 20px;
+}
+
+.pace-inventory-order-dialog .pace-catalogue-picker {
+  gap: 12px;
+}
+
+.pace-inventory-order-dialog .pace-catalogue-picker__heading {
+  display: grid;
+  gap: 8px;
+}
+
+.pace-inventory-order-dialog .pace-catalogue-picker__heading h2 {
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+
+.pace-inventory-order-dialog .pace-catalogue-picker__heading p {
+  max-width: 58ch;
+  line-height: 1.5;
+}
+
+.pace-inventory-order__current {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.86rem;
+}
+
+.pace-inventory-order__current strong {
+  color: var(--oasis-navy);
+  font-size: 0.94rem;
 }
 
 .admin-confirmation-backdrop {
@@ -13021,6 +13113,14 @@ button.club-assignment-row {
 }
 
 @media (max-width: 720px) {
+  .pace-inventory-alert-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pace-inventory__alerts .button {
+    justify-self: start;
+  }
+
   .pace-inventory-summary {
     grid-template-columns: 1fr;
   }

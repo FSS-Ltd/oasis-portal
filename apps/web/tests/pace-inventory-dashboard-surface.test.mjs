@@ -102,7 +102,7 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(pickerSource, /!isAvailable && !isSelected/);
   assert.match(pickerSource, /Selected/);
   assert.match(pickerSource, /Unavailable/);
-  assert.match(pickerSource, /Starting after PACE #\{String\(currentPaceNumber\)\}/);
+  assert.match(pickerSource, /Starting after PACE #\$\{String\(currentPaceNumber\)\}/);
   assert.match(diagnosticFormSource, /<form/);
   assert.match(diagnosticFormSource, /label="Level"/);
   assert.match(diagnosticFormSource, /label="Outcome"/);
@@ -151,23 +151,16 @@ test('PACE Inventory clears and guards PACE numbers when the effective assignmen
   );
 });
 
-test('Needs attention opens a child and subject-specific order modal', () => {
+test('Needs attention groups by child and lets the order modal select a subject', () => {
   const clientSource = readWeb('src/components/pace/pace-inventory-client.tsx');
   const modalSource = readWeb('src/components/pace/pace-inventory-order-modal.tsx');
   const pickerSource = readWeb('src/components/pace/pace-catalogue-picker.tsx');
 
-  assert.match(
-    clientSource,
-    /setQuickOrderTarget\(\{[\s\S]*studentId: alert\.studentId,[\s\S]*subjectId: alert\.subjectId/,
-  );
-  assert.match(
-    clientSource,
-    /quickOrderStudent\?\.subjects\.find\([\s\S]*quickOrderTarget\.subjectId/,
-  );
-  assert.match(
-    clientSource,
-    /studentId: quickOrderTarget\.studentId,[\s\S]*subjectId: quickOrderTarget\.subjectId/,
-  );
+  assert.match(clientSource, /function groupAlertsByStudent\([\s\S]*groupedAlerts\.map\(/);
+  assert.match(clientSource, /setQuickOrderTarget\(\{[\s\S]*studentId: group\.studentId/);
+  assert.match(modalSource, /onSubmit: \(subjectId: string, paceNumbers: number\[\]\)/);
+  assert.match(modalSource, /<Field label="Subject">[\s\S]*<SelectInput/);
+  assert.match(modalSource, /onSubmit\(subject\.subjectId, paceNumbers\)/);
   assert.match(clientSource, /<PaceInventoryOrderModal/);
   assert.match(clientSource, /aria-label={`Create order for/);
   assert.match(modalSource, /<dialog[\s\S]*aria-labelledby=/);
