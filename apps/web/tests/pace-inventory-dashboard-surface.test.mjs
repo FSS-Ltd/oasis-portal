@@ -151,6 +151,34 @@ test('PACE Inventory clears and guards PACE numbers when the effective assignmen
   );
 });
 
+test('Needs attention opens a child and subject-specific order modal', () => {
+  const clientSource = readWeb('src/components/pace/pace-inventory-client.tsx');
+  const modalSource = readWeb('src/components/pace/pace-inventory-order-modal.tsx');
+  const pickerSource = readWeb('src/components/pace/pace-catalogue-picker.tsx');
+
+  assert.match(
+    clientSource,
+    /setQuickOrderTarget\(\{[\s\S]*studentId: alert\.studentId,[\s\S]*subjectId: alert\.subjectId/,
+  );
+  assert.match(
+    clientSource,
+    /quickOrderStudent\?\.subjects\.find\([\s\S]*quickOrderTarget\.subjectId/,
+  );
+  assert.match(
+    clientSource,
+    /studentId: quickOrderTarget\.studentId,[\s\S]*subjectId: quickOrderTarget\.subjectId/,
+  );
+  assert.match(clientSource, /<PaceInventoryOrderModal/);
+  assert.match(clientSource, /aria-label={`Create order for/);
+  assert.match(modalSource, /<dialog[\s\S]*aria-labelledby=/);
+  assert.match(modalSource, /dialog\.showModal\(\)/);
+  assert.match(modalSource, /onCancel=/);
+  assert.match(modalSource, /label|Cancel/);
+  assert.match(modalSource, /role="alert"/);
+  assert.match(modalSource, /disabled={pending}/);
+  assert.match(pickerSource, /useId\(\)/);
+});
+
 test('PACE Progress is exact while PACE Inventory owns its nested routes', () => {
   const adminNavSource = readWeb('src/components/admin/admin-nav.tsx');
   const isActiveRoute = evaluateIsActiveRoute(adminNavSource);

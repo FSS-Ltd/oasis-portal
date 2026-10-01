@@ -12,10 +12,10 @@ import {
   InventoryDiagnosticCard,
   InventoryOrderForm,
   InventoryOrderList,
+  InventoryQuickOrderModal,
   InventoryStatusNotice,
   InventoryStudentPicker,
   InventorySubjectPicker,
-  paceNumberValue,
   type DiagnosticLevel,
   type InventoryStatusMessage,
 } from './staff-academic-inventory-components';
@@ -23,6 +23,7 @@ import {
   canOpenAcademicInventory,
   diagnosticPlacementLabel,
   nextOrderStatus,
+  paceNumberValue,
 } from './staff-academic-inventory-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
@@ -68,6 +69,13 @@ export function StaffAcademicInventoryScreen({
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [paceNumber, setPaceNumber] = useState('');
+  const [quickOrderTarget, setQuickOrderTarget] = useState<{
+    studentId: string;
+    subjectId: string;
+  } | null>(null);
+  const [quickPaceNumber, setQuickPaceNumber] = useState('');
+  const [quickOrderSubmitted, setQuickOrderSubmitted] = useState(false);
+  const [quickOrderError, setQuickOrderError] = useState<string | null>(null);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [diagnosticSubmitted, setDiagnosticSubmitted] = useState(false);
   const [diagnosticLevel, setDiagnosticLevel] = useState<DiagnosticLevel>(1);
@@ -82,6 +90,14 @@ export function StaffAcademicInventoryScreen({
   const students = summary.data?.students ?? [];
   const selectedStudent = findStudent(students, selectedStudentId);
   const selectedAssignment = findAssignment(selectedStudent, selectedSubjectId);
+  const quickOrderStudent = quickOrderTarget
+    ? (students.find((student) => student.id === quickOrderTarget.studentId) ?? null)
+    : null;
+  const quickOrderAssignment = quickOrderTarget
+    ? (quickOrderStudent?.subjects.find(
+        (assignment) => assignment.subjectId === quickOrderTarget.subjectId,
+      ) ?? null)
+    : null;
 
   async function invalidateAcademicInventory() {
     await Promise.all([
@@ -100,8 +116,6 @@ export function StaffAcademicInventoryScreen({
       });
     },
     onSuccess: async (_, variables) => {
-      setOrderSubmitted(false);
-      setPaceNumber('');
       setStatusMessage({
         message: `PACE #${String(variables.paceNumber)} order created.`,
         tone: 'success',
@@ -176,11 +190,66 @@ export function StaffAcademicInventoryScreen({
     setStatusMessage(null);
     const parsedPaceNumber = paceNumberValue(paceNumber);
     if (!selectedStudent || !selectedAssignment || parsedPaceNumber === null) return;
-    createOrder.mutate({
-      paceNumber: parsedPaceNumber,
-      studentId: selectedStudent.id,
-      subjectId: selectedAssignment.subjectId,
-    });
+    createOrder.mutate(
+      {
+        paceNumber: parsedPaceNumber,
+        studentId: selectedStudent.id,
+        subjectId: selectedAssignment.subjectId,
+      },
+      {
+        onSuccess: () => {
+          setOrderSubmitted(false);
+          setPaceNumber('');
+        },
+      },
+    );
+  }
+
+  function openQuickOrder(alert: InventorySummary['alerts'][number]) {
+    setQuickOrderTarget({ studentId: alert.studentId, subjectId: alert.subjectId });
+    setQuickPaceNumber('');
+    setQuickOrderSubmitted(false);
+    setQuickOrderError(null);
+  }
+
+  function closeQuickOrder() {
+    if (createOrder.isPending) return;
+    setQuickOrderTarget(null);
+    setQuickPaceNumber('');
+    setQuickOrderSubmitted(false);
+    setQuickOrderError(null);
+  }
+
+  function submitQuickOrder() {
+    setQuickOrderSubmitted(true);
+    setQuickOrderError(null);
+    const parsedPaceNumber = paceNumberValue(quickPaceNumber);
+    if (
+      !quickOrderTarget ||
+      !quickOrderStudent ||
+      !quickOrderAssignment ||
+      parsedPaceNumber === null
+    ) {
+      return;
+    }
+    createOrder.mutate(
+      {
+        paceNumber: parsedPaceNumber,
+        studentId: quickOrderTarget.studentId,
+        subjectId: quickOrderTarget.subjectId,
+      },
+      {
+        onError: (error) => {
+          setQuickOrderError(friendlyError(error));
+        },
+        onSuccess: () => {
+          setQuickOrderTarget(null);
+          setQuickPaceNumber('');
+          setQuickOrderSubmitted(false);
+          setQuickOrderError(null);
+        },
+      },
+    );
   }
 
   function submitDiagnostic() {
@@ -246,7 +315,9 @@ export function StaffAcademicInventoryScreen({
             {summary.isLoading ? <InlineSpinner label="Loading PACE inventory" /> : null}
             {summary.error ? <ErrorText>{summary.error.message}</ErrorText> : null}
             {statusMessage ? <InventoryStatusNotice status={statusMessage} /> : null}
-            {summary.data ? <InventoryAlerts summary={summary.data} /> : null}
+            {summary.data ? (
+              <InventoryAlerts onCreateOrder={openQuickOrder} summary={summary.data} />
+            ) : null}
 
             {!summary.isLoading && !summary.error && students.length === 0 ? (
               <Card>
@@ -304,6 +375,22 @@ export function StaffAcademicInventoryScreen({
           </ScrollView>
         )}
       </View>
+      <InventoryQuickOrderModal
+        assignment={quickOrderAssignment}
+        errorMessage={quickOrderError}
+        onChangePaceNumber={(value) => {
+          setQuickPaceNumber(value);
+          setQuickOrderSubmitted(false);
+          setQuickOrderError(null);
+        }}
+        onClose={closeQuickOrder}
+        onSubmit={submitQuickOrder}
+        paceNumber={quickPaceNumber}
+        pending={createOrder.isPending}
+        student={quickOrderStudent}
+        submitted={quickOrderSubmitted}
+        visible={quickOrderTarget !== null}
+      />
     </SafeAreaView>
   );
 }

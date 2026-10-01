@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+export const ACE_SUBJECT_CODES = [
+  'MATH',
+  'ENG',
+  'WB',
+  'LIT',
+  'SOC',
+  'SCI',
+  'ANSCI',
+  'BIBLE',
+] as const;
+
 export const paceInventoryOrderStatus = z.enum(['Ordered', 'InTransit', 'Delivered']);
 
 export const paceInventoryOrderInput = z.object({
@@ -43,19 +54,21 @@ export function requiresPaceReorder(
   return availablePacesAhead(currentPaceNumber, availablePaceNumbers).length <= 2;
 }
 
-const studentPaceNumbersInput = z.object({
-  studentId: z.string().trim().min(1),
-  subjectId: z.string().trim().min(1),
-  paceNumbers: z.array(z.number().int().min(1001).max(1144)).min(1),
-}).superRefine(({ paceNumbers }, ctx) => {
-  if (new Set(paceNumbers).size !== paceNumbers.length) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'paceNumbers must not contain duplicates',
-      path: ['paceNumbers'],
-    });
-  }
-});
+const studentPaceNumbersInput = z
+  .object({
+    studentId: z.string().trim().min(1),
+    subjectId: z.string().trim().min(1),
+    paceNumbers: z.array(z.number().int().min(1001).max(1144)).min(1),
+  })
+  .superRefine(({ paceNumbers }, ctx) => {
+    if (new Set(paceNumbers).size !== paceNumbers.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'paceNumbers must not contain duplicates',
+        path: ['paceNumbers'],
+      });
+    }
+  });
 
 export const bulkPaceInventoryOrderInput = studentPaceNumbersInput;
 
