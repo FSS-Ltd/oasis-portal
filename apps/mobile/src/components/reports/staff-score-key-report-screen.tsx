@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ACTIVE_SCORE_KEY_SCOPE_LABELS, ACTIVE_SCORE_KEY_SCOPES } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Card, ErrorText, MobileButton, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -27,17 +28,25 @@ function visibleOnWeb(): boolean {
 }
 
 export function StaffScoreKeyReportScreen({ onBack }: { onBack: () => void }) {
-  const report = api.report.scoreKeys.current.useQuery(undefined, {
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    retry: false,
-    refetchInterval: () => (AppState.currentState === 'active' && visibleOnWeb() ? 30_000 : false),
-  });
-  const download = api.report.scoreKeys.downloadPdf.useQuery(undefined, {
-    enabled: false,
-    retry: false,
-  });
+  const [scope, setScope] = useState<(typeof ACTIVE_SCORE_KEY_SCOPES)[number]>('all');
+  const report = api.report.scoreKeys.current.useQuery(
+    { scope },
+    {
+      staleTime: 0,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+      retry: false,
+      refetchInterval: () =>
+        AppState.currentState === 'active' && visibleOnWeb() ? 30_000 : false,
+    },
+  );
+  const download = api.report.scoreKeys.downloadPdf.useQuery(
+    { scope },
+    {
+      enabled: false,
+      retry: false,
+    },
+  );
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -154,6 +163,26 @@ export function StaffScoreKeyReportScreen({ onBack }: { onBack: () => void }) {
         {exportError ? <ErrorText>{exportError}</ErrorText> : null}
         {!accessDenied && report.data ? (
           <>
+            <View>
+              <MutedText>Child group</MutedText>
+              <View style={styles.scopePicker}>
+                {ACTIVE_SCORE_KEY_SCOPES.map((option) => {
+                  const label = ACTIVE_SCORE_KEY_SCOPE_LABELS[option];
+                  const selected = scope === option;
+                  return (
+                    <MobileButton
+                      key={option}
+                      accessibilityLabel={`${label}${selected ? ', selected' : ''}`}
+                      label={label}
+                      onPress={() => {
+                        setScope(option);
+                      }}
+                      variant={selected ? 'navy' : 'secondary'}
+                    />
+                  );
+                })}
+              </View>
+            </View>
             <View style={styles.metrics}>
               <Card style={styles.metric}>
                 <MutedText>Active Score Keys</MutedText>
@@ -241,6 +270,7 @@ const styles = StyleSheet.create({
   row: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
   rowText: { flex: 1, gap: 4 },
   scroller: { backgroundColor: C.bg },
+  scopePicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   shell: { backgroundColor: C.bg, flex: 1 },
   subject: { gap: 8 },
   subjectTitle: { color: C.navy, fontSize: 18, fontWeight: '700', marginTop: 4 },

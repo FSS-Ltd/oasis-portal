@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
+import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { canViewScoreKeyReport } from '@oasis/domain';
+import { ACTIVE_SCORE_KEY_SCOPES, canViewScoreKeyReport } from '@oasis/domain';
 import { loadActiveScoreKeyReport } from '../reports/active-score-keys.js';
 import { generateActiveScoreKeysPdf } from '../reports/active-score-keys-pdf.js';
 import { router, authedProcedure } from '../trpc.js';
@@ -11,14 +12,16 @@ function requireScoreKeyReportAccess(roleUser: Parameters<typeof canViewScoreKey
   }
 }
 
+const scopeInput = z.object({ scope: z.enum(ACTIVE_SCORE_KEY_SCOPES) }).optional();
+
 export const scoreKeyReportRouter = router({
-  current: authedProcedure.query(async ({ ctx }) => {
+  current: authedProcedure.input(scopeInput).query(async ({ ctx, input }) => {
     requireScoreKeyReportAccess(ctx.user);
-    return ctx.withRls(loadActiveScoreKeyReport);
+    return ctx.withRls((tx) => loadActiveScoreKeyReport(tx, input?.scope));
   }),
-  downloadPdf: authedProcedure.query(async ({ ctx }) => {
+  downloadPdf: authedProcedure.input(scopeInput).query(async ({ ctx, input }) => {
     requireScoreKeyReportAccess(ctx.user);
-    const report = await ctx.withRls(loadActiveScoreKeyReport);
+    const report = await ctx.withRls((tx) => loadActiveScoreKeyReport(tx, input?.scope));
     const pdf = await generateActiveScoreKeysPdf(report);
     return {
       fileName: pdf.fileName,

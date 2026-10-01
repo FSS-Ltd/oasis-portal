@@ -1,11 +1,25 @@
-import type { ActiveScoreKeyReport, ActiveScoreKeyRow } from '@oasis/domain';
+import type { ActiveScoreKeyReport, ActiveScoreKeyRow, ActiveScoreKeyScope } from '@oasis/domain';
 import type { RlsTx } from '../context.js';
 
-export async function loadActiveScoreKeyReport(tx: RlsTx): Promise<ActiveScoreKeyReport> {
+export async function loadActiveScoreKeyReport(
+  tx: RlsTx,
+  scope: ActiveScoreKeyScope = 'all',
+): Promise<ActiveScoreKeyReport> {
+  const studentFilter =
+    scope === 'all'
+      ? { active: true }
+      : {
+          active: true,
+          registrationProfile: {
+            is: {
+              registrationLevel: scope === 'abc-primary' ? { in: ['ABC', 'Primary'] } : 'Secondary',
+            },
+          },
+        };
   const assignments = await tx.studentSubject.groupBy({
     by: ['subjectId', 'currentPaceNumber'],
     where: {
-      student: { active: true },
+      student: studentFilter,
       subject: { active: true },
     },
     _count: { _all: true },
@@ -43,6 +57,7 @@ export async function loadActiveScoreKeyReport(tx: RlsTx): Promise<ActiveScoreKe
   );
 
   return {
+    scope,
     generatedAt: new Date(),
     activeKeyCount: rows.length,
     subjectCount: new Set(rows.map((row) => row.subjectId)).size,
