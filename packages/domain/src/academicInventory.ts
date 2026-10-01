@@ -51,7 +51,8 @@ export function requiresPaceReorder(
   currentPaceNumber: number,
   availablePaceNumbers: readonly number[],
 ): boolean {
-  return availablePacesAhead(currentPaceNumber, availablePaceNumbers).length <= 2;
+  const remainingCount = availablePacesAhead(currentPaceNumber, availablePaceNumbers).length;
+  return remainingCount > 0 && remainingCount <= 2;
 }
 
 const studentPaceNumbersInput = z

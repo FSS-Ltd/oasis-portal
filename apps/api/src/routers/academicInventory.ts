@@ -232,11 +232,26 @@ export const academicInventoryRouter = router({
       supplyByAssignment.set(key, paceNumbers);
     }
 
+    const outstandingPacesByAssignment = new Map<string, number[]>();
+    for (const order of orders) {
+      if (order.status === 'Delivered') continue;
+      const key = `${order.studentId}:${order.subjectId}`;
+      const paceNumbers = outstandingPacesByAssignment.get(key) ?? [];
+      paceNumbers.push(order.paceNumber);
+      outstandingPacesByAssignment.set(key, paceNumbers);
+    }
+
     const alerts = students.flatMap((student) =>
       student.subjects.flatMap((assignment) => {
+        const assignmentKey = `${student.id}:${assignment.subjectId}`;
+        const hasOutstandingFutureOrder = (
+          outstandingPacesByAssignment.get(assignmentKey) ?? []
+        ).some((paceNumber) => paceNumber > assignment.currentPaceNumber);
+        if (hasOutstandingFutureOrder) return [];
+
         const availablePaceNumbers = availablePacesAhead(
           assignment.currentPaceNumber,
-          supplyByAssignment.get(`${student.id}:${assignment.subjectId}`) ?? [],
+          supplyByAssignment.get(assignmentKey) ?? [],
         );
         if (!requiresPaceReorder(assignment.currentPaceNumber, availablePaceNumbers)) {
           return [];

@@ -14,13 +14,17 @@ import { Field, SelectInput } from '@/components/ui/field';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
 import { PaceDiagnosticForm, type PaceDiagnosticSelection } from './pace-diagnostic-form';
-import { PaceInventoryOrderModal } from './pace-inventory-order-modal';
+import {
+  PaceInventoryOrderModal,
+  type PaceInventoryOrderSubjectChoice,
+} from './pace-inventory-order-modal';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
 type InventoryAssignment = InventoryStudent['subjects'][number];
 type InventoryOrder = InventorySummary['orders'][number];
 type InventoryDiagnostic = InventorySummary['diagnostics'][number];
+type InventoryAlert = InventorySummary['alerts'][number];
 
 interface PaceSelectionState {
   assignmentKey: string;
@@ -70,6 +74,38 @@ function formatPaceCount(count: number): string {
   return `${String(count)} ${count === 1 ? 'PACE' : 'PACEs'}`;
 }
 
+function groupAlertsByStudent(alerts: readonly InventoryAlert[]) {
+  const alertsByStudent = new Map<string, InventoryAlert[]>();
+  for (const alert of alerts) {
+    const studentAlerts = alertsByStudent.get(alert.studentId) ?? [];
+    studentAlerts.push(alert);
+    alertsByStudent.set(alert.studentId, studentAlerts);
+  }
+  return [...alertsByStudent].map(([studentId, studentAlerts]) => ({
+    studentId,
+    alerts: studentAlerts,
+  }));
+}
+
+function availableOrderPaces(
+  summary: InventorySummary | undefined,
+  studentId: string,
+  subjectId: string,
+): number[] {
+  const unavailable = new Set([
+    ...(summary?.supply ?? [])
+      .filter((row) => row.studentId === studentId && row.subjectId === subjectId)
+      .map((row) => row.paceNumber),
+    ...(summary?.orders ?? [])
+      .filter(
+        (row) =>
+          row.studentId === studentId && row.subjectId === subjectId && row.status !== 'Delivered',
+      )
+      .map((row) => row.paceNumber),
+  ]);
+  return PACE_CATALOGUE.filter((paceNumber) => !unavailable.has(paceNumber));
+}
+
 export function PaceInventoryClient() {
   const utils = api.useUtils();
   const summaryQuery = api.academicInventory.summary.useQuery(undefined, { retry: false });
@@ -80,10 +116,7 @@ export function PaceInventoryClient() {
     paceNumbers: [],
   });
   const [pendingDiagnosticId, setPendingDiagnosticId] = useState<string | null>(null);
-  const [quickOrderTarget, setQuickOrderTarget] = useState<{
-    studentId: string;
-    subjectId: string;
-  } | null>(null);
+  const [quickOrderTarget, setQuickOrderTarget] = useState<{ studentId: string } | null>(null);
   const quickOrderTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const summary = summaryQuery.data;
@@ -93,29 +126,27 @@ export function PaceInventoryClient() {
   const quickOrderStudent = quickOrderTarget
     ? (students.find((row) => row.id === quickOrderTarget.studentId) ?? null)
     : null;
-  const quickOrderAssignment = quickOrderTarget
-    ? (quickOrderStudent?.subjects.find((row) => row.subjectId === quickOrderTarget.subjectId) ??
-      null)
-    : null;
-  const quickOrderSupply = (summary?.supply ?? [])
-    .filter(
-      (supply) =>
-        supply.studentId === quickOrderTarget?.studentId &&
-        supply.subjectId === quickOrderTarget.subjectId,
-    )
-    .map((supply) => supply.paceNumber);
-  const quickOrderPending = (summary?.orders ?? [])
-    .filter(
-      (order) =>
-        order.studentId === quickOrderTarget?.studentId &&
-        order.subjectId === quickOrderTarget.subjectId &&
-        order.status !== 'Delivered',
-    )
-    .map((order) => order.paceNumber);
-  const quickOrderUnavailable = new Set([...quickOrderSupply, ...quickOrderPending]);
-  const quickOrderAvailablePaces = PACE_CATALOGUE.filter(
-    (paceNumber) => !quickOrderUnavailable.has(paceNumber),
+  const quickOrderStudentAlerts = (summary?.alerts ?? []).filter(
+    (alert) => alert.studentId === quickOrderTarget?.studentId,
   );
+  const quickOrderSubjects: PaceInventoryOrderSubjectChoice[] = quickOrderStudentAlerts.flatMap(
+    (alert) => {
+      const alertAssignment = quickOrderStudent?.subjects.find(
+        (row) => row.subjectId === alert.subjectId,
+      );
+      return alertAssignment
+        ? [
+            {
+              subjectId: alert.subjectId,
+              subjectLabel: formatAssignment(alertAssignment),
+              currentPaceNumber: alert.currentPaceNumber,
+              availablePaceNumbers: availableOrderPaces(summary, alert.studentId, alert.subjectId),
+            },
+          ]
+        : [];
+    },
+  );
+  const groupedAlerts = groupAlertsByStudent(summary?.alerts ?? []);
   const selectedStudentId = student?.id ?? '';
   const selectedSubjectId = assignment?.subjectId ?? '';
   const selectionContextKey = `${selectedStudentId}:${selectedSubjectId}:${String(
@@ -260,11 +291,28 @@ export function PaceInventoryClient() {
     window.requestAnimationFrame(() => quickOrderTriggerRef.current?.focus());
   }
 
-  async function submitQuickOrder(paceNumbers: number[]): Promise<void> {
-    if (!quickOrderTarget || !quickOrderAssignment || createOrders.isPending) return;
+  async function submitQuickOrder(subjectId: string, paceNumbers: number[]): Promise<void> {
+    if (!quickOrderTarget || createOrders.isPending) return;
+    const assignment = quickOrderStudent?.subjects.find((row) => row.subjectId === subjectId);
+    const alert = quickOrderStudentAlerts.find((row) => row.subjectId === subjectId);
+    if (!assignment || !alert) {
+      throw new Error(
+        'This subject assignment is no longer available. Refresh inventory and try again.',
+      );
+    }
+    const orderablePaceNumbers = availableOrderPaces(
+      summary,
+      quickOrderTarget.studentId,
+      subjectId,
+    );
+    if (paceNumbers.some((paceNumber) => !orderablePaceNumbers.includes(paceNumber))) {
+      throw new Error(
+        'One or more selected PACEs are no longer available. Refresh your selection.',
+      );
+    }
     await createOrders.mutateAsync({
       studentId: quickOrderTarget.studentId,
-      subjectId: quickOrderTarget.subjectId,
+      subjectId,
       paceNumbers,
     });
     closeQuickOrder();
@@ -395,7 +443,7 @@ export function PaceInventoryClient() {
 
   return (
     <div className="motion-page pace-inventory">
-      {summary && summary.alerts.length > 0 ? (
+      {summary && groupedAlerts.length > 0 ? (
         <section
           className="panel pace-inventory__alerts"
           aria-labelledby="pace-inventory-alerts-title"
@@ -404,48 +452,51 @@ export function PaceInventoryClient() {
             <div className="section-title">
               <div>
                 <h2 id="pace-inventory-alerts-title">Needs attention</h2>
-                <p className="muted">Students with two or fewer future PACEs available now.</p>
+                <p className="muted">
+                  Subjects with one or two future PACEs in supply and no open orders.
+                </p>
               </div>
-              <Badge tone="amber">{String(summary.alerts.length)} to review</Badge>
+              <Badge tone="amber">
+                {String(groupedAlerts.length)} {groupedAlerts.length === 1 ? 'student' : 'students'}
+              </Badge>
             </div>
             <div className="academic-list academic-list--compact">
-              {summary.alerts.map((alert) => {
-                const alertStudent = students.find((row) => row.id === alert.studentId);
-                const alertAssignment = alertStudent?.subjects.find(
-                  (row) => row.subjectId === alert.subjectId,
-                );
-
+              {groupedAlerts.map((group) => {
+                const alertStudent = students.find((row) => row.id === group.studentId);
                 return (
-                  <div
-                    className="academic-row academic-row--stack"
-                    key={`${alert.studentId}-${alert.subjectId}`}
-                  >
-                    <div>
+                  <div className="pace-inventory-alert-row" key={group.studentId}>
+                    <div className="pace-inventory-alert-row__details">
                       <strong>{alertStudent?.fullName ?? 'Student'}</strong>
-                      <span>{formatAssignment(alertAssignment ?? null)}</span>
+                      <div
+                        aria-label="Subjects needing attention"
+                        className="pace-inventory-alert-row__subjects"
+                      >
+                        {group.alerts.map((alert) => {
+                          const alertAssignment = alertStudent?.subjects.find(
+                            (row) => row.subjectId === alert.subjectId,
+                          );
+                          return (
+                            <span className="pace-inventory-alert-subject" key={alert.subjectId}>
+                              <span>{formatAssignment(alertAssignment ?? null)}</span>
+                              <span>{formatPaceCount(alert.remainingPaceCount)} in supply</span>
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <Badge tone="amber">Current {paceLabel(alert.currentPaceNumber)}</Badge>
-                    <Badge tone="grey">{formatPaceCount(alert.remainingPaceCount)} available</Badge>
-                    <span className="pace-number-list" aria-label="Available PACE numbers">
-                      {alert.availablePaceNumbers.map((paceNumber) => (
-                        <span className="pace-number-list__chip" key={paceNumber}>
-                          {paceLabel(paceNumber)}
-                        </span>
-                      ))}
-                    </span>
                     <Button
-                      aria-label={`Create order for ${alertStudent?.fullName ?? 'student'}, ${formatAssignment(alertAssignment ?? null)}`}
+                      aria-label={`Create order for ${alertStudent?.fullName ?? 'student'}`}
                       onClick={(event) => {
                         quickOrderTriggerRef.current = event.currentTarget;
                         setQuickOrderTarget({
-                          studentId: alert.studentId,
-                          subjectId: alert.subjectId,
+                          studentId: group.studentId,
                         });
                       }}
                       size="sm"
                       type="button"
+                      variant="secondary"
                     >
-                      <PackagePlus aria-hidden="true" size={15} />
+                      <PackagePlus aria-hidden="true" size={14} />
                       Create order
                     </Button>
                   </div>
@@ -657,13 +708,11 @@ export function PaceInventoryClient() {
       ) : null}
       {quickOrderTarget ? (
         <PaceInventoryOrderModal
-          availablePaceNumbers={quickOrderAvailablePaces}
-          currentPaceNumber={quickOrderAssignment?.currentPaceNumber ?? null}
           onClose={closeQuickOrder}
           onSubmit={submitQuickOrder}
           pending={createOrders.isPending}
           studentName={quickOrderStudent?.fullName ?? 'Student unavailable'}
-          subjectLabel={formatAssignment(quickOrderAssignment)}
+          subjects={quickOrderSubjects}
         />
       ) : null}
     </div>
