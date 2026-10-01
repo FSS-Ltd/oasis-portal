@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw, Printer } from 'lucide-react';
+import { ACTIVE_SCORE_KEY_SCOPE_LABELS, ACTIVE_SCORE_KEY_SCOPES } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import type { RouterOutputs } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast } from '@/lib/notifications';
@@ -20,16 +21,20 @@ function formatTimestamp(value: Date): string {
 }
 
 export function ActiveScoreKeysReport({ enabled = true }: { enabled?: boolean }) {
-  const reportQuery = api.report.scoreKeys.current.useQuery(undefined, {
-    enabled,
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
-    refetchInterval: () =>
-      typeof document === 'undefined' || document.visibilityState === 'visible' ? 30_000 : false,
-    retry: false,
-  });
+  const [scope, setScope] = useState<(typeof ACTIVE_SCORE_KEY_SCOPES)[number]>('all');
+  const reportQuery = api.report.scoreKeys.current.useQuery(
+    { scope },
+    {
+      enabled,
+      staleTime: 0,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+      refetchOnWindowFocus: true,
+      refetchInterval: () =>
+        typeof document === 'undefined' || document.visibilityState === 'visible' ? 30_000 : false,
+      retry: false,
+    },
+  );
   const [printing, setPrinting] = useState(false);
   const [openPdfUrl, setOpenPdfUrl] = useState<string | null>(null);
   const previousPdfUrl = useRef<string | null>(null);
@@ -67,7 +72,7 @@ export function ActiveScoreKeysReport({ enabled = true }: { enabled?: boolean })
     const viewer = window.open('about:blank', '_blank');
     setPrinting(true);
     try {
-      const response = await fetch(reportPdfUrl, { cache: 'no-store' });
+      const response = await fetch(`${reportPdfUrl}?scope=${scope}`, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`PDF request failed (${String(response.status)}).`);
       }
@@ -122,6 +127,25 @@ export function ActiveScoreKeysReport({ enabled = true }: { enabled?: boolean })
 
       {!accessDenied && data ? (
         <>
+          <div className={styles.scopePicker}>
+            <label htmlFor="score-key-scope">Child group</label>
+            <select
+              id="score-key-scope"
+              onChange={(event) => {
+                const selected = ACTIVE_SCORE_KEY_SCOPES.find(
+                  (option) => option === event.currentTarget.value,
+                );
+                if (selected) setScope(selected);
+              }}
+              value={scope}
+            >
+              {ACTIVE_SCORE_KEY_SCOPES.map((option) => (
+                <option key={option} value={option}>
+                  {ACTIVE_SCORE_KEY_SCOPE_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </div>
           <dl aria-label="Score-key summary" className={styles.summary}>
             <div>
               <dt>Active Score Keys</dt>

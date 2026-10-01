@@ -28,6 +28,26 @@
   gap: 0.8rem;
   margin: 0;
 }
+.scopePicker {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.scopePicker label {
+  color: var(--oasis-text-secondary, #5a6a8a);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.scopePicker select {
+  min-height: 44px;
+  min-width: 12rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--oasis-border, #a8b3c7);
+  border-radius: 0.55rem;
+  color: var(--oasis-text-primary, #1b2b5e);
+  background: var(--oasis-surface, #fff);
+  font: inherit;
+}
 .summary div {
   display: grid;
   gap: 0.35rem;
@@ -139,6 +159,10 @@
 }
 
 @media (max-width: 600px) {
+  .scopePicker {
+    align-items: flex-start;
+    flex-direction: column;
+  }
   .toolbar {
     align-items: flex-start;
     flex-direction: column;

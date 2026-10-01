@@ -58,6 +58,29 @@ describe('loadActiveScoreKeyReport', () => {
     ]);
     expect(result.activeKeyCount).toBe(3);
     expect(result.subjectCount).toBe(2);
+    expect(result.scope).toBe('all');
+  });
+
+  it.each([
+    ['abc-primary', { in: ['ABC', 'Primary'] }],
+    ['secondary', 'Secondary'],
+  ] as const)('filters assignments to the %s student group', async (scope, level) => {
+    const groupBy = vi.fn().mockResolvedValue([]);
+    const tx = {
+      studentSubject: { groupBy },
+      subject: { findMany: vi.fn() },
+    } as unknown as RlsTx;
+
+    await loadActiveScoreKeyReport(tx, scope);
+
+    expect(groupBy).toHaveBeenCalledWith({
+      by: ['subjectId', 'currentPaceNumber'],
+      where: {
+        student: { active: true, registrationProfile: { is: { registrationLevel: level } } },
+        subject: { active: true },
+      },
+      _count: { _all: true },
+    });
   });
 
   it('returns a successful empty report without querying subjects', async () => {

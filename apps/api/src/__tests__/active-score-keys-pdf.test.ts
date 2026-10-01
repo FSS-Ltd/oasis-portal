@@ -6,6 +6,7 @@ import { generateActiveScoreKeysPdf } from '../reports/active-score-keys-pdf.js'
 describe('generateActiveScoreKeysPdf', () => {
   it('renders a branded, paginated A4 report with all rows and repeated headings', async () => {
     const report: ActiveScoreKeyReport = {
+      scope: 'abc-primary',
       generatedAt: new Date('2026-09-30T13:30:00.000Z'),
       activeKeyCount: 40,
       subjectCount: 2,
@@ -35,6 +36,7 @@ describe('generateActiveScoreKeysPdf', () => {
 
   it('renders an empty report with zero totals and the empty state', async () => {
     const report: ActiveScoreKeyReport = {
+      scope: 'all',
       generatedAt: new Date('2026-09-30T13:30:00.000Z'),
       activeKeyCount: 0,
       subjectCount: 0,
@@ -56,6 +58,7 @@ describe('generateActiveScoreKeysPdf', () => {
       childCount: 4,
     };
     const report: ActiveScoreKeyReport = {
+      scope: 'secondary',
       generatedAt: new Date('2026-09-30T13:30:00.000Z'),
       activeKeyCount: 1,
       subjectCount: 1,

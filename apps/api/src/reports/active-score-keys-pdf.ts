@@ -7,7 +7,11 @@ import {
   type PDFImage,
   type PDFPage,
 } from 'pdf-lib';
-import type { ActiveScoreKeyReport, ActiveScoreKeyRow } from '@oasis/domain';
+import {
+  ACTIVE_SCORE_KEY_SCOPE_LABELS,
+  type ActiveScoreKeyReport,
+  type ActiveScoreKeyRow,
+} from '@oasis/domain';
 import { drawText, loadLogoBytes, safeFileName } from './student-report-pdf-layout.js';
 
 const PAGE_WIDTH = 595.28;
@@ -155,7 +159,7 @@ function addPage(
   drawText(page, title, MARGIN + 72, PAGE_HEIGHT - 54, firstPage ? 18 : 14, fonts.bold, CRIMSON);
   drawText(
     page,
-    `As of ${formatLondonDateTime(report.generatedAt)}`,
+    `${ACTIVE_SCORE_KEY_SCOPE_LABELS[report.scope]} · As of ${formatLondonDateTime(report.generatedAt)}`,
     MARGIN + 72,
     PAGE_HEIGHT - 73,
     8,
