@@ -64,6 +64,10 @@ function SubjectProgressCard({
         <span>
           <small>Current PACE</small>
           <strong>PACE {String(subject.currentPaceNumber)}</strong>
+          {subject.gapContext ? (
+            <small>Gap PACE · Jump to {String(subject.gapContext.jumpToPaceNumber)}</small>
+          ) : null}
+          {subject.gapReviewRequired ? <small>Needs Head review · Advancement paused</small> : null}
           {subject.status.testingLevel !== null ? (
             <Badge tone="blue">Level {String(subject.status.testingLevel)}</Badge>
           ) : null}

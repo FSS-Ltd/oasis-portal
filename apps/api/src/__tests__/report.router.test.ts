@@ -132,6 +132,7 @@ interface StoredTermReport {
 }
 
 interface FakeDb {
+  $executeRaw: ReturnType<typeof vi.fn>;
   $enc: {
     encrypt: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
@@ -143,6 +144,7 @@ interface FakeDb {
   guardian: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   meritLedger: { findMany: ReturnType<typeof vi.fn> };
   paceRecord: { findMany: ReturnType<typeof vi.fn> };
+  paceGapPlan: { findMany: ReturnType<typeof vi.fn> };
   student: { findUnique: ReturnType<typeof vi.fn> };
   user: { findUnique: ReturnType<typeof vi.fn> };
   termReport: {
@@ -326,6 +328,7 @@ function makeFakeDb() {
   const cloneReport = (report: StoredTermReport): StoredTermReport => ({ ...report });
 
   const db: FakeDb = {
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
     $enc: {
       encrypt: vi.fn(encrypt),
       decrypt: vi.fn(decrypt),
@@ -458,6 +461,7 @@ function makeFakeDb() {
           ),
       ),
     },
+    paceGapPlan: { findMany: vi.fn().mockResolvedValue([]) },
     student: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(where.id === student.id ? student : null),

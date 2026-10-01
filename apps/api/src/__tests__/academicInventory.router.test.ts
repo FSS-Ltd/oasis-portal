@@ -143,6 +143,8 @@ interface FakeDb {
     update: ReturnType<typeof vi.fn>;
     updateMany: ReturnType<typeof vi.fn>;
   };
+  paceGapPlan: { findMany: ReturnType<typeof vi.fn> };
+  paceProgress: { findMany: ReturnType<typeof vi.fn> };
   studentPaceSupply: {
     createMany: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
@@ -515,6 +517,8 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         },
       ),
     },
+    paceGapPlan: { findMany: vi.fn().mockResolvedValue([]) },
+    paceProgress: { findMany: vi.fn().mockResolvedValue([]) },
     student: {
       findMany: vi.fn(({ where, select }: StudentFindManyArgs = {}) =>
         Promise.resolve(
@@ -1105,6 +1109,34 @@ describe('academic inventory router', () => {
     ]);
   });
 
+  it('shows low supply only when no future PACEs are ordered or in transit', async () => {
+    const students = cloneStudents(defaultStudents);
+    const assignment = students[0]?.subjects[0];
+    if (!assignment) throw new Error('expected assignment fixture');
+    assignment.currentPaceNumber = 1141;
+    const { caller } = makeCaller(HEAD, students);
+
+    await addCurrentSupply(caller, [1142, 1143]);
+    let summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toMatchObject([
+      {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        availablePaceNumbers: [1142, 1143],
+        remainingPaceCount: 2,
+      },
+    ]);
+
+    const outstandingOrder = await createOrder(caller, { paceNumber: 1144 });
+    expect((await caller.academicInventory.summary()).alerts).toEqual([]);
+    await caller.academicInventory.updateOrderStatus({
+      orderId: outstandingOrder.id,
+      status: 'InTransit',
+    });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
+  });
+
   it('returns every outstanding order while bounding delivered history', async () => {
     const { caller, orders } = makeCaller(HEAD);
     const baseTime = Date.parse('2026-08-31T08:00:00.000Z');
@@ -1388,7 +1420,7 @@ describe('academic inventory router', () => {
     expect(summary.supply).toEqual([]);
   });
 
-  it('does not let an InTransit PACE 1013 suppress a delivered-stock alert', async () => {
+  it('hides a low-stock alert while a future PACE is in transit', async () => {
     const students = cloneStudents(defaultStudents);
     const firstStudent = students[0];
     if (!firstStudent?.subjects[0]) throw new Error('expected assignment fixture');
@@ -1411,13 +1443,7 @@ describe('academic inventory router', () => {
 
     const summary = await caller.academicInventory.summary();
 
-    expect(summary.alerts).toHaveLength(1);
-    expect(summary.alerts[0]).toMatchObject({
-      studentId: STUDENT_ID,
-      subjectId: SUBJECT_ID,
-      availablePaceNumbers: [1012],
-      remainingPaceCount: 1,
-    });
+    expect(summary.alerts).toEqual([]);
   });
 
   it('records a diagnostic without changing the assignment PACE', async () => {

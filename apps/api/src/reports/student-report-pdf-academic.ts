@@ -100,7 +100,15 @@ export function drawPaceTable(context: PdfContext, report: CompiledReport): void
   report.paces.forEach((pace, index) => {
     if (context.y - 27 < CONTENT_BOTTOM) {
       ensureSpace(context, PAGE_HEIGHT);
-      drawText(context.page, 'PACE Progress (continued)', MARGIN, context.y, 11, context.fonts.bold, NAVY);
+      drawText(
+        context.page,
+        'PACE Progress (continued)',
+        MARGIN,
+        context.y,
+        11,
+        context.fonts.bold,
+        NAVY,
+      );
       context.y -= 22;
       drawPaceHeader(context, report.sections.paceStatus);
     }
@@ -126,7 +134,14 @@ export function drawPaceTable(context: PdfContext, report: CompiledReport): void
     );
     drawText(
       context.page,
-      formatPaceIdentifier(pace.currentPace),
+      trimToWidth(
+        pace.placementPaceNumber !== undefined && pace.placementPaceNumber !== pace.currentPace
+          ? `${String(pace.currentPace)} → ${String(pace.placementPaceNumber)}`
+          : formatPaceIdentifier(pace.currentPace),
+        context.fonts.bold,
+        8.5,
+        columns.current.width - 12,
+      ),
       columns.current.x + 6,
       context.y - 14,
       8.5,
@@ -187,21 +202,13 @@ function drawPaceHeader(context: PdfContext, includeStatus: boolean): void {
   });
   const headings = [
     ['Subject', columns.subject],
-    ['Current PACE', columns.current],
+    ['PACE / jump', columns.current],
     ['Completed', columns.completed],
     ['Avg score', columns.score],
     ...(columns.status ? ([['Status', columns.status]] as const) : []),
   ] as const;
   headings.forEach(([label, column]) => {
-    drawText(
-      context.page,
-      label,
-      column.x + 6,
-      context.y - 14,
-      7.5,
-      context.fonts.bold,
-      WHITE,
-    );
+    drawText(context.page, label, column.x + 6, context.y - 14, 7.5, context.fonts.bold, WHITE);
   });
   context.y -= 24;
 }

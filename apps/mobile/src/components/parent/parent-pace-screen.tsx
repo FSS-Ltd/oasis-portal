@@ -193,8 +193,20 @@ function CurrentPaceSubjects({
               accessibilityLabel={`${subject.subjectName}, PACE ${formatPaceIdentifier(subject.currentPaceNumber)}`}
               style={styles.paceNumber}
             >
-              {formatPaceIdentifier(subject.currentPaceNumber)}
+              {subject.gapContext
+                ? `Gap PACE ${formatPaceIdentifier(subject.currentPaceNumber)}`
+                : formatPaceIdentifier(subject.currentPaceNumber)}
             </Text>
+            {subject.gapContext ? (
+              <Text style={styles.paceProgressLabel}>
+                Jump to PACE {formatPaceIdentifier(subject.gapContext.jumpToPaceNumber)}
+              </Text>
+            ) : null}
+            {subject.gapReviewRequired ? (
+              <Text style={styles.paceProgressLabel}>
+                Needs Head review · advancement is paused
+              </Text>
+            ) : null}
           </View>
         </Card>
       ))}

@@ -64,10 +64,7 @@ export function ParentReportsRanksScreen({
     { retry: false },
   );
 
-  const reports = useMemo(
-    () => reportsQuery.data?.reports ?? [],
-    [reportsQuery.data?.reports],
-  );
+  const reports = useMemo(() => reportsQuery.data?.reports ?? [], [reportsQuery.data?.reports]);
   const selectedReport =
     reports.find((report) => report.id === selectedReportId) ?? reports[0] ?? null;
   const rankRows = leaderboard.data?.rows ?? [];
@@ -128,7 +125,9 @@ export function ParentReportsRanksScreen({
       {children.length === 0 && !loadingDashboard ? (
         <Card>
           <SectionTitle>No linked children</SectionTitle>
-          <MutedText>Linked child reports and ranks will appear once Oasis connects this account.</MutedText>
+          <MutedText>
+            Linked child reports and ranks will appear once Oasis connects this account.
+          </MutedText>
         </Card>
       ) : null}
 
@@ -193,9 +192,7 @@ function ReportListCard({
         <View key={report.id} style={styles.reportHistoryRow}>
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>{report.period.label}</Text>
-            <MutedText>
-              Sent {formatParentDate(report.sentAt ?? report.updatedAt)}
-            </MutedText>
+            <MutedText>Sent {formatParentDate(report.sentAt ?? report.updatedAt)}</MutedText>
           </View>
           <Badge variant="success">{report.status}</Badge>
           <MobileButton
@@ -291,9 +288,7 @@ function ReportDetailCard({ report }: { report: ParentReport | null }) {
       {compiled.sections.progressComment ? (
         <View style={styles.noteSection}>
           <Text style={styles.sectionLabel}>Progress Comment</Text>
-          <MutedText>
-            {compiled.headSummary.trim() || 'No progress comment recorded.'}
-          </MutedText>
+          <MutedText>{compiled.headSummary.trim() || 'No progress comment recorded.'}</MutedText>
         </View>
       ) : null}
     </Card>
@@ -314,16 +309,18 @@ function ReportPaceSection({ report }: { report: ParentReport }) {
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>{pace.subjectName}</Text>
             <MutedText>
-              {pace.subjectCode} - PACE {String(pace.currentPace)}
+              {pace.subjectCode} - Current PACE {String(pace.currentPace)}
             </MutedText>
+            {pace.placementPaceNumber !== undefined &&
+            pace.placementPaceNumber !== pace.currentPace ? (
+              <MutedText>Intended placement: PACE {String(pace.placementPaceNumber)}</MutedText>
+            ) : null}
           </View>
           <Text style={styles.rowValue}>
             {pace.averageTestScore === null ? 'N/A' : `${String(pace.averageTestScore)}%`}
           </Text>
           {report.compiled.sections.paceStatus ? (
-            <Badge variant={paceStatusBadgeVariant(pace.status.tone)}>
-              {pace.status.status}
-            </Badge>
+            <Badge variant={paceStatusBadgeVariant(pace.status.tone)}>{pace.status.status}</Badge>
           ) : null}
         </View>
       ))}
@@ -436,15 +433,7 @@ function LeaderboardRowItem({
   );
 }
 
-function ReportMetric({
-  detail,
-  label,
-  value,
-}: {
-  detail?: string;
-  label: string;
-  value: string;
-}) {
+function ReportMetric({ detail, label, value }: { detail?: string; label: string; value: string }) {
   return (
     <View style={styles.metricCard}>
       <Text style={styles.metricValue}>{value}</Text>

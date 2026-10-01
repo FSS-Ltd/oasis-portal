@@ -73,6 +73,7 @@ export interface PaceSnapshot {
   subjectCode: string;
   subjectName: string;
   currentPace: number;
+  placementPaceNumber?: number;
   pacesCompletedThisTerm: number;
   averageTestScore: number | null;
   status: PaceProgressStatusResult;

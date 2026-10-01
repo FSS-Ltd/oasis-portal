@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
@@ -25,6 +25,7 @@ import {
   nextOrderStatus,
   paceNumberValue,
 } from './staff-academic-inventory-utils';
+import { StaffAcademicGapPlan } from './staff-academic-gap-plan';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
@@ -80,6 +81,7 @@ export function StaffAcademicInventoryScreen({
   const [diagnosticSubmitted, setDiagnosticSubmitted] = useState(false);
   const [diagnosticLevel, setDiagnosticLevel] = useState<DiagnosticLevel>(1);
   const [diagnosticOutcome, setDiagnosticOutcome] = useState<DiagnosticOutcome>('Pass');
+  const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<InventoryStatusMessage | null>(null);
 
@@ -148,7 +150,7 @@ export function StaffAcademicInventoryScreen({
     onSuccess: async (_, variables) => {
       setDiagnosticSubmitted(false);
       setStatusMessage({
-        message: `${diagnosticPlacementLabel(variables.level)} assigned after the ${variables.outcome.toLowerCase()} result.`,
+        message: `Diagnostic result recorded (${diagnosticPlacementLabel(variables.level)}, ${variables.outcome.toLowerCase()}). This reference does not change PACE placement.`,
         tone: 'success',
       });
       await invalidateAcademicInventory();
@@ -359,17 +361,54 @@ export function StaffAcademicInventoryScreen({
                   students={students}
                   updatingOrderId={updatingOrderId}
                 />
-                <InventoryDiagnosticCard
-                  assignment={selectedAssignment}
-                  level={diagnosticLevel}
-                  onChangeLevel={changeDiagnosticLevel}
-                  onChangeOutcome={changeDiagnosticOutcome}
-                  onSubmit={submitDiagnostic}
-                  outcome={diagnosticOutcome}
-                  pending={recordDiagnostic.isPending}
-                  student={selectedStudent}
-                  submitted={diagnosticSubmitted}
-                />
+                <View
+                  style={styles.diagnosticTabs}
+                  accessibilityRole="tablist"
+                  accessibilityLabel="Diagnostic results and gap PACEs"
+                >
+                  {(['results', 'gaps'] as const).map((tab) => (
+                    <Pressable
+                      key={tab}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: diagnosticTab === tab }}
+                      onPress={() => {
+                        setDiagnosticTab(tab);
+                      }}
+                      style={[
+                        styles.diagnosticTab,
+                        diagnosticTab === tab ? styles.diagnosticTabSelected : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.diagnosticTabText,
+                          diagnosticTab === tab ? styles.diagnosticTabTextSelected : null,
+                        ]}
+                      >
+                        {tab === 'results' ? 'Results' : 'Gap PACEs'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={diagnosticTab === 'results' ? undefined : styles.hidden}>
+                  <InventoryDiagnosticCard
+                    assignment={selectedAssignment}
+                    level={diagnosticLevel}
+                    onChangeLevel={changeDiagnosticLevel}
+                    onChangeOutcome={changeDiagnosticOutcome}
+                    onSubmit={submitDiagnostic}
+                    outcome={diagnosticOutcome}
+                    pending={recordDiagnostic.isPending}
+                    student={selectedStudent}
+                    submitted={diagnosticSubmitted}
+                  />
+                </View>
+                <View style={diagnosticTab === 'gaps' ? undefined : styles.hidden}>
+                  <StaffAcademicGapPlan
+                    studentId={selectedStudent?.id ?? ''}
+                    subjectId={selectedAssignment?.subjectId ?? ''}
+                  />
+                </View>
               </>
             ) : null}
           </ScrollView>
@@ -398,6 +437,24 @@ export function StaffAcademicInventoryScreen({
 const styles = StyleSheet.create({
   cardTitle: { color: C.navy, fontSize: 14, fontWeight: '900' },
   content: { flex: 1, gap: 14, padding: 16 },
+  diagnosticTabs: {
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: C.bg,
+  },
+  diagnosticTab: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  diagnosticTabSelected: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  diagnosticTabText: { color: C.textSecondary, fontSize: 15, fontWeight: '600' },
+  diagnosticTabTextSelected: { color: C.navy, fontWeight: '800' },
+  hidden: { display: 'none' },
   scrollContent: { gap: 14, paddingBottom: 36 },
   shell: { backgroundColor: C.bg, flex: 1 },
 });

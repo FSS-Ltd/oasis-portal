@@ -40,7 +40,17 @@ export function StudentPacePanel({ error, loading, pace }: StudentPacePanelProps
             <View style={styles.headingCopy}>
               <Text style={styles.rowTitle}>{subject.name}</Text>
               <View style={styles.paceMeta}>
-                <MutedText>{subject.code} · PACE {String(subject.currentPaceNumber)}</MutedText>
+                <MutedText>
+                  {subject.code} · PACE {String(subject.currentPaceNumber)}
+                </MutedText>
+                {subject.gapContext ? (
+                  <MutedText>
+                    Gap PACE · Jump to {String(subject.gapContext.jumpToPaceNumber)}
+                  </MutedText>
+                ) : null}
+                {subject.gapReviewRequired ? (
+                  <MutedText>Needs Head review · Advancement paused</MutedText>
+                ) : null}
                 {subject.status.testingLevel !== null ? (
                   <Badge variant="blue">Level {String(subject.status.testingLevel)}</Badge>
                 ) : null}

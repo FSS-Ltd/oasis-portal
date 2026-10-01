@@ -11,6 +11,8 @@ interface PaceCataloguePickerProps {
   onChange: (paceNumbers: number[]) => void;
   selectedPaceNumbers: readonly number[];
   subjectLabel: string;
+  title?: string;
+  description?: string;
 }
 
 export const PACE_PICKER_WINDOW_SIZE = 12;
@@ -26,6 +28,8 @@ export function PaceCataloguePicker({
   onChange,
   selectedPaceNumbers,
   subjectLabel,
+  title = 'PACEs to plan next',
+  description,
 }: PaceCataloguePickerProps) {
   const titleId = useId();
   const [visibleCount, setVisibleCount] = useState(PACE_PICKER_WINDOW_SIZE);
@@ -34,6 +38,9 @@ export function PaceCataloguePicker({
   const futurePaceNumbers = availablePacesAhead(currentPaceNumber, PACE_CATALOGUE);
   const visiblePaceNumbers = futurePaceNumbers.slice(0, visibleCount);
   const hasMorePaces = visiblePaceNumbers.length < futurePaceNumbers.length;
+  const pickerDescription =
+    description ??
+    `Starting after PACE #${String(currentPaceNumber)}. Choose the future PACEs to add to this student's supply or track as an order.`;
 
   useEffect(() => {
     setVisibleCount(PACE_PICKER_WINDOW_SIZE);
@@ -51,12 +58,9 @@ export function PaceCataloguePicker({
     <section aria-labelledby={titleId} className="pace-catalogue-picker">
       <div className="pace-catalogue-picker__heading">
         <div>
-          <p className="pace-catalogue-picker__eyebrow">{subjectLabel}</p>
-          <h2 id={titleId}>PACEs to plan next</h2>
-          <p className="muted">
-            Starting after PACE #{String(currentPaceNumber)}. Choose the future PACEs to add to this
-            student&apos;s supply or track as an order.
-          </p>
+          {subjectLabel ? <p className="pace-catalogue-picker__eyebrow">{subjectLabel}</p> : null}
+          <h2 id={titleId}>{title}</h2>
+          <p className="muted">{pickerDescription}</p>
         </div>
         <span aria-live="polite" className="badge badge--grey">
           {selectedPaceNumbers.length === 1

@@ -120,6 +120,7 @@ interface StoredLedgerRow {
 
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
+  $executeRaw: ReturnType<typeof vi.fn>;
   $enc: { decrypt: ReturnType<typeof vi.fn>; encrypt: ReturnType<typeof vi.fn> };
   paceAdvancementApproval: {
     create: ReturnType<typeof vi.fn>;
@@ -159,6 +160,13 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
+  paceGapPlan: {
+    findFirst: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
+  };
+  paceGapPlanItem: { findMany: ReturnType<typeof vi.fn> };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
   yearGroupBand: { findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
@@ -298,6 +306,10 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         studentId?: string;
         subjectId?: string;
         paceNumber?: number;
+        OR?: Array<{
+          paceTestScore?: { gte?: number; not?: null };
+          advancementApproval?: { isNot?: null };
+        }>;
         completedAt?: { gte: Date; lt: Date };
         selfTestScore?: { not: null };
         paceTestScore?: { not: null };
@@ -322,6 +334,21 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
           }
           if (where?.selfTestScore && item.selfTestScore === null) return false;
           if (where?.paceTestScore && item.paceTestScore === null) return false;
+          if (
+            where?.OR &&
+            !where.OR.some(
+              (condition) =>
+                (condition.paceTestScore?.gte !== undefined &&
+                  item.paceTestScore !== null &&
+                  item.paceTestScore >= condition.paceTestScore.gte) ||
+                (condition.paceTestScore?.not === null && item.paceTestScore !== null) ||
+                (condition.advancementApproval?.isNot === null &&
+                  item.advancementApproval !== null &&
+                  item.advancementApproval !== undefined),
+            )
+          ) {
+            return false;
+          }
           return true;
         }) ?? null;
       if (record) return Promise.resolve({ id: record.id });
@@ -564,7 +591,11 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     },
   );
 
-  const subjectUpdate = vi.fn().mockResolvedValue({ id: ASSIGNMENT_ID, currentPaceNumber: 1002 });
+  let currentAssignmentPaceNumber = 1001;
+  const subjectUpdate = vi.fn(({ data }: { data: { currentPaceNumber: number } }) => {
+    currentAssignmentPaceNumber = data.currentPaceNumber;
+    return Promise.resolve({ id: ASSIGNMENT_ID, currentPaceNumber: currentAssignmentPaceNumber });
+  });
 
   const $transaction = vi.fn(
     async (
@@ -600,12 +631,15 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
           findUnique: findUniqueProgress,
           update: updateProgress,
         },
+        paceGapPlan: { ...db.paceGapPlan },
+        paceGapPlanItem: { ...db.paceGapPlanItem },
         studentSubject: { ...db.studentSubject, update: subjectUpdate },
       }),
   );
 
   const db: FakeDb = {
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
     $enc: {
       decrypt: vi.fn((value: string | null | undefined) =>
         value ? value.replace(/^enc:/u, '') : null,
@@ -631,18 +665,18 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         ({
           where,
         }: { where?: { ageBandId?: { in: string[] }; yearGroup?: { in: string[] } } } = {}) => {
-        const students = [
-          defaultStudent,
-          {
-            id: 'ckstudent0000000000000002',
-            active: true,
-            fullNameEnc: 'enc:Secondary Learner',
-            yearGroup: 'Year 8',
+          const students = [
+            defaultStudent,
+            {
+              id: 'ckstudent0000000000000002',
+              active: true,
+              fullNameEnc: 'enc:Secondary Learner',
+              yearGroup: 'Year 8',
               ageBandId: 'band_secondary',
               ageBand: { id: 'band_secondary', name: 'Secondary', colour: '#7D1C2C' },
-          },
-        ];
-        return Promise.resolve(
+            },
+          ];
+          return Promise.resolve(
             students
               .filter(
                 (student) =>
@@ -654,7 +688,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
                   where?.yearGroup?.in === undefined ||
                   where.yearGroup.in.includes(student.yearGroup),
               ),
-        );
+          );
         },
       ),
       findUnique: vi.fn().mockResolvedValue(defaultStudent),
@@ -666,10 +700,12 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       findUnique: vi.fn().mockResolvedValue({ id: SUBJECT_ID, active: true }),
     },
     studentSubject: {
-      findUnique: vi.fn().mockResolvedValue({
-        id: ASSIGNMENT_ID,
-        currentPaceNumber: 1001,
-      }),
+      findUnique: vi.fn(() =>
+        Promise.resolve({
+          id: ASSIGNMENT_ID,
+          currentPaceNumber: currentAssignmentPaceNumber,
+        }),
+      ),
       update: subjectUpdate,
     },
     pacePolicy: {
@@ -690,6 +726,13 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       create: createProgress,
       update: updateProgress,
     },
+    paceGapPlan: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    paceGapPlanItem: { findMany: vi.fn().mockResolvedValue([]) },
     staffShift: {
       findMany: vi.fn().mockResolvedValue([{ yearGroupBand: defaultBands[0] }]),
     },
@@ -768,8 +811,22 @@ describe('pace parent progress', () => {
     expect(result).toEqual({
       student: { id: STUDENT_ID, fullName: 'Jane Learner', yearGroup: 'Year 6' },
       subjects: [
-        { subjectCode: 'ENG', subjectName: 'English', currentPaceNumber: 1001 },
-        { subjectCode: 'MATH', subjectName: 'Maths', currentPaceNumber: 1007 },
+        {
+          subjectCode: 'ENG',
+          subjectName: 'English',
+          currentPaceNumber: 1001,
+          placementPaceNumber: 1001,
+          gapContext: null,
+          gapReviewRequired: false,
+        },
+        {
+          subjectCode: 'MATH',
+          subjectName: 'Maths',
+          currentPaceNumber: 1007,
+          placementPaceNumber: 1007,
+          gapContext: null,
+          gapReviewRequired: false,
+        },
       ],
     });
     expect(db.guardian.findUnique).toHaveBeenCalledWith({
@@ -1974,6 +2031,85 @@ describe('pace.record policy — same-pace same-day block', () => {
 });
 
 describe('pace.record — passing final test advancement', () => {
+  it('runs the 1044 → 1023–1026 → 1044 detour and then resumes at 1045', async () => {
+    const db = makeFakeDb();
+    await db.studentSubject.update({ data: { currentPaceNumber: 1023 } });
+    let planStatus = 'Active';
+    const gapPlan = {
+      id: 'gap_plan_example',
+      jumpToPaceNumber: 1044,
+      items: [1023, 1024, 1025, 1026].map((paceNumber) => ({ paceNumber, removedAt: null })),
+    };
+    db.paceGapPlan.findFirst.mockImplementation(({ where }: { where: { status?: string } }) =>
+      Promise.resolve(where.status === 'Active' && planStatus === 'Active' ? gapPlan : null),
+    );
+    db.paceGapPlan.update.mockImplementation(({ data }: { data: { status?: string } }) => {
+      if (data.status) planStatus = data.status;
+      return Promise.resolve({ id: gapPlan.id, status: planStatus });
+    });
+    const { caller } = makeCaller(headUser, db);
+
+    for (const [index, paceNumber] of [1023, 1024, 1025, 1026, 1044].entries()) {
+      const testDay = 20 + index * 2;
+      await caller.pace.record({
+        ...validInput,
+        paceNumber,
+        testType: 'SelfTest',
+        completedAt: new Date(`2026-04-${String(testDay).padStart(2, '0')}T09:00:00.000Z`),
+      });
+      const result = await caller.pace.record({
+        ...validInput,
+        paceNumber,
+        testType: 'FinalTest',
+        completedAt: new Date(`2026-04-${String(testDay + 1).padStart(2, '0')}T09:00:00.000Z`),
+      });
+
+      expect(result.newPaceNumber).toBe(paceNumber === 1026 ? 1044 : paceNumber + 1);
+    }
+
+    await expect(db.studentSubject.findUnique()).resolves.toMatchObject({
+      currentPaceNumber: 1045,
+    });
+    expect(db.paceProgress.create).toHaveBeenCalledTimes(6);
+  });
+
+  it('advances through selected nonconsecutive gap PACEs and lands on the destination', async () => {
+    const db = makeFakeDb();
+    db.studentSubject.findUnique.mockResolvedValue({ id: ASSIGNMENT_ID, currentPaceNumber: 1023 });
+    const activePlan = {
+      id: 'gap_plan_1',
+      jumpToPaceNumber: 1044,
+      items: [
+        { paceNumber: 1023, removedAt: null },
+        { paceNumber: 1026, removedAt: null },
+      ],
+    };
+    db.paceGapPlan.findFirst.mockImplementation(({ where }: { where: { status?: string } }) =>
+      Promise.resolve(where.status === 'Active' ? activePlan : null),
+    );
+    const { caller } = makeCaller(headUser, db);
+    await caller.pace.record({
+      ...validInput,
+      paceNumber: 1023,
+      testType: 'SelfTest',
+      completedAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+
+    const result = await caller.pace.record({
+      ...validInput,
+      paceNumber: 1023,
+      testType: 'FinalTest',
+      completedAt: new Date('2026-04-21T09:00:00.000Z'),
+    });
+
+    expect(result.newPaceNumber).toBe(1026);
+    expect(db.studentSubject.update).toHaveBeenLastCalledWith({
+      where: { studentId_subjectId: { studentId: STUDENT_ID, subjectId: SUBJECT_ID } },
+      data: { currentPaceNumber: 1026 },
+    });
+    expect(db.paceProgress.create).toHaveBeenCalledTimes(2);
+  });
+
   it('advances currentPaceNumber on passing FinalTest for current PACE number', async () => {
     const db = makeFakeDb();
     const { caller } = makeCaller(headUser, db);
@@ -2277,7 +2413,7 @@ describe('pace.record — automatic PACE merits', () => {
 
   it('writes automatic merit rows through the RLS transaction context', async () => {
     const db = makeFakeDb();
-    const { caller, ctx } = makeCaller(headUser, db);
+    const { caller } = makeCaller(headUser, db);
 
     await caller.pace.record({
       ...validInput,
@@ -2285,7 +2421,7 @@ describe('pace.record — automatic PACE merits', () => {
       score: 100,
     });
 
-    expect(ctx.rlsTransactionCalls()).toBe(1);
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(db.behaviourEntry.create).toHaveBeenCalledTimes(1);
     expect(db.meritLedger.createMany).toHaveBeenCalledTimes(1);
   });
@@ -2832,6 +2968,74 @@ describe('pace.updateRecord', () => {
 });
 
 describe('pace.deleteRecord', () => {
+  it('flags an invalidated completed gap for Head review and holds further advancement', async () => {
+    const db = makeFakeDb();
+    let planStatus = 'Active';
+    let reviewRequired = false;
+    const activePlan = {
+      id: 'gap_plan_correction',
+      jumpToPaceNumber: 1044,
+      items: [{ paceNumber: 1001, removedAt: null }],
+    };
+    db.paceGapPlan.findFirst.mockImplementation(({ where }: { where: Record<string, unknown> }) => {
+      if (where.status === 'Active' && planStatus === 'Active') {
+        return Promise.resolve(activePlan);
+      }
+      if (reviewRequired && ('OR' in where || 'reviewRequiredAt' in where)) {
+        return Promise.resolve({ id: activePlan.id });
+      }
+      return Promise.resolve(null);
+    });
+    db.paceGapPlan.update.mockImplementation(({ data }: { data: { status?: string } }) => {
+      if (data.status) planStatus = data.status;
+      return Promise.resolve({ id: activePlan.id, status: planStatus });
+    });
+    db.paceGapPlanItem.findMany.mockResolvedValue([{ planId: activePlan.id }]);
+    db.paceGapPlan.updateMany.mockImplementation(() => {
+      reviewRequired = true;
+      return Promise.resolve({ count: 1 });
+    });
+    const { caller } = makeCaller(headUser, db);
+    await caller.pace.record({
+      ...validInput,
+      testType: 'SelfTest',
+      completedAt: new Date('2026-04-20T09:00:00.000Z'),
+    });
+    const passedGap = await caller.pace.record({
+      ...validInput,
+      completedAt: new Date('2026-04-21T09:00:00.000Z'),
+    });
+    expect(passedGap.newPaceNumber).toBe(1044);
+
+    await caller.pace.deleteRecord({ recordId: passedGap.id });
+    expect(reviewRequired).toBe(true);
+    await expect(db.studentSubject.findUnique()).resolves.toMatchObject({
+      currentPaceNumber: 1044,
+    });
+
+    db.studentSubject.update.mockClear();
+    await caller.pace.record({
+      ...validInput,
+      paceNumber: 1044,
+      testType: 'SelfTest',
+      completedAt: new Date('2026-04-22T09:00:00.000Z'),
+    });
+    const heldCompletion = await caller.pace.record({
+      ...validInput,
+      paceNumber: 1044,
+      completedAt: new Date('2026-04-23T09:00:00.000Z'),
+    });
+
+    expect(heldCompletion).toMatchObject({
+      advanced: false,
+      advancementBlockedReason: 'GapReviewRequired',
+    });
+    expect(db.studentSubject.update).not.toHaveBeenCalled();
+    await expect(db.studentSubject.findUnique()).resolves.toMatchObject({
+      currentPaceNumber: 1044,
+    });
+  });
+
   it('hard deletes a PACE record, reverses automatic merits, and recalculates advancement', async () => {
     const db = makeFakeDb();
     db.studentSubject.findUnique

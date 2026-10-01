@@ -91,6 +91,12 @@ enum PaceInventoryOrderStatus {
   Delivered
 }
 
+enum PaceGapPlanStatus {
+  Active
+  Completed
+  Cancelled
+}
+
 enum StudentPaceSupplySource {
   CurrentStock
   DeliveredOrder
@@ -250,6 +256,8 @@ model User {
   studentPaceSupplyCreated         StudentPaceSupply[]              @relation("StudentPaceSupplyCreated")
   diagnosticResultsRecorded        DiagnosticResult[]               @relation("DiagnosticResultsRecorded")
   diagnosticResultsDeleted         DiagnosticResult[]               @relation("DiagnosticResultsDeleted")
+  paceGapPlansCreated              PaceGapPlan[]                     @relation("PaceGapPlansCreated")
+  paceGapPlansUpdated              PaceGapPlan[]                     @relation("PaceGapPlansUpdated")
   homeworkAssignmentsCreated         HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
   homeworkSubmissionsReviewed        HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
   homeworkSubmissionImagesUploaded   HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
@@ -389,6 +397,7 @@ model Student {
   paceInventoryOrders    PaceInventoryOrder[]
   paceSupply             StudentPaceSupply[]
   diagnosticResults      DiagnosticResult[]
+  paceGapPlans           PaceGapPlan[]
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
@@ -776,6 +785,7 @@ model Subject {
   paceInventoryOrders  PaceInventoryOrder[]
   paceSupply           StudentPaceSupply[]
   diagnosticResults    DiagnosticResult[]
+  paceGapPlans         PaceGapPlan[]
   timetableEntries     StudentTimetableEntry[]
 }
 
@@ -788,6 +798,43 @@ model StudentSubject {
   subject           Subject @relation(fields: [subjectId], references: [id])
 
   @@unique([studentId, subjectId])
+}
+
+model PaceGapPlan {
+  id                String            @id @default(cuid())
+  studentId         String
+  subjectId         String
+  jumpToPaceNumber  Int
+  status            PaceGapPlanStatus @default(Active)
+  version           Int               @default(1)
+  reviewRequiredAt  DateTime?
+  createdById       String
+  updatedById       String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+
+  student  Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject  Subject           @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  createdBy User              @relation("PaceGapPlansCreated", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User              @relation("PaceGapPlansUpdated", fields: [updatedById], references: [id], onDelete: Restrict)
+  items     PaceGapPlanItem[]
+
+  @@index([studentId, subjectId, status])
+  @@index([studentId, subjectId, reviewRequiredAt])
+}
+
+model PaceGapPlanItem {
+  id         String    @id @default(cuid())
+  planId     String
+  paceNumber Int
+  removedAt  DateTime?
+
+  plan PaceGapPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, paceNumber])
+  @@index([planId, removedAt, paceNumber])
 }
 
 model TimetableAgeGroupSchedule {

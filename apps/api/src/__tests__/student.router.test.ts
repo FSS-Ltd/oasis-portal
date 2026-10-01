@@ -176,6 +176,8 @@ interface StoredUserInvitation {
 }
 
 interface FakeDb {
+  $executeRaw: ReturnType<typeof vi.fn>;
+  $transaction: ReturnType<typeof vi.fn>;
   $enc: {
     encrypt: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
@@ -226,6 +228,7 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
+  paceGapPlan: { findFirst: ReturnType<typeof vi.fn> };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
 }
 
@@ -386,6 +389,8 @@ function makeFakeDb(
   const assignments: StoredAssignment[] = [];
 
   const db: FakeDb = {
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
+    $transaction: vi.fn(async (callback: (tx: FakeDb) => Promise<unknown>) => callback(db)),
     $enc: {
       encrypt: vi.fn(encrypt),
       decrypt: vi.fn(decrypt),
@@ -876,6 +881,7 @@ function makeFakeDb(
         ]),
       ),
     },
+    paceGapPlan: { findFirst: vi.fn().mockResolvedValue(null) },
   };
 
   return {

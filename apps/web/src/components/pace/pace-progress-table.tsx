@@ -136,7 +136,18 @@ export function PaceProgressTable({
       id: 'pace',
       header: 'PACE #',
       render: (subject) => (
-        <strong className="pace-number">#{String(subject.currentPaceNumber)}</strong>
+        <span className="pace-number-cell">
+          <strong className="pace-number">
+            {subject.gapContext ? 'Gap PACE ' : '#'}
+            {String(subject.currentPaceNumber)}
+          </strong>
+          {subject.gapContext ? (
+            <span className="muted">Jump to {String(subject.gapContext.jumpToPaceNumber)}</span>
+          ) : null}
+          {subject.gapReviewRequired ? (
+            <span className="muted">Needs Head review · Advancement paused</span>
+          ) : null}
+        </span>
       ),
     },
     {

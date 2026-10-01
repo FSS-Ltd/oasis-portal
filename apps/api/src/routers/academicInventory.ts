@@ -6,11 +6,17 @@ import {
   deleteDiagnosticResultInput,
   diagnosticResultInput,
   PACE_CATALOGUE,
+  createPaceGapPlanInput,
   paceInventoryOrderInput,
   paceInventoryStatusInput,
+  paceGapAssignmentInput,
+  paceGapPaceNumber,
   requiresPaceReorder,
+  resolvePaceGapPlanInput,
+  updatePaceGapPlanInput,
 } from '@oasis/domain';
 import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 import {
   applySerializableRlsTx,
   RlsSerializationConflictError,
@@ -18,6 +24,13 @@ import {
   type RlsTx,
 } from '../context.js';
 import { roleProcedure, router } from '../trpc.js';
+import {
+  cancelGapPlan,
+  createGapPlan,
+  getGapPlanSummary,
+  reopenGapPlan,
+  updateGapPlan,
+} from '../pace/pace-gap-plans.js';
 
 const RECENT_HISTORY_LIMIT = 100;
 const NEXT_ORDER_STATUS = {
@@ -148,81 +161,97 @@ async function withSerializableInventoryRls<T>(
 
 export const academicInventoryRouter = router({
   summary: roleProcedure('Head').query(async ({ ctx }) => {
-    const { students, orders, diagnostics, supply } = await ctx.withRls(async (tx) => {
-      const students = await tx.student.findMany({
-        where: {
-          active: true,
-          subjects: {
-            some: { subject: { active: true, code: { in: [...ACE_SUBJECT_CODES] } } },
+    const { students, orders, diagnostics, supply, activeGapPlans, completedGapPaces } =
+      await ctx.withRls(async (tx) => {
+        const students = await tx.student.findMany({
+          where: {
+            active: true,
+            subjects: {
+              some: { subject: { active: true, code: { in: [...ACE_SUBJECT_CODES] } } },
+            },
           },
-        },
-        select: {
-          id: true,
-          fullNameEnc: true,
-          yearGroup: true,
-          subjects: {
-            where: { subject: { active: true, code: { in: [...ACE_SUBJECT_CODES] } } },
+          select: {
+            id: true,
+            fullNameEnc: true,
+            yearGroup: true,
+            subjects: {
+              where: { subject: { active: true, code: { in: [...ACE_SUBJECT_CODES] } } },
+              select: {
+                id: true,
+                studentId: true,
+                subjectId: true,
+                currentPaceNumber: true,
+                subject: { select: { id: true, code: true, name: true, active: true } },
+              },
+            },
+          },
+          orderBy: { id: 'asc' },
+        });
+        const activeAssignments = students.flatMap((student) =>
+          student.subjects.map((assignment) => ({
+            studentId: student.id,
+            subjectId: assignment.subjectId,
+          })),
+        );
+
+        const [
+          outstandingOrders,
+          deliveredOrders,
+          diagnostics,
+          supply,
+          activeGapPlans,
+          completedGapPaces,
+        ] = await Promise.all([
+          tx.paceInventoryOrder.findMany({
+            where: { OR: activeAssignments, status: { in: ['Ordered', 'InTransit'] } },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            select: ORDER_SUMMARY_SELECT,
+          }),
+          tx.paceInventoryOrder.findMany({
+            where: { OR: activeAssignments, status: 'Delivered' },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            take: RECENT_HISTORY_LIMIT,
+            select: ORDER_SUMMARY_SELECT,
+          }),
+          tx.diagnosticResult.findMany({
+            where: { deletedAt: null, OR: activeAssignments },
+            orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
             select: {
               id: true,
               studentId: true,
               subjectId: true,
-              currentPaceNumber: true,
-              subject: { select: { id: true, code: true, name: true, active: true } },
+              level: true,
+              outcome: true,
+              recordedById: true,
+              recordedAt: true,
+              createdAt: true,
             },
-          },
-        },
-        orderBy: { id: 'asc' },
+          }),
+          tx.studentPaceSupply.findMany({
+            where: { OR: activeAssignments },
+            select: {
+              id: true,
+              studentId: true,
+              subjectId: true,
+              paceNumber: true,
+              source: true,
+              createdById: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+          tx.paceGapPlan.findMany({
+            where: { OR: activeAssignments, status: 'Active' },
+            include: { items: { where: { removedAt: null }, select: { paceNumber: true } } },
+          }),
+          tx.paceProgress.findMany({
+            where: { OR: activeAssignments, completedAt: { not: null } },
+            select: { studentId: true, subjectId: true, paceNumber: true },
+          }),
+        ]);
+        const orders = [...outstandingOrders, ...deliveredOrders].sort(newestOrdersFirst);
+        return { students, orders, diagnostics, supply, activeGapPlans, completedGapPaces };
       });
-      const activeAssignments = students.flatMap((student) =>
-        student.subjects.map((assignment) => ({
-          studentId: student.id,
-          subjectId: assignment.subjectId,
-        })),
-      );
-
-      const [outstandingOrders, deliveredOrders, diagnostics, supply] = await Promise.all([
-        tx.paceInventoryOrder.findMany({
-          where: { OR: activeAssignments, status: { in: ['Ordered', 'InTransit'] } },
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          select: ORDER_SUMMARY_SELECT,
-        }),
-        tx.paceInventoryOrder.findMany({
-          where: { OR: activeAssignments, status: 'Delivered' },
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          take: RECENT_HISTORY_LIMIT,
-          select: ORDER_SUMMARY_SELECT,
-        }),
-        tx.diagnosticResult.findMany({
-          where: { deletedAt: null, OR: activeAssignments },
-          orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
-          select: {
-            id: true,
-            studentId: true,
-            subjectId: true,
-            level: true,
-            outcome: true,
-            recordedById: true,
-            recordedAt: true,
-            createdAt: true,
-          },
-        }),
-        tx.studentPaceSupply.findMany({
-          where: { OR: activeAssignments },
-          select: {
-            id: true,
-            studentId: true,
-            subjectId: true,
-            paceNumber: true,
-            source: true,
-            createdById: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        }),
-      ]);
-      const orders = [...outstandingOrders, ...deliveredOrders].sort(newestOrdersFirst);
-      return { students, orders, diagnostics, supply };
-    });
 
     const supplyByAssignment = new Map<string, number[]>();
     for (const item of supply) {
@@ -232,12 +261,51 @@ export const academicInventoryRouter = router({
       supplyByAssignment.set(key, paceNumbers);
     }
 
+    const outstandingPacesByAssignment = new Map<string, number[]>();
+    for (const order of orders) {
+      if (order.status === 'Delivered') continue;
+      const key = `${order.studentId}:${order.subjectId}`;
+      const paceNumbers = outstandingPacesByAssignment.get(key) ?? [];
+      paceNumbers.push(order.paceNumber);
+      outstandingPacesByAssignment.set(key, paceNumbers);
+    }
+
+    const gapPlanByAssignment = new Map(
+      activeGapPlans.map((plan) => [`${plan.studentId}:${plan.subjectId}`, plan]),
+    );
+    const completedPaceKeys = new Set(
+      completedGapPaces.map((row) => `${row.studentId}:${row.subjectId}:${String(row.paceNumber)}`),
+    );
+
     const alerts = students.flatMap((student) =>
       student.subjects.flatMap((assignment) => {
-        const availablePaceNumbers = availablePacesAhead(
-          assignment.currentPaceNumber,
-          supplyByAssignment.get(`${student.id}:${assignment.subjectId}`) ?? [],
+        const assignmentKey = `${student.id}:${assignment.subjectId}`;
+        const gapPlan = gapPlanByAssignment.get(assignmentKey);
+        const allowedPaces = gapPlan
+          ? new Set([
+              ...gapPlan.items
+                .map((item) => item.paceNumber)
+                .filter(
+                  (paceNumber) =>
+                    paceNumber > assignment.currentPaceNumber &&
+                    !completedPaceKeys.has(`${assignmentKey}:${String(paceNumber)}`),
+                ),
+              ...PACE_CATALOGUE.filter((paceNumber) => paceNumber >= gapPlan.jumpToPaceNumber),
+            ])
+          : null;
+        const hasOutstandingFutureOrder = (
+          outstandingPacesByAssignment.get(assignmentKey) ?? []
+        ).some(
+          (paceNumber) =>
+            paceNumber > assignment.currentPaceNumber &&
+            (!allowedPaces || allowedPaces.has(paceNumber)),
         );
+        if (hasOutstandingFutureOrder) return [];
+
+        const supplied = supplyByAssignment.get(assignmentKey) ?? [];
+        const availablePaceNumbers = gapPlan
+          ? supplied.filter((paceNumber) => allowedPaces?.has(paceNumber))
+          : availablePacesAhead(assignment.currentPaceNumber, supplied);
         if (!requiresPaceReorder(assignment.currentPaceNumber, availablePaceNumbers)) {
           return [];
         }
@@ -280,6 +348,31 @@ export const academicInventoryRouter = router({
       alerts,
     };
   }),
+
+  gapPlansForAssignment: roleProcedure('Head')
+    .input(paceGapAssignmentInput)
+    .query(({ ctx, input }) => getGapPlanSummary(ctx, input)),
+
+  createGapPlan: roleProcedure('Head')
+    .input(createPaceGapPlanInput)
+    .mutation(({ ctx, input }) => createGapPlan(ctx, input)),
+
+  updateGapPlan: roleProcedure('Head')
+    .input(updatePaceGapPlanInput)
+    .mutation(({ ctx, input }) => updateGapPlan(ctx, input)),
+
+  cancelGapPlan: roleProcedure('Head')
+    .input(resolvePaceGapPlanInput)
+    .mutation(({ ctx, input }) => cancelGapPlan(ctx, input)),
+
+  reviewGapPlan: roleProcedure('Head')
+    .input(
+      resolvePaceGapPlanInput.extend({
+        decision: z.literal('Reopen'),
+        jumpToPaceNumber: paceGapPaceNumber.optional(),
+      }),
+    )
+    .mutation(({ ctx, input }) => reopenGapPlan(ctx, input)),
 
   createOrder: roleProcedure('Head')
     .input(createOrderInput)

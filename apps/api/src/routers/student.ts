@@ -26,9 +26,15 @@ import {
 import { addUtcDays, startOfUtcDay } from '../lib/utc-date.js';
 import { loadCurrentFaithCornerContent } from '../services/faith-corner.js';
 import { loadStudentNotificationPreview } from '../services/student-notifications.js';
-import type { AppContext } from '../context.js';
+import {
+  applySerializableRlsTx,
+  RlsSerializationConflictError,
+  type AppContext,
+  type RlsTx,
+} from '../context.js';
 import { adminOperationsProcedure, roleProcedure, router } from '../trpc.js';
 import { deleteArchivedStudent } from '../students/delete-archived-student.js';
+import { hasBlockingPaceGapPlan } from '../pace/pace-gap-plans.js';
 
 const STUDENT_READ_ROLES = [
   'Head',
@@ -141,6 +147,30 @@ type StudentWithSubjects = Prisma.StudentGetPayload<{ include: typeof studentInc
 
 type StudentCreateEmailStatus = 'Sent' | 'Failed';
 type StudentInvitationWithUrl = ClerkInvitationResult & { url: string };
+
+async function withGapPlanAssignmentGuard<T>(
+  ctx: AppContext,
+  input: { studentId: string; subjectId: string },
+  action: (tx: RlsTx) => Promise<T>,
+  message: string,
+): Promise<T> {
+  try {
+    return await applySerializableRlsTx(ctx.db, ctx.user, async (tx) => {
+      if (await hasBlockingPaceGapPlan(tx, input)) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message });
+      }
+      return action(tx);
+    });
+  } catch (error) {
+    if (error instanceof RlsSerializationConflictError) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'PACE assignment changed during this request. Refresh and review the current state.',
+      });
+    }
+    throw error;
+  }
+}
 
 export interface StudentRouterDeps {
   appUrl?: string | undefined;
@@ -850,29 +880,36 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
     .input(setCurrentPaceInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        const assignment = await ctx.db.studentSubject.update({
-          where: {
-            studentId_subjectId: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-            },
+        return await withGapPlanAssignmentGuard(
+          ctx,
+          input,
+          async (tx) => {
+            const assignment = await tx.studentSubject.update({
+              where: {
+                studentId_subjectId: {
+                  studentId: input.studentId,
+                  subjectId: input.subjectId,
+                },
+              },
+              data: { currentPaceNumber: input.currentPaceNumber },
+            });
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Update',
+                entity: 'StudentSubject',
+                entityId: assignment.id,
+                meta: {
+                  studentId: input.studentId,
+                  subjectId: input.subjectId,
+                  currentPaceNumber: input.currentPaceNumber,
+                },
+              },
+            });
+            return { assignmentId: assignment.id, currentPaceNumber: assignment.currentPaceNumber };
           },
-          data: { currentPaceNumber: input.currentPaceNumber },
-        });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Update',
-            entity: 'StudentSubject',
-            entityId: assignment.id,
-            meta: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-              currentPaceNumber: input.currentPaceNumber,
-            },
-          },
-        });
-        return { assignmentId: assignment.id, currentPaceNumber: assignment.currentPaceNumber };
+          'Cancel or resolve the active gap plan before changing the current PACE.',
+        );
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'student subject not found' });
@@ -885,33 +922,40 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
     .input(unassignSubjectInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        const assignment = await ctx.db.studentSubject.delete({
-          where: {
-            studentId_subjectId: {
+        return await withGapPlanAssignmentGuard(
+          ctx,
+          input,
+          async (tx) => {
+            const assignment = await tx.studentSubject.delete({
+              where: {
+                studentId_subjectId: {
+                  studentId: input.studentId,
+                  subjectId: input.subjectId,
+                },
+              },
+            });
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Delete',
+                entity: 'StudentSubject',
+                entityId: assignment.id,
+                meta: {
+                  studentId: input.studentId,
+                  subjectId: input.subjectId,
+                  previousPaceNumber: assignment.currentPaceNumber,
+                  historicalPaceRecordsPreserved: true,
+                },
+              },
+            });
+            return {
+              assignmentId: assignment.id,
               studentId: input.studentId,
               subjectId: input.subjectId,
-            },
+            };
           },
-        });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Delete',
-            entity: 'StudentSubject',
-            entityId: assignment.id,
-            meta: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-              previousPaceNumber: assignment.currentPaceNumber,
-              historicalPaceRecordsPreserved: true,
-            },
-          },
-        });
-        return {
-          assignmentId: assignment.id,
-          studentId: input.studentId,
-          subjectId: input.subjectId,
-        };
+          'Cancel or resolve the active gap plan before removing this subject.',
+        );
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'student subject not found' });

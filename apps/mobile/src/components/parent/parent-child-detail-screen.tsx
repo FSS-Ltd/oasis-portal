@@ -186,8 +186,17 @@ function PaceProgressCard({
             <MutedText>Current subject</MutedText>
           </View>
           <Text style={styles.currentPaceNumber}>
-            PACE {formatPaceIdentifier(subject.currentPaceNumber)}
+            {subject.gapContext ? 'Gap PACE ' : 'PACE '}
+            {formatPaceIdentifier(subject.currentPaceNumber)}
           </Text>
+          {subject.gapContext ? (
+            <MutedText>
+              Jump to PACE {formatPaceIdentifier(subject.gapContext.jumpToPaceNumber)}
+            </MutedText>
+          ) : null}
+          {subject.gapReviewRequired ? (
+            <MutedText>Needs Head review · advancement is paused</MutedText>
+          ) : null}
         </View>
       ))}
       <Pressable
