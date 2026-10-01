@@ -32,6 +32,7 @@ interface PaceWorkflowClientProps {
 
 function paceRecordStatus(result: {
   advanced: boolean;
+  advancementBlockedReason: 'GapReviewRequired' | null;
   awardedMerits: number;
   newPaceNumber: number | undefined;
 }): string {
@@ -41,11 +42,12 @@ function paceRecordStatus(result: {
       : '';
   return result.advanced
     ? `PACE recorded. Current PACE advanced to ${String(result.newPaceNumber)}.${meritMessage}`
-    : `PACE score saved.${meritMessage}`;
+    : `PACE score saved.${result.advancementBlockedReason === 'GapReviewRequired' ? ' Advancement paused for Head review.' : ''}${meritMessage}`;
 }
 
 function paceUpdateStatus(result: {
   advanced: boolean;
+  advancementBlockedReason: 'GapReviewRequired' | null;
   awardedMerits: number;
   newPaceNumber: number | undefined;
 }): string {
@@ -55,7 +57,7 @@ function paceUpdateStatus(result: {
       : '';
   return result.advanced && result.newPaceNumber
     ? `PACE score updated. Current PACE is ${String(result.newPaceNumber)}.${meritMessage}`
-    : `PACE score updated.${meritMessage}`;
+    : `PACE score updated.${result.advancementBlockedReason === 'GapReviewRequired' ? ' Advancement paused for Head review.' : ''}${meritMessage}`;
 }
 
 function nextRecordTestType(subject: PaceSubject): PaceTestType {

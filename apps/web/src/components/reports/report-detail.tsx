@@ -48,10 +48,14 @@ function EmptyReportDetail({ canEdit }: { canEdit: boolean }) {
       <div className="section-title">
         <div>
           <h2 id="report-detail-title">Report Detail</h2>
-          <p className="muted">{canEdit ? 'Choose a period or report to begin.' : 'Select a report.'}</p>
+          <p className="muted">
+            {canEdit ? 'Choose a period or report to begin.' : 'Select a report.'}
+          </p>
         </div>
       </div>
-      <div className="empty-state">{canEdit ? 'No report selected.' : 'No sent report selected.'}</div>
+      <div className="empty-state">
+        {canEdit ? 'No report selected.' : 'No sent report selected.'}
+      </div>
     </section>
   );
 }
@@ -180,6 +184,12 @@ export function ReportDetail({
                   <div>
                     <small>Current PACE</small>
                     <strong>{formatPaceIdentifier(pace.currentPace)}</strong>
+                    {pace.placementPaceNumber !== undefined &&
+                    pace.placementPaceNumber !== pace.currentPace ? (
+                      <small>
+                        Intended placement: {formatPaceIdentifier(pace.placementPaceNumber)}
+                      </small>
+                    ) : null}
                   </div>
                   <div>
                     <small>Completed</small>
@@ -266,7 +276,10 @@ export function ReportDetail({
           ) : (
             <div className="report-ledger-list">
               {compiled.meritActivity.map((activity) => (
-                <article className="report-ledger-row" key={`${activity.createdAt}-${activity.reason}`}>
+                <article
+                  className="report-ledger-row"
+                  key={`${activity.createdAt}-${activity.reason}`}
+                >
                   <span>{formatDate(activity.createdAt)}</span>
                   <strong>{activity.account}</strong>
                   <p>{activity.reason}</p>
@@ -294,7 +307,10 @@ export function ReportDetail({
       ) : null}
 
       {compiled.sections.progressComment ? (
-        <section className="report-section report-progress-comment" aria-labelledby="progress-comment-title">
+        <section
+          className="report-section report-progress-comment"
+          aria-labelledby="progress-comment-title"
+        >
           <SectionHeading
             detail={isSent ? 'Frozen in the sent report.' : 'Add a clear summary of progress.'}
             id="progress-comment-title"

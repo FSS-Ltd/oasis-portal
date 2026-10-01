@@ -38,7 +38,17 @@ export function StaffPaceSubjectPanel({
                   {subject.code} · {subject.name}
                 </Text>
                 <View style={styles.paceMeta}>
-                  <Text style={styles.subjectMeta}>Current PACE #{String(subject.currentPaceNumber)}</Text>
+                  <Text style={styles.subjectMeta}>
+                    Current PACE #{String(subject.currentPaceNumber)}
+                  </Text>
+                  {subject.gapContext ? (
+                    <Text style={styles.subjectMeta}>
+                      Gap PACE · Jump to {String(subject.gapContext.jumpToPaceNumber)}
+                    </Text>
+                  ) : null}
+                  {subject.gapReviewRequired ? (
+                    <Text style={styles.subjectMeta}>Needs Head review · Advancement paused</Text>
+                  ) : null}
                   {subject.status.testingLevel !== null ? (
                     <Badge variant="blue">Level {String(subject.status.testingLevel)}</Badge>
                   ) : null}

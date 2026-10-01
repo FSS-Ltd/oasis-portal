@@ -93,6 +93,7 @@ export function hasPaceFormErrors(errors: PaceFormErrors): boolean {
 
 export function paceRecordStatus(result: {
   advanced: boolean;
+  advancementBlockedReason: 'GapReviewRequired' | null;
   awardedMerits: number;
   newPaceNumber: number | undefined;
 }): string {
@@ -102,5 +103,5 @@ export function paceRecordStatus(result: {
       : '';
   return result.advanced
     ? `PACE saved and advanced to ${String(result.newPaceNumber)}.${meritText}`
-    : `PACE score saved.${meritText}`;
+    : `PACE score saved.${result.advancementBlockedReason === 'GapReviewRequired' ? ' Advancement paused for Head review.' : ''}${meritText}`;
 }

@@ -27,6 +27,7 @@ import {
 } from '../lib/email.js';
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import { setPaceGapScope } from '../pace/pace-gap-plans.js';
 import { generateStudentReportPdf } from '../reports/student-report-pdf.js';
 import {
   shouldSendParentEmailNotification,
@@ -172,6 +173,7 @@ const storedCompiledReportSchema = z.object({
       subjectCode: z.string(),
       subjectName: z.string(),
       currentPace: z.number(),
+      placementPaceNumber: z.number().optional(),
       pacesCompletedThisTerm: z.number(),
       averageTestScore: z.number().nullable(),
       status: paceStatusSchema.optional(),
@@ -353,6 +355,20 @@ async function compileReportSnapshot(
   },
 ): Promise<CompiledReport> {
   const student = await loadActiveStudent(ctx, input.studentId);
+  const activeGapPlans = await ctx.withRls(async (tx) => {
+    await setPaceGapScope(tx, student.id, 'read');
+    return tx.paceGapPlan.findMany({
+      where: {
+        studentId: student.id,
+        subjectId: { in: student.subjects.map((row) => row.subjectId) },
+        status: 'Active',
+      },
+      select: { subjectId: true, jumpToPaceNumber: true },
+    });
+  });
+  const placementBySubject = new Map(
+    activeGapPlans.map((plan) => [plan.subjectId, plan.jumpToPaceNumber]),
+  );
   const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII');
   const subjectIds = student.subjects.map((assignment) => assignment.subjectId);
   const range = {
@@ -447,15 +463,20 @@ async function compileReportSnapshot(
           scores.length === 0
             ? null
             : Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+        const placementPaceNumber = placementBySubject.get(assignment.subjectId);
         return {
           subjectCode: assignment.subject.code,
           subjectName: assignment.subject.name,
           currentPace: assignment.currentPaceNumber,
+          ...(placementPaceNumber === undefined ? {} : { placementPaceNumber }),
           pacesCompletedThisTerm: subjectRecords.filter(
             (record) => record.paceTestScore !== null && record.paceTestScore >= 80,
           ).length,
           averageTestScore,
-          status: paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup),
+          status: paceProgressStatusForYear(
+            placementBySubject.get(assignment.subjectId) ?? assignment.currentPaceNumber,
+            student.yearGroup,
+          ),
         };
       })
     : [];
@@ -642,10 +663,14 @@ function decryptCompiledReport(ctx: AuthedContext, row: TermReportRow): Compiled
     },
     sections: stored.sections ?? { ...DEFAULT_REPORT_SECTIONS },
     attendance: stored.attendance,
-    paces: stored.paces.map((pace) => ({
-      ...pace,
-      status: pace.status ?? LEGACY_UNAVAILABLE_PACE_STATUS,
-    })),
+    paces: stored.paces.map((pace) => {
+      const { placementPaceNumber, ...paceData } = pace;
+      return {
+        ...paceData,
+        ...(placementPaceNumber === undefined ? {} : { placementPaceNumber }),
+        status: pace.status ?? LEGACY_UNAVAILABLE_PACE_STATUS,
+      };
+    }),
     behaviour: {
       meritsEarned: stored.behaviour.meritsEarned,
       demeritsCount: stored.behaviour.demeritsCount,

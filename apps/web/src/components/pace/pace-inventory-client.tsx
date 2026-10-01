@@ -14,6 +14,7 @@ import { Field, SelectInput } from '@/components/ui/field';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
 import { PaceDiagnosticForm, type PaceDiagnosticSelection } from './pace-diagnostic-form';
+import { PaceGapPlanPanel } from './pace-gap-plan-panel';
 import {
   PaceInventoryOrderModal,
   type PaceInventoryOrderSubjectChoice,
@@ -116,6 +117,7 @@ export function PaceInventoryClient() {
     paceNumbers: [],
   });
   const [pendingDiagnosticId, setPendingDiagnosticId] = useState<string | null>(null);
+  const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
   const [quickOrderTarget, setQuickOrderTarget] = useState<{ studentId: string } | null>(null);
   const quickOrderTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -664,24 +666,142 @@ export function PaceInventoryClient() {
         <div className="panel__body">
           <div className="section-title">
             <div>
-              <h2 id="diagnostics-title">Diagnostic reference</h2>
+              <h2 id="diagnostics-title">Diagnostic Results</h2>
               <p className="muted">
                 For the Head&apos;s reference only; it never changes current PACE.
               </p>
             </div>
           </div>
-          <PaceDiagnosticForm
-            disabled={!student || !assignment}
-            onSubmit={recordSelectedDiagnostic}
-            pending={recordDiagnostic.isPending}
-            selectionLabel={`${student?.fullName ?? 'Select a student'} · ${formatAssignment(assignment)}`}
-          />
-          <DataTable
-            columns={diagnosticColumns}
-            empty="No diagnostic results have been recorded yet."
-            getRowKey={(diagnostic) => diagnostic.id}
-            rows={summary?.diagnostics ?? []}
-          />
+          <div
+            className="pace-gap-tabs"
+            role="tablist"
+            aria-label="Diagnostic results and gap PACE views"
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+              event.preventDefault();
+              const next = event.key === 'Home' || event.key === 'ArrowLeft' ? 'results' : 'gaps';
+              setDiagnosticTab(next);
+              document.getElementById(`diagnostic-tab-${next}`)?.focus();
+            }}
+          >
+            <button
+              id="diagnostic-tab-results"
+              type="button"
+              role="tab"
+              aria-selected={diagnosticTab === 'results'}
+              aria-controls="diagnostic-panel-results"
+              tabIndex={diagnosticTab === 'results' ? 0 : -1}
+              onClick={() => {
+                setDiagnosticTab('results');
+              }}
+            >
+              Results
+            </button>
+            <button
+              id="diagnostic-tab-gaps"
+              type="button"
+              role="tab"
+              aria-selected={diagnosticTab === 'gaps'}
+              aria-controls="diagnostic-panel-gaps"
+              tabIndex={diagnosticTab === 'gaps' ? 0 : -1}
+              onClick={() => {
+                setDiagnosticTab('gaps');
+              }}
+            >
+              Gap PACEs
+            </button>
+          </div>
+          <div
+            id="diagnostic-panel-results"
+            role="tabpanel"
+            aria-labelledby="diagnostic-tab-results"
+            tabIndex={0}
+            hidden={diagnosticTab !== 'results'}
+          >
+            <div className="form-grid form-grid--two">
+              <Field label="Student">
+                <SelectInput
+                  value={selectedStudentId}
+                  onChange={(event) => {
+                    chooseStudent(event.target.value);
+                  }}
+                >
+                  {students.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.fullName} · {row.yearGroup}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field label="Assigned subject">
+                <SelectInput
+                  value={selectedSubjectId}
+                  disabled={!student || student.subjects.length === 0}
+                  onChange={(event) => {
+                    chooseSubject(event.target.value);
+                  }}
+                >
+                  {student?.subjects.map((row) => (
+                    <option key={row.subjectId} value={row.subjectId}>
+                      {formatAssignment(row)} · Current {paceLabel(row.currentPaceNumber)}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+            </div>
+            <PaceDiagnosticForm
+              disabled={!student || !assignment}
+              onSubmit={recordSelectedDiagnostic}
+              pending={recordDiagnostic.isPending}
+              selectionLabel={`${student?.fullName ?? 'Select a student'} · ${formatAssignment(assignment)}`}
+            />
+            <DataTable
+              columns={diagnosticColumns}
+              empty="No diagnostic results have been recorded yet."
+              getRowKey={(diagnostic) => diagnostic.id}
+              rows={summary?.diagnostics ?? []}
+            />
+          </div>
+          <div
+            id="diagnostic-panel-gaps"
+            role="tabpanel"
+            aria-labelledby="diagnostic-tab-gaps"
+            tabIndex={0}
+            hidden={diagnosticTab !== 'gaps'}
+          >
+            <div className="form-grid form-grid--two">
+              <Field label="Student">
+                <SelectInput
+                  value={selectedStudentId}
+                  onChange={(event) => {
+                    chooseStudent(event.target.value);
+                  }}
+                >
+                  {students.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.fullName} · {row.yearGroup}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field label="Assigned subject">
+                <SelectInput
+                  value={selectedSubjectId}
+                  disabled={!student || student.subjects.length === 0}
+                  onChange={(event) => {
+                    chooseSubject(event.target.value);
+                  }}
+                >
+                  {student?.subjects.map((row) => (
+                    <option key={row.subjectId} value={row.subjectId}>
+                      {formatAssignment(row)} · Current {paceLabel(row.currentPaceNumber)}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+            </div>
+            <PaceGapPlanPanel studentId={selectedStudentId} subjectId={selectedSubjectId} />
+          </div>
         </div>
       </section>
 

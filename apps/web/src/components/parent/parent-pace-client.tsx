@@ -208,10 +208,19 @@ export function ParentPaceClient() {
                   <span>{subject.subjectCode}</span>
                   <h2>{subject.subjectName}</h2>
                   <strong
-                    aria-label={`${subject.subjectName}, PACE ${formatPaceIdentifier(subject.currentPaceNumber)}`}
+                    aria-label={`${subject.subjectName}, ${subject.gapContext ? 'Gap PACE ' : 'PACE '}${formatPaceIdentifier(subject.currentPaceNumber)}${subject.gapContext ? `, jump to PACE ${formatPaceIdentifier(subject.gapContext.jumpToPaceNumber)}` : ''}`}
                   >
-                    PACE {formatPaceIdentifier(subject.currentPaceNumber)}
+                    {subject.gapContext ? 'Gap PACE ' : 'PACE '}
+                    {formatPaceIdentifier(subject.currentPaceNumber)}
                   </strong>
+                  {subject.gapContext ? (
+                    <small>
+                      Jump to PACE {formatPaceIdentifier(subject.gapContext.jumpToPaceNumber)}
+                    </small>
+                  ) : null}
+                  {subject.gapReviewRequired ? (
+                    <small>Needs Head review · advancement is paused</small>
+                  ) : null}
                 </article>
               ))}
             </div>

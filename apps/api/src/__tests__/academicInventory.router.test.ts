@@ -143,6 +143,8 @@ interface FakeDb {
     update: ReturnType<typeof vi.fn>;
     updateMany: ReturnType<typeof vi.fn>;
   };
+  paceGapPlan: { findMany: ReturnType<typeof vi.fn> };
+  paceProgress: { findMany: ReturnType<typeof vi.fn> };
   studentPaceSupply: {
     createMany: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
@@ -515,6 +517,8 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         },
       ),
     },
+    paceGapPlan: { findMany: vi.fn().mockResolvedValue([]) },
+    paceProgress: { findMany: vi.fn().mockResolvedValue([]) },
     student: {
       findMany: vi.fn(({ where, select }: StudentFindManyArgs = {}) =>
         Promise.resolve(

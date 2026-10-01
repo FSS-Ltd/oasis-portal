@@ -18,9 +18,16 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
+import { applySerializableRlsTx, RlsSerializationConflictError } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
 import { canUseStudentAcademicScreens } from '../lib/student-academic-screens.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
+import {
+  flagInvalidatedGapCompletion,
+  hasSuccessfulPaceRecord,
+  isPaceCompleted,
+  setPaceGapScope,
+} from '../pace/pace-gap-plans.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 const DEFAULT_POLICY = {
@@ -353,6 +360,146 @@ async function ensurePaceProgressStarted(
   });
 }
 
+type PaceAdvanceResult = {
+  advanced: boolean;
+  newPaceNumber: number | undefined;
+  advancementBlockedReason: 'GapReviewRequired' | null;
+};
+
+async function withPaceSerializableTx<T>(
+  ctx: AuthedContext,
+  operation: (tx: RlsTx) => Promise<T>,
+): Promise<T> {
+  try {
+    return await applySerializableRlsTx(ctx.db, ctx.user, operation);
+  } catch (error) {
+    if (error instanceof RlsSerializationConflictError) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'PACE progress changed while this test was being recorded. Refresh and try again.',
+      });
+    }
+    throw error;
+  }
+}
+
+async function advanceAfterPaceCompletion(
+  tx: RlsTx,
+  params: {
+    actorUserId: string;
+    assignmentCurrentPaceNumber: number;
+    completedAt: Date;
+    paceNumber: number;
+    studentId: string;
+    subjectId: string;
+    passThreshold: number;
+  },
+): Promise<PaceAdvanceResult> {
+  const shared = {
+    advanced: false,
+    newPaceNumber: undefined,
+    advancementBlockedReason: null,
+  } satisfies PaceAdvanceResult;
+  const unresolvedReview = await tx.paceGapPlan.findFirst({
+    where: {
+      studentId: params.studentId,
+      subjectId: params.subjectId,
+      status: { not: 'Cancelled' },
+      reviewRequiredAt: { not: null },
+    },
+    select: { id: true },
+  });
+  if (unresolvedReview) {
+    return { ...shared, advancementBlockedReason: 'GapReviewRequired' };
+  }
+
+  const activePlan = await tx.paceGapPlan.findFirst({
+    where: { studentId: params.studentId, subjectId: params.subjectId, status: 'Active' },
+    include: { items: { where: { removedAt: null }, orderBy: { paceNumber: 'asc' } } },
+  });
+  if (activePlan) {
+    if (params.assignmentCurrentPaceNumber !== params.paceNumber) return shared;
+    const nextGap = await Promise.all(
+      activePlan.items
+        .filter((item) => item.paceNumber > params.paceNumber)
+        .map(async (item) => ({
+          paceNumber: item.paceNumber,
+          completed: await isPaceCompleted(tx, {
+            studentId: params.studentId,
+            subjectId: params.subjectId,
+            paceNumber: item.paceNumber,
+            passThreshold: params.passThreshold,
+          }),
+        })),
+    );
+    const nextPaceNumber =
+      nextGap.find((gap) => !gap.completed)?.paceNumber ?? activePlan.jumpToPaceNumber;
+    const completedAllGaps = nextPaceNumber === activePlan.jumpToPaceNumber;
+    const destinationAlreadyCompleted = completedAllGaps
+      ? await isPaceCompleted(tx, {
+          studentId: params.studentId,
+          subjectId: params.subjectId,
+          paceNumber: activePlan.jumpToPaceNumber,
+          passThreshold: params.passThreshold,
+        })
+      : false;
+    const actualNextPaceNumber =
+      destinationAlreadyCompleted && activePlan.jumpToPaceNumber < 1144
+        ? activePlan.jumpToPaceNumber + 1
+        : nextPaceNumber;
+    await ensurePaceProgressStarted(tx, {
+      studentId: params.studentId,
+      subjectId: params.subjectId,
+      paceNumber: actualNextPaceNumber,
+      startedAt: params.completedAt,
+    });
+    if (completedAllGaps) {
+      await tx.paceGapPlan.update({
+        where: { id: activePlan.id },
+        data: {
+          status: 'Completed',
+          completedAt: params.completedAt,
+          version: { increment: 1 },
+          updatedById: params.actorUserId,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: params.actorUserId,
+          action: 'Update',
+          entity: 'PaceGapPlan',
+          entityId: activePlan.id,
+          meta: {
+            status: 'Completed',
+            completedAt: params.completedAt,
+            jumpToPaceNumber: activePlan.jumpToPaceNumber,
+            currentPaceNumber: actualNextPaceNumber,
+          },
+        },
+      });
+    }
+    await tx.studentSubject.update({
+      where: { studentId_subjectId: { studentId: params.studentId, subjectId: params.subjectId } },
+      data: { currentPaceNumber: actualNextPaceNumber },
+    });
+    return { ...shared, advanced: true, newPaceNumber: actualNextPaceNumber };
+  }
+
+  if (params.paceNumber < params.assignmentCurrentPaceNumber) return shared;
+  const nextPaceNumber = params.paceNumber + 1;
+  await ensurePaceProgressStarted(tx, {
+    studentId: params.studentId,
+    subjectId: params.subjectId,
+    paceNumber: nextPaceNumber,
+    startedAt: params.completedAt,
+  });
+  await tx.studentSubject.update({
+    where: { studentId_subjectId: { studentId: params.studentId, subjectId: params.subjectId } },
+    data: { currentPaceNumber: nextPaceNumber },
+  });
+  return { ...shared, advanced: true, newPaceNumber: nextPaceNumber };
+}
+
 async function syncAutomaticPaceMerit(
   tx: RlsTx,
   params: {
@@ -477,6 +624,7 @@ async function reverseAutomaticPaceMerit(
 async function recalculatePaceLifecycle(
   tx: RlsTx,
   params: {
+    actorUserId: string;
     assignmentCurrentPaceNumber: number;
     passThreshold: number;
     paceNumber: number;
@@ -484,7 +632,7 @@ async function recalculatePaceLifecycle(
     studentId: string;
     subjectId: string;
   },
-): Promise<{ advanced: boolean; newPaceNumber: number | undefined }> {
+): Promise<PaceAdvanceResult> {
   const currentProgress = await ensurePaceProgressStarted(tx, {
     studentId: params.studentId,
     subjectId: params.subjectId,
@@ -541,34 +689,46 @@ async function recalculatePaceLifecycle(
     },
   });
 
-  if (completion && params.paceNumber >= params.assignmentCurrentPaceNumber) {
-    const nextStartedAt = completion.completedAt;
-    const nextProgress = await ensurePaceProgressStarted(tx, {
+  if (completion) {
+    return advanceAfterPaceCompletion(tx, {
+      actorUserId: params.actorUserId,
+      assignmentCurrentPaceNumber: params.assignmentCurrentPaceNumber,
+      completedAt: completion.completedAt,
+      passThreshold: params.passThreshold,
+      paceNumber: params.paceNumber,
       studentId: params.studentId,
       subjectId: params.subjectId,
-      paceNumber: params.paceNumber + 1,
-      startedAt: nextStartedAt,
     });
-    await tx.paceProgress.update({
-      where: { id: nextProgress.id },
-      data: { startedAt: nextStartedAt },
-    });
-    await tx.studentSubject.update({
-      where: { studentId_subjectId: { studentId: params.studentId, subjectId: params.subjectId } },
-      data: { currentPaceNumber: params.paceNumber + 1 },
-    });
-    return { advanced: true, newPaceNumber: params.paceNumber + 1 };
   }
+
+  const hasGapWorkflow = await tx.paceGapPlan.findFirst({
+    where: {
+      studentId: params.studentId,
+      subjectId: params.subjectId,
+      OR: [{ status: 'Active' }, { status: { not: 'Cancelled' }, reviewRequiredAt: { not: null } }],
+    },
+    select: { id: true },
+  });
+  if (hasGapWorkflow)
+    return { advanced: false, newPaceNumber: undefined, advancementBlockedReason: null };
 
   if (!passingFinal && params.assignmentCurrentPaceNumber === params.paceNumber + 1) {
     await tx.studentSubject.update({
       where: { studentId_subjectId: { studentId: params.studentId, subjectId: params.subjectId } },
       data: { currentPaceNumber: params.paceNumber },
     });
-    return { advanced: false, newPaceNumber: params.paceNumber };
+    return { advanced: false, newPaceNumber: params.paceNumber, advancementBlockedReason: null };
   }
 
-  return { advanced: false, newPaceNumber: undefined };
+  if (!passingFinal && params.assignmentCurrentPaceNumber === params.paceNumber) {
+    await tx.studentSubject.update({
+      where: { studentId_subjectId: { studentId: params.studentId, subjectId: params.subjectId } },
+      data: { currentPaceNumber: params.paceNumber },
+    });
+    return { advanced: false, newPaceNumber: params.paceNumber, advancementBlockedReason: null };
+  }
+
+  return { advanced: false, newPaceNumber: undefined, advancementBlockedReason: null };
 }
 
 async function loadPaceScope(
@@ -730,6 +890,35 @@ export const paceRouter = router({
     if (!student) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
     }
+    const subjectIds = student.subjects.map((assignment) => assignment.subjectId);
+    const gapReadModel =
+      subjectIds.length === 0
+        ? { plans: [], completed: [] }
+        : await ctx.withRls(async (tx) => {
+            await setPaceGapScope(tx, student.id, 'read');
+            const [plans, completed] = await Promise.all([
+              tx.paceGapPlan.findMany({
+                where: {
+                  studentId: student.id,
+                  subjectId: { in: subjectIds },
+                  status: { not: 'Cancelled' },
+                },
+                include: { items: { where: { removedAt: null }, orderBy: { paceNumber: 'asc' } } },
+              }),
+              tx.paceProgress.findMany({
+                where: {
+                  studentId: student.id,
+                  subjectId: { in: subjectIds },
+                  completedAt: { not: null },
+                },
+                select: { subjectId: true, paceNumber: true },
+              }),
+            ]);
+            return { plans, completed };
+          });
+    const completedPaceKeys = new Set(
+      gapReadModel.completed.map((row) => `${row.subjectId}:${String(row.paceNumber)}`),
+    );
     const fullName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
     return {
       student: {
@@ -737,11 +926,34 @@ export const paceRouter = router({
         fullName,
         yearGroup: student.yearGroup,
       },
-      subjects: student.subjects.map((assignment) => ({
-        subjectCode: assignment.subject.code,
-        subjectName: assignment.subject.name,
-        currentPaceNumber: assignment.currentPaceNumber,
-      })),
+      subjects: student.subjects.map((assignment) => {
+        const assignmentPlans = gapReadModel.plans.filter(
+          (plan) => plan.subjectId === assignment.subjectId,
+        );
+        const activePlan = assignmentPlans.find((plan) => plan.status === 'Active');
+        const activeItems = activePlan?.items ?? [];
+        const remainingPaceNumbers = activeItems
+          .filter(
+            (item) => !completedPaceKeys.has(`${assignment.subjectId}:${String(item.paceNumber)}`),
+          )
+          .map((item) => item.paceNumber);
+        return {
+          subjectCode: assignment.subject.code,
+          subjectName: assignment.subject.name,
+          currentPaceNumber: assignment.currentPaceNumber,
+          placementPaceNumber: activePlan?.jumpToPaceNumber ?? assignment.currentPaceNumber,
+          gapContext: activePlan
+            ? {
+                planId: activePlan.id,
+                jumpToPaceNumber: activePlan.jumpToPaceNumber,
+                remainingPaceNumbers,
+                completedCount: activeItems.length - remainingPaceNumbers.length,
+                totalCount: activeItems.length,
+              }
+            : null,
+          gapReviewRequired: assignmentPlans.some((plan) => plan.reviewRequiredAt !== null),
+        };
+      }),
     };
   }),
 
@@ -958,6 +1170,20 @@ export const paceRouter = router({
               finalTestAttempts: true,
             },
           });
+    const gapPlans =
+      subjectIds.length === 0
+        ? []
+        : await ctx.withRls(async (tx) => {
+            await setPaceGapScope(tx, input.studentId, 'read');
+            return tx.paceGapPlan.findMany({
+              where: {
+                studentId: input.studentId,
+                subjectId: { in: subjectIds },
+                status: { not: 'Cancelled' },
+              },
+              include: { items: { where: { removedAt: null }, orderBy: { paceNumber: 'asc' } } },
+            });
+          });
     const recentRecords = [...fetchedRecords].sort((left, right) => {
       const timeDifference = effectivePaceRecordTime(right) - effectivePaceRecordTime(left);
       if (timeDifference !== 0) return timeDifference;
@@ -976,6 +1202,12 @@ export const paceRouter = router({
       const subjectProgress = progressBySubject.get(row.subjectId) ?? [];
       subjectProgress.push(row);
       progressBySubject.set(row.subjectId, subjectProgress);
+    }
+    const gapsBySubject = new Map<string, typeof gapPlans>();
+    for (const plan of gapPlans) {
+      const subjectPlans = gapsBySubject.get(plan.subjectId) ?? [];
+      subjectPlans.push(plan);
+      gapsBySubject.set(plan.subjectId, subjectPlans);
     }
 
     const paceStatusVisible = student.portalSettings?.paceStatusVisible ?? true;
@@ -1021,8 +1253,19 @@ export const paceRouter = router({
                 completionDurations.length) *
                 10,
             ) / 10;
+      const assignmentPlans = gapsBySubject.get(assignment.subjectId) ?? [];
+      const activeGapPlan = assignmentPlans.find((plan) => plan.status === 'Active');
+      const remainingGapPaces = activeGapPlan
+        ? activeGapPlan.items
+            .filter(
+              (item) =>
+                !completedProgress.some((progress) => progress.paceNumber === item.paceNumber),
+            )
+            .map((item) => item.paceNumber)
+        : [];
+      const placementPaceNumber = activeGapPlan?.jumpToPaceNumber ?? assignment.currentPaceNumber;
       const status = shouldExposePaceStatus
-        ? paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup)
+        ? paceProgressStatusForYear(placementPaceNumber, student.yearGroup)
         : HIDDEN_PACE_STATUS;
       const recentRecordDtos = records.slice(0, 5).map((record) => {
         const testType = testTypeForRecord(record);
@@ -1062,6 +1305,17 @@ export const paceRouter = router({
         name: assignment.subject.name,
         active: assignment.subject.active,
         currentPaceNumber: assignment.currentPaceNumber,
+        placementPaceNumber,
+        gapContext: activeGapPlan
+          ? {
+              planId: activeGapPlan.id,
+              jumpToPaceNumber: activeGapPlan.jumpToPaceNumber,
+              remainingPaceNumbers: remainingGapPaces,
+              completedCount: activeGapPlan.items.length - remainingGapPaces.length,
+              totalCount: activeGapPlan.items.length,
+            }
+          : null,
+        gapReviewRequired: assignmentPlans.some((plan) => plan.reviewRequiredAt !== null),
         currentPaceStartedAt: currentProgress?.startedAt ?? null,
         currentPaceDays:
           currentProgress === null
@@ -1321,12 +1575,87 @@ export const paceRouter = router({
     const selfTestScore = testType === 'SelfTest' ? score : undefined;
     const paceTestScore = testType === 'FinalTest' ? score : undefined;
 
-    const isPassing = testType === 'FinalTest' && score >= policy.passThreshold;
-    const shouldAdvance = isPassing && paceNumber >= assignment.currentPaceNumber;
     const awardedMerits = meritsForPaceScore(testType, score);
     const automaticMeritCategory = automaticPaceMeritCategory(testType, score);
 
-    const [record, automaticMerit] = await ctx.withRls(async (tx) => {
+    const [record, automaticMerit, advancement] = await withPaceSerializableTx(ctx, async (tx) => {
+      await setPaceGapScope(tx, studentId, 'write');
+      const currentAssignment = await tx.studentSubject.findUnique({
+        where: { studentId_subjectId: { studentId, subjectId } },
+        select: { id: true, currentPaceNumber: true },
+      });
+      if (!currentAssignment) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'Refresh the student’s PACE assignment and try again.',
+        });
+      }
+      const activeGap = await tx.paceGapPlan.findFirst({
+        where: { studentId, subjectId, status: 'Active' },
+        include: { items: { where: { removedAt: null }, orderBy: { paceNumber: 'asc' } } },
+      });
+      if (activeGap && currentAssignment.currentPaceNumber !== paceNumber) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Record the test for the current gap PACE.',
+        });
+      }
+      const transactionPolicy =
+        (await tx.pacePolicy.findUnique({ where: { id: 'default' } })) ?? policy;
+      if (transactionPolicy.dailyTestLimitEnabled) {
+        const dailyCount = await tx.paceRecord.count({
+          where: { studentId, completedAt: { gte: dayStart, lt: dayEnd } },
+        });
+        if (dailyCount >= transactionPolicy.maxTestsPerStudentPerDay) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `daily test limit of ${String(transactionPolicy.maxTestsPerStudentPerDay)} reached`,
+          });
+        }
+      }
+      if (testType === 'FinalTest') {
+        const prerequisite = await tx.paceRecord.findFirst({
+          where: { studentId, subjectId, paceNumber, selfTestScore: { not: null } },
+          select: { id: true },
+        });
+        if (!prerequisite) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'cannot record PACE Test before a Self-Test for the same subject PACE number',
+          });
+        }
+      } else {
+        const duplicateSelfTests = await tx.paceRecord.findMany({
+          where: { studentId, subjectId, paceNumber, selfTestScore: { not: null } },
+          select: { id: true },
+        });
+        if (duplicateSelfTests.length > 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'a Self-Test has already been recorded for this subject PACE number',
+          });
+        }
+      }
+      if (transactionPolicy.samePaceSameDayBlockEnabled) {
+        const oppositeType = testType === 'SelfTest' ? 'paceTestScore' : 'selfTestScore';
+        const sameDay = await tx.paceRecord.findFirst({
+          where: {
+            studentId,
+            subjectId,
+            paceNumber,
+            completedAt: { gte: dayStart, lt: dayEnd },
+            [oppositeType]: { not: null },
+          },
+          select: { id: true },
+        });
+        if (sameDay) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'the opposite test type is already recorded for this subject PACE today',
+          });
+        }
+      }
+      const isPassing = testType === 'FinalTest' && score >= transactionPolicy.passThreshold;
       const created = await tx.paceRecord.create({
         data: {
           studentId,
@@ -1392,39 +1721,42 @@ export const paceRouter = router({
         meritResult = { behaviourEntryId: behaviour.id, ledgerRowCount: ledgerRows.length };
       }
 
-      if (shouldAdvance) {
-        await ensurePaceProgressStarted(tx, {
-          studentId,
-          subjectId,
-          paceNumber: paceNumber + 1,
-          startedAt: recordedAt,
-        });
-        await tx.studentSubject.update({
-          where: { studentId_subjectId: { studentId, subjectId } },
-          data: { currentPaceNumber: paceNumber + 1 },
-        });
-      }
+      const nextAdvancement = isPassing
+        ? await advanceAfterPaceCompletion(tx, {
+            actorUserId: ctx.user.id,
+            assignmentCurrentPaceNumber: currentAssignment.currentPaceNumber,
+            completedAt: recordedAt,
+            passThreshold: transactionPolicy.passThreshold,
+            paceNumber,
+            studentId,
+            subjectId,
+          })
+        : ({
+            advanced: false,
+            newPaceNumber: undefined,
+            advancementBlockedReason: null,
+          } satisfies PaceAdvanceResult);
 
-      return [created, meritResult] as const;
-    });
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'Create',
-        entity: 'PaceRecord',
-        entityId: record.id,
-        meta: {
-          studentId,
-          subjectId,
-          paceNumber,
-          testType,
-          score,
-          advanced: shouldAdvance,
-          awardedMerits,
-          ...(shouldAdvance ? { newPaceNumber: paceNumber + 1 } : {}),
+      await tx.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'PaceRecord',
+          entityId: created.id,
+          meta: {
+            studentId,
+            subjectId,
+            paceNumber,
+            testType,
+            score,
+            advanced: nextAdvancement.advanced,
+            newPaceNumber: nextAdvancement.newPaceNumber ?? null,
+            advancementBlockedReason: nextAdvancement.advancementBlockedReason,
+            awardedMerits,
+          },
         },
-      },
+      });
+      return [created, meritResult, nextAdvancement] as const;
     });
 
     if (automaticMerit) {
@@ -1460,7 +1792,7 @@ export const paceRouter = router({
       });
     }
 
-    if (shouldAdvance) {
+    if (advancement.newPaceNumber !== undefined) {
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
@@ -1471,7 +1803,7 @@ export const paceRouter = router({
             studentId,
             subjectId,
             previousPaceNumber: assignment.currentPaceNumber,
-            newPaceNumber: paceNumber + 1,
+            newPaceNumber: advancement.newPaceNumber,
             triggeredBy: record.id,
           },
         },
@@ -1480,9 +1812,10 @@ export const paceRouter = router({
 
     return {
       ...record,
-      advanced: shouldAdvance,
+      advanced: advancement.advanced,
       awardedMerits,
-      newPaceNumber: shouldAdvance ? paceNumber + 1 : undefined,
+      newPaceNumber: advancement.newPaceNumber,
+      advancementBlockedReason: advancement.advancementBlockedReason,
     };
   }),
 
@@ -1682,8 +2015,59 @@ export const paceRouter = router({
       }
     }
 
-    const [record, meritResult, targetLifecycle, lifecycleAuditRows] = await ctx.withRls(
+    const [record, meritResult, targetLifecycle, lifecycleAuditRows] = await withPaceSerializableTx(
+      ctx,
       async (tx) => {
+        await setPaceGapScope(tx, existing.studentId, 'write');
+        const [currentOriginalAssignment, currentTargetAssignment, transactionPolicy] =
+          await Promise.all([
+            tx.studentSubject.findUnique({
+              where: {
+                studentId_subjectId: {
+                  studentId: existing.studentId,
+                  subjectId: existing.subjectId,
+                },
+              },
+              select: { id: true, currentPaceNumber: true },
+            }),
+            tx.studentSubject.findUnique({
+              where: { studentId_subjectId: { studentId: existing.studentId, subjectId } },
+              select: { id: true, currentPaceNumber: true },
+            }),
+            tx.pacePolicy.findUnique({ where: { id: 'default' } }),
+          ]);
+        if (!currentOriginalAssignment || !currentTargetAssignment) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message:
+              'The student subject assignment changed. Refresh and review it before retrying.',
+          });
+        }
+        const activeTargetGap = await tx.paceGapPlan.findFirst({
+          where: { studentId: existing.studentId, subjectId, status: 'Active' },
+          select: { id: true },
+        });
+        if (activeTargetGap && paceNumber > currentTargetAssignment.currentPaceNumber) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'A score cannot be moved into a future PACE while gap PACEs are active.',
+          });
+        }
+        const currentPassThreshold = transactionPolicy?.passThreshold ?? policy.passThreshold;
+        const sourceHadCompletion = movedRecord
+          ? await isPaceCompleted(tx, {
+              studentId: existing.studentId,
+              subjectId: existing.subjectId,
+              paceNumber: existing.paceNumber,
+              passThreshold: currentPassThreshold,
+            })
+          : false;
+        const targetHadCompletion = await isPaceCompleted(tx, {
+          studentId: existing.studentId,
+          subjectId,
+          paceNumber,
+          passThreshold: currentPassThreshold,
+        });
         const updated = await tx.paceRecord.update({
           where: { id: existing.id },
           data: {
@@ -1704,6 +2088,40 @@ export const paceRouter = router({
           },
         });
 
+        if (
+          movedRecord &&
+          sourceHadCompletion &&
+          !(await hasSuccessfulPaceRecord(tx, {
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            paceNumber: existing.paceNumber,
+            passThreshold: currentPassThreshold,
+          }))
+        ) {
+          await flagInvalidatedGapCompletion(tx, {
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            paceNumber: existing.paceNumber,
+            actorUserId: ctx.user.id,
+          });
+        }
+        if (
+          targetHadCompletion &&
+          !(await hasSuccessfulPaceRecord(tx, {
+            studentId: existing.studentId,
+            subjectId,
+            paceNumber,
+            passThreshold: currentPassThreshold,
+          }))
+        ) {
+          await flagInvalidatedGapCompletion(tx, {
+            studentId: existing.studentId,
+            subjectId,
+            paceNumber,
+            actorUserId: ctx.user.id,
+          });
+        }
+
         const auditRows: Array<{
           assignmentId: string;
           lifecycle: { advanced: boolean; newPaceNumber: number | undefined };
@@ -1712,33 +2130,35 @@ export const paceRouter = router({
         }> = [];
         if (movedRecord) {
           const originalLifecycle = await recalculatePaceLifecycle(tx, {
-            assignmentCurrentPaceNumber: originalAssignment.currentPaceNumber,
-            passThreshold: policy.passThreshold,
+            actorUserId: ctx.user.id,
+            assignmentCurrentPaceNumber: currentOriginalAssignment.currentPaceNumber,
+            passThreshold: currentPassThreshold,
             paceNumber: existing.paceNumber,
             startedAt: previousStartedAt,
             studentId: existing.studentId,
             subjectId: existing.subjectId,
           });
           auditRows.push({
-            assignmentId: originalAssignment.id,
+            assignmentId: currentOriginalAssignment.id,
             lifecycle: originalLifecycle,
-            previousPaceNumber: originalAssignment.currentPaceNumber,
+            previousPaceNumber: currentOriginalAssignment.currentPaceNumber,
             subjectId: existing.subjectId,
           });
         }
 
         const nextLifecycle = await recalculatePaceLifecycle(tx, {
-          assignmentCurrentPaceNumber: targetAssignment.currentPaceNumber,
-          passThreshold: policy.passThreshold,
+          actorUserId: ctx.user.id,
+          assignmentCurrentPaceNumber: currentTargetAssignment.currentPaceNumber,
+          passThreshold: currentPassThreshold,
           paceNumber,
           startedAt: input.startedAt,
           studentId: existing.studentId,
           subjectId,
         });
         auditRows.push({
-          assignmentId: targetAssignment.id,
+          assignmentId: currentTargetAssignment.id,
           lifecycle: nextLifecycle,
-          previousPaceNumber: targetAssignment.currentPaceNumber,
+          previousPaceNumber: currentTargetAssignment.currentPaceNumber,
           subjectId,
         });
         const nextMeritResult = await syncAutomaticPaceMerit(tx, {
@@ -1823,6 +2243,7 @@ export const paceRouter = router({
       advanced: targetLifecycle.advanced,
       awardedMerits,
       newPaceNumber: targetLifecycle.newPaceNumber,
+      advancementBlockedReason: targetLifecycle.advancementBlockedReason,
     };
   }),
 
@@ -1892,7 +2313,14 @@ export const paceRouter = router({
       const previousScore = scoreForRecord(existing);
       const startedAt = progress?.startedAt ?? existing.completedAt ?? existing.createdAt;
 
-      const [deleted, meritResult, lifecycle] = await ctx.withRls(async (tx) => {
+      const [deleted, meritResult, lifecycle] = await withPaceSerializableTx(ctx, async (tx) => {
+        await setPaceGapScope(tx, existing.studentId, 'write');
+        const hadCompletion = await isPaceCompleted(tx, {
+          studentId: existing.studentId,
+          subjectId: existing.subjectId,
+          paceNumber: existing.paceNumber,
+          passThreshold: policy.passThreshold,
+        });
         const nextMeritResult = await reverseAutomaticPaceMerit(tx, {
           paceRecordId: existing.id,
           deletedById: ctx.user.id,
@@ -1908,7 +2336,24 @@ export const paceRouter = router({
             createdAt: true,
           },
         });
+        if (
+          hadCompletion &&
+          !(await hasSuccessfulPaceRecord(tx, {
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            paceNumber: existing.paceNumber,
+            passThreshold: policy.passThreshold,
+          }))
+        ) {
+          await flagInvalidatedGapCompletion(tx, {
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            paceNumber: existing.paceNumber,
+            actorUserId: ctx.user.id,
+          });
+        }
         const nextLifecycle = await recalculatePaceLifecycle(tx, {
+          actorUserId: ctx.user.id,
           assignmentCurrentPaceNumber: assignment.currentPaceNumber,
           passThreshold: policy.passThreshold,
           paceNumber: existing.paceNumber,
@@ -1978,6 +2423,7 @@ export const paceRouter = router({
         ...deleted,
         deleted: true,
         newPaceNumber: lifecycle.newPaceNumber,
+        advancementBlockedReason: lifecycle.advancementBlockedReason,
       };
     }),
 
@@ -2087,7 +2533,44 @@ export const paceRouter = router({
       }
 
       const startedAt = progress?.startedAt ?? existing.completedAt ?? existing.createdAt;
-      const [approval, lifecycle] = await ctx.withRls(async (tx) => {
+      const [approval, lifecycle] = await withPaceSerializableTx(ctx, async (tx) => {
+        await setPaceGapScope(tx, existing.studentId, 'write');
+        const [currentAssignment, currentRecord, currentPolicy] = await Promise.all([
+          tx.studentSubject.findUnique({
+            where: {
+              studentId_subjectId: { studentId: existing.studentId, subjectId: existing.subjectId },
+            },
+            select: { currentPaceNumber: true },
+          }),
+          tx.paceRecord.findUnique({
+            where: { id: existing.id },
+            select: {
+              studentId: true,
+              subjectId: true,
+              paceNumber: true,
+              paceTestScore: true,
+              advancementApproval: { select: { id: true } },
+            },
+          }),
+          tx.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+        ]);
+        const currentPassThreshold = currentPolicy?.passThreshold ?? DEFAULT_POLICY.passThreshold;
+        if (
+          !currentAssignment ||
+          currentAssignment.currentPaceNumber !== existing.paceNumber ||
+          !currentRecord ||
+          currentRecord.studentId !== existing.studentId ||
+          currentRecord.subjectId !== existing.subjectId ||
+          currentRecord.paceNumber !== existing.paceNumber ||
+          currentRecord.paceTestScore === null ||
+          currentRecord.paceTestScore >= currentPassThreshold ||
+          currentRecord.advancementApproval
+        ) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'The PACE test changed. Refresh and review it before approving advancement.',
+          });
+        }
         const created = await tx.paceAdvancementApproval.create({
           data: {
             paceRecordId: existing.id,
@@ -2108,8 +2591,9 @@ export const paceRouter = router({
           },
         });
         const nextLifecycle = await recalculatePaceLifecycle(tx, {
-          assignmentCurrentPaceNumber: assignment.currentPaceNumber,
-          passThreshold: policy.passThreshold,
+          actorUserId: ctx.user.id,
+          assignmentCurrentPaceNumber: currentAssignment.currentPaceNumber,
+          passThreshold: currentPassThreshold,
           paceNumber: existing.paceNumber,
           startedAt,
           studentId: existing.studentId,
@@ -2133,6 +2617,7 @@ export const paceRouter = router({
             notesPresent: true,
             advanced: lifecycle.advanced,
             newPaceNumber: lifecycle.newPaceNumber,
+            advancementBlockedReason: lifecycle.advancementBlockedReason,
           },
         },
       });
@@ -2160,6 +2645,7 @@ export const paceRouter = router({
         ...approval,
         advanced: lifecycle.advanced,
         newPaceNumber: lifecycle.newPaceNumber,
+        advancementBlockedReason: lifecycle.advancementBlockedReason,
         notes: input.notes,
       };
     }),
