@@ -82,8 +82,9 @@ function remapLegacyDraftEntries(
     .filter((slot) => slot.kind === 'Lesson')
     .sort((left, right) => left.position - right.position);
   const currentSlotIdByLegacySlotId = new Map(
-    legacyLessonSlots
-      .map((slot, lessonIndex) => [slot.id, currentLessonSlots[lessonIndex]?.id] as const),
+    legacyLessonSlots.map(
+      (slot, lessonIndex) => [slot.id, currentLessonSlots[lessonIndex]?.id] as const,
+    ),
   );
 
   return entries.flatMap((entry) => {
@@ -115,11 +116,11 @@ export async function loadHeadTimetableWorkspace(
       }),
       db.student.findMany({
         where: { active: true, ageBandId: input.ageBandId },
-      select: {
-        id: true,
-        fullNameEnc: true,
+        select: {
+          id: true,
+          fullNameEnc: true,
           followsOwnTimetable: true,
-      },
+        },
       }),
     ]);
     if (!ageBand) notFound('Age band not found');
@@ -164,10 +165,10 @@ export async function loadHeadTimetableWorkspace(
         status: student.followsOwnTimetable
           ? ('N/A' as const)
           : latestPublicationId
-          ? ('Published' as const)
-          : draftStudents.has(student.id)
-            ? ('Draft' as const)
-            : ('NotStarted' as const),
+            ? ('Published' as const)
+            : draftStudents.has(student.id)
+              ? ('Draft' as const)
+              : ('NotStarted' as const),
       };
     })
     .sort((left, right) => left.fullName.localeCompare(right.fullName));
@@ -243,9 +244,7 @@ export async function loadStudentTimetableDraft(
 
   const fullName = decryptedStudentName(ctx, data.student.fullNameEnc);
   const entries =
-    data.timetable &&
-    data.currentSchedule &&
-    data.timetable.scheduleId !== data.currentSchedule.id
+    data.timetable && data.currentSchedule && data.timetable.scheduleId !== data.currentSchedule.id
       ? remapLegacyDraftEntries(
           data.timetable.entries,
           data.timetable.schedule.slots,
@@ -423,7 +422,11 @@ export async function saveStudentTimetableDraft(
         },
       });
       if (existingTimetable && existingTimetable.scheduleId !== schedule.id) {
-        entries = remapLegacyDraftEntries(entries, existingTimetable.schedule.slots, schedule.slots);
+        entries = remapLegacyDraftEntries(
+          entries,
+          existingTimetable.schedule.slots,
+          schedule.slots,
+        );
       }
     }
     const assignedSubjectIds = new Set(student.subjects.map((subject) => subject.subjectId));

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Search } from 'lucide-react';
+import Image, { type ImageLoaderProps } from 'next/image';
 import { api } from '@/lib/trpc';
 
 type Availability = 'All' | 'Available' | 'OnLoan';
@@ -11,6 +12,10 @@ function dueLabel(dueOn: Date, today: string): string {
   if (due < today) return 'Overdue';
   if (due === today) return 'Due today';
   return `Due ${new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(dueOn)}`;
+}
+
+function libraryCoverLoader({ src }: ImageLoaderProps): string {
+  return src;
 }
 
 export function ParentLibraryClient() {
@@ -45,7 +50,14 @@ export function ParentLibraryClient() {
           <div className="library-loan-grid">
             {summary.data.active.map((loan) => (
               <article className="library-loan-card" key={loan.id}>
-                <img alt="" src={loan.book.coverUrl} />
+                <Image
+                  alt=""
+                  height={72}
+                  loader={libraryCoverLoader}
+                  src={loan.book.coverUrl}
+                  unoptimized
+                  width={52}
+                />
                 <div>
                   <h3>{loan.book.title}</h3>
                   <p>
@@ -76,7 +88,14 @@ export function ParentLibraryClient() {
           <div className="library-return-list">
             {summary.data.recentReturns.map((loan) => (
               <article key={loan.id}>
-                <img alt="" src={loan.book.coverUrl} />
+                <Image
+                  alt=""
+                  height={48}
+                  loader={libraryCoverLoader}
+                  src={loan.book.coverUrl}
+                  unoptimized
+                  width={34}
+                />
                 <span>
                   <strong>{loan.book.title}</strong>
                   <small>
@@ -136,11 +155,20 @@ export function ParentLibraryClient() {
           <div className="library-book-grid">
             {catalogue.data.items.map((book) => (
               <article className="library-book-card library-book-card--static" key={book.id}>
-                <img alt={`Cover of ${book.title}`} src={book.coverUrl} />
+                <Image
+                  alt={`Cover of ${book.title}`}
+                  height={400}
+                  loader={libraryCoverLoader}
+                  src={book.coverUrl}
+                  unoptimized
+                  width={300}
+                />
                 <span className="library-book-card__body">
                   <strong>{book.title}</strong>
                   <small>{book.author}</small>
-                  <small>{book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}</small>
+                  <small>
+                    {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
+                  </small>
                   <em
                     className={
                       book.availability === 'On loan'
@@ -161,7 +189,9 @@ export function ParentLibraryClient() {
           <button
             className="button button--secondary button--sm"
             disabled={page === 1}
-            onClick={() => { setPage((value) => value - 1); }}
+            onClick={() => {
+              setPage((value) => value - 1);
+            }}
             type="button"
           >
             Previous
@@ -170,7 +200,9 @@ export function ParentLibraryClient() {
           <button
             className="button button--secondary button--sm"
             disabled={!catalogue.data?.nextPage}
-            onClick={() => { setPage((value) => value + 1); }}
+            onClick={() => {
+              setPage((value) => value + 1);
+            }}
             type="button"
           >
             Next

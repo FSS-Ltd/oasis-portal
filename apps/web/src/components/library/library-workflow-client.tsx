@@ -4,6 +4,7 @@ import { type ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useSession } from '@clerk/nextjs';
 import { BookOpen, Camera, ImageUp, Search } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import Image, { type ImageLoaderProps } from 'next/image';
 import { LibraryBarcodeScanner } from './library-barcode-scanner';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/trpc';
@@ -21,6 +22,10 @@ function dateAfter(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function libraryCoverLoader({ src }: ImageLoaderProps): string {
+  return src;
 }
 
 export function LibraryWorkflowClient() {
@@ -135,8 +140,8 @@ export function LibraryWorkflowClient() {
       if (!response.ok || !payload.cover || !payload.bucket)
         throw new Error(payload.error ?? 'Cover upload could not be prepared.');
       const { token, ...storedCover } = payload.cover;
-      const { error } = await supabase
-        .storage.from(payload.bucket)
+      const { error } = await supabase.storage
+        .from(payload.bucket)
         .uploadToSignedUrl(storedCover.storagePath, token, file, {
           contentType: storedCover.mimeType,
         });
@@ -370,11 +375,20 @@ export function LibraryWorkflowClient() {
                 }}
                 type="button"
               >
-                <img alt="" src={book.coverUrl} />
+                <Image
+                  alt=""
+                  height={400}
+                  loader={libraryCoverLoader}
+                  src={book.coverUrl}
+                  unoptimized
+                  width={300}
+                />
                 <span className="library-book-card__body">
                   <strong>{book.title}</strong>
                   <small>{book.author}</small>
-                  <small>{book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}</small>
+                  <small>
+                    {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
+                  </small>
                   <em
                     className={
                       book.openLoan
