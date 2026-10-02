@@ -27,20 +27,25 @@ export function StaffAcademicGapPlan({
   const active = query.data?.plans.find((plan) => plan.status === 'Active');
   const reviewPlan = query.data?.plans.find((plan) => plan.reviewRequired);
   const completed = new Set(query.data?.completedPaceNumbers ?? []);
+
+  async function invalidateGapPlanDependencies() {
+    await Promise.all([
+      query.refetch(),
+      utils.pace.forStudent.invalidate(),
+      utils.pace.parentCurrent.invalidate(),
+      utils.academicInventory.summary.invalidate(),
+      utils.childLog.drillThrough.invalidate({ studentId }),
+      utils.childLog.snapshot.invalidate(),
+      utils.childLog.centreSnapshot.invalidate(),
+      utils.childLog.parentDashboard.invalidate(),
+    ]);
+  }
+
   const create = api.academicInventory.createGapPlan.useMutation({
     onSuccess: async () => {
       setConflict(false);
       setMessage('Gap PACEs started.');
-      await Promise.all([
-        query.refetch(),
-        utils.pace.forStudent.invalidate(),
-        utils.pace.parentCurrent.invalidate(),
-        utils.academicInventory.summary.invalidate(),
-        utils.childLog.drillThrough.invalidate({ studentId }),
-        utils.childLog.snapshot.invalidate(),
-        utils.childLog.centreSnapshot.invalidate(),
-        utils.childLog.parentDashboard.invalidate(),
-      ]);
+      await invalidateGapPlanDependencies();
     },
     onError: (error) => {
       setMessage(error.message);
@@ -51,16 +56,7 @@ export function StaffAcademicGapPlan({
     onSuccess: async () => {
       setConflict(false);
       setMessage('Gap plan saved.');
-      await Promise.all([
-        query.refetch(),
-        utils.pace.forStudent.invalidate(),
-        utils.pace.parentCurrent.invalidate(),
-        utils.academicInventory.summary.invalidate(),
-        utils.childLog.drillThrough.invalidate({ studentId }),
-        utils.childLog.snapshot.invalidate(),
-        utils.childLog.centreSnapshot.invalidate(),
-        utils.childLog.parentDashboard.invalidate(),
-      ]);
+      await invalidateGapPlanDependencies();
     },
     onError: (error) => {
       setMessage(error.message);
@@ -70,16 +66,7 @@ export function StaffAcademicGapPlan({
   const cancel = api.academicInventory.cancelGapPlan.useMutation({
     onSuccess: async () => {
       setMessage('Gap plan cancelled. The student is at its configured destination.');
-      await Promise.all([
-        query.refetch(),
-        utils.pace.forStudent.invalidate(),
-        utils.pace.parentCurrent.invalidate(),
-        utils.academicInventory.summary.invalidate(),
-        utils.childLog.drillThrough.invalidate({ studentId }),
-        utils.childLog.snapshot.invalidate(),
-        utils.childLog.centreSnapshot.invalidate(),
-        utils.childLog.parentDashboard.invalidate(),
-      ]);
+      await invalidateGapPlanDependencies();
     },
     onError: (error) => {
       setMessage(error.message);
@@ -88,16 +75,7 @@ export function StaffAcademicGapPlan({
   const review = api.academicInventory.reviewGapPlan.useMutation({
     onSuccess: async () => {
       setMessage('Gap plan review resolved.');
-      await Promise.all([
-        query.refetch(),
-        utils.pace.forStudent.invalidate(),
-        utils.pace.parentCurrent.invalidate(),
-        utils.academicInventory.summary.invalidate(),
-        utils.childLog.drillThrough.invalidate({ studentId }),
-        utils.childLog.snapshot.invalidate(),
-        utils.childLog.centreSnapshot.invalidate(),
-        utils.childLog.parentDashboard.invalidate(),
-      ]);
+      await invalidateGapPlanDependencies();
     },
     onError: (error) => {
       setMessage(error.message);

@@ -3,19 +3,19 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 917
-- Files reviewed so far: 369
-- Files remaining estimate: 548
-- Last run: 2026-09-25
+- Current eligible files: 941
+- Files reviewed so far: 387
+- Files remaining estimate: 554
+- Last run: 2026-10-02
 - Last selected files:
-  - `apps/web/src/components/library/library-workflow-client.tsx`
-  - `apps/web/src/components/library/parent-library-client.tsx`
-  - `apps/mobile/src/components/parent/parent-pace-screen.tsx`
-  - `apps/api/src/routers/library.ts`
-  - `apps/mobile/src/components/parent/parent-volunteer-screen.tsx`
-  - `apps/web/src/components/timetable/head-timetable-client.tsx`
-  - `apps/web/src/components/pace/pace-inventory-client.tsx`
-  - `apps/web/src/components/parent/parent-volunteer-client.tsx`
-  - `apps/api/src/services/timetable-data.ts`
-  - `apps/api/src/routers/academicInventory.ts`
+  - `apps/mobile/src/components/staff/staff-academic-inventory-components.tsx`
+  - `apps/mobile/src/components/timetable/mobile-head-timetable-screen.tsx`
+  - `apps/mobile/src/components/staff/staff-academic-inventory-screen.tsx`
+  - `apps/web/src/components/pace/pace-gap-plan-panel.tsx`
+  - `apps/mobile/src/components/staff/staff-academic-gap-plan.tsx`
+  - `apps/mobile/src/components/staff/staff-library-screen.tsx`
+  - `apps/web/src/components/invoices/manual-invoice-form.tsx`
+  - `apps/mobile/src/components/timetable/mobile-schedule-editor.tsx`
+  - `apps/web/src/components/personal-tasks/personal-tasks-client.tsx`
+  - `apps/mobile/src/components/staff/staff-club-manager-form-modal.tsx`
 - Next selection strategy: continue pass 1 with clean unreviewed eligible source files, excluding generated/build outputs and paths already reviewed in this pass; prioritise current lint/type failures, then oversized React files over 300 lines and backend or utility files over 400 lines, then high-churn or least-recently reviewed files. Direct package typechecks should be used when cached turbo output looks suspicious.

@@ -65,21 +65,23 @@ function isIconKey(value: string | null | undefined): value is ClubIconKey {
   return value !== null && value !== undefined && iconKeys.some((candidate) => candidate === value);
 }
 
+function minuteToTimeInput(minutes: number | undefined, fallback: string): string {
+  return minutes === undefined
+    ? fallback
+    : `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
 function draftFromClub(club: StaffManagedClub | null): ClubDraft {
   const date = club?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
-  const toTime = (minutes: number | undefined, fallback: string) =>
-    minutes === undefined
-      ? fallback
-      : `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
   return {
     accentColor: isAccentColor(club?.accentColor) ? club.accentColor : accentColor,
     capacity: club?.capacity === null || club?.capacity === undefined ? '' : String(club.capacity),
     description: club?.description ?? '',
-    endTime: toTime(club?.schedule?.endMinute, '16:30'),
+    endTime: minuteToTimeInput(club?.schedule?.endMinute, '16:30'),
     firstDate: date,
     iconKey: isIconKey(club?.iconKey) ? club.iconKey : iconKey,
     name: club?.name ?? '',
-    startTime: toTime(club?.schedule?.startMinute, '15:30'),
+    startTime: minuteToTimeInput(club?.schedule?.startMinute, '15:30'),
     yearGroupBandIds: club?.yearGroupBands.map((band) => band.id) ?? [],
   };
 }

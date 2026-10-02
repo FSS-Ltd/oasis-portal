@@ -1378,3 +1378,52 @@
 
 ### Follow-Ups Deferred
 - The first sandboxed `pnpm test` run failed because `tsx` could not create an IPC pipe under `/tmp`; the approved rerun passed and no product test failure remains.
+
+## 2026-10-02 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/staff/staff-academic-inventory-components.tsx`
+2. `apps/mobile/src/components/timetable/mobile-head-timetable-screen.tsx`
+3. `apps/mobile/src/components/staff/staff-academic-inventory-screen.tsx`
+4. `apps/web/src/components/pace/pace-gap-plan-panel.tsx`
+5. `apps/mobile/src/components/staff/staff-academic-gap-plan.tsx`
+6. `apps/mobile/src/components/staff/staff-library-screen.tsx`
+7. `apps/web/src/components/invoices/manual-invoice-form.tsx`
+8. `apps/mobile/src/components/timetable/mobile-schedule-editor.tsx`
+9. `apps/web/src/components/personal-tasks/personal-tasks-client.tsx`
+10. `apps/mobile/src/components/staff/staff-club-manager-form-modal.tsx`
+
+### Baseline Findings
+- Full lint: passed before edits with `CI=true pnpm lint`.
+- Full typecheck: passed before edits with `CI=true pnpm typecheck`.
+- Selected-file ESLint: passed before edits with `CI=true pnpm exec eslint <10 selected source files>`.
+- Selected-file Prettier: passed before edits with `CI=true pnpm exec prettier --check <10 selected source files>`.
+- Graphify: query completed for academic inventory, timetable, PACE gap plan, library, invoice, schedule, personal tasks, and club manager cleanup.
+
+### Changes Made
+- `apps/web/src/components/pace/pace-gap-plan-panel.tsx`: extracted repeated gap-plan cache invalidation into one local helper shared by create, update, cancel, and review mutation success handlers.
+- `apps/mobile/src/components/staff/staff-academic-gap-plan.tsx`: mirrored the local gap-plan invalidation helper for the mobile panel.
+- `apps/mobile/src/components/timetable/mobile-schedule-editor.tsx`: named the lesson/break slot-kind tuple instead of recreating the inline tuple in render.
+- `apps/mobile/src/components/staff/staff-club-manager-form-modal.tsx`: extracted club schedule minute formatting into a named pure helper.
+- Remaining selected files were reviewed for lint, type safety, imports/exports, hook dependencies, accessibility roles, UI state handling, and local duplication; no safe source edit was needed.
+
+### Validation
+- selected-file lint: pass - `CI=true pnpm exec eslint <10 selected source files>`
+- selected-file formatting: pass - `CI=true pnpm exec prettier --check <10 selected source files>`
+- affected typechecks: pass - `CI=true pnpm --filter @oasis/web typecheck`; pass - `CI=true pnpm --filter @oasis/mobile typecheck`
+- build: pass - `CI=true pnpm build`
+- memory validation: pass - `CI=true pnpm tech-debt:validate-memory`
+- full lint: pass - `CI=true pnpm lint`
+- full typecheck: pass - `CI=true pnpm typecheck`
+- full tests: pass after sandbox retry - `CI=true pnpm test`; initial sandboxed run failed only with `listen EPERM /tmp/tsx-*.pipe`, approved elevated rerun passed
+- diff whitespace: pass - `git diff --check`
+- graphify update: pass - `graphify update .`; no tracked graph output remained changed
+
+### Guardrail Confirmation
+- No new features.
+- No public API path, request, response, validation, auth, role, tenancy, billing, safeguarding, migration, or schema semantics changed.
+- No generated clients, lock files, build output, or Graphify files are staged.
+- Behaviour preserved; changes are local duplication reduction and scanability cleanup only.
+
+### Follow-Ups Deferred
+- Larger academic-inventory and gap-plan component splits remain possible, but were deferred because they would touch product-sensitive workflow structure and need broader regression coverage.

@@ -19,6 +19,8 @@ interface LocalSlot extends MobileEditableScheduleSlot {
   clientKey: string;
 }
 
+const slotKinds = ['Lesson', 'Break'] as const;
+
 function formatMinutes(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
@@ -109,7 +111,7 @@ export function MobileScheduleEditor({
             <View style={styles.slotHeading}>
               <Text style={styles.slotNumber}>{String(index + 1).padStart(2, '0')}</Text>
               <View style={styles.kindSwitch}>
-                {(['Lesson', 'Break'] as const).map((kind) => (
+                {slotKinds.map((kind) => (
                   <Pressable
                     accessibilityRole="button"
                     key={kind}
