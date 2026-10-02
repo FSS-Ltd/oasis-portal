@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-09-25",
+  "lastRunDate": "2026-10-02",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -4576,6 +4576,126 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an oversized unreviewed API router."
+    },
+    "apps/mobile/src/components/staff/staff-academic-inventory-components.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 600,
+      "lineCountAfter": 600,
+      "issuesFixed": [
+        "Reviewed for oversized component boundaries, props, imports, accessibility roles, and local duplication; no safe behavior-preserving edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/mobile/src/components/timetable/mobile-head-timetable-screen.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 504,
+      "lineCountAfter": 504,
+      "issuesFixed": [
+        "Reviewed timetable head workspace state, mutations, hook dependencies, and UI states; no safe local edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/mobile/src/components/staff/staff-academic-inventory-screen.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 461,
+      "lineCountAfter": 461,
+      "issuesFixed": [
+        "Reviewed academic inventory state and mutation flow; no safe local edit needed beyond related gap-plan cleanup."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/web/src/components/pace/pace-gap-plan-panel.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 454,
+      "lineCountAfter": 432,
+      "issuesFixed": [
+        "Extracted repeated gap-plan cache invalidation into a local helper used by create, update, cancel, and review mutations."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/mobile/src/components/staff/staff-academic-gap-plan.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 394,
+      "lineCountAfter": 372,
+      "issuesFixed": [
+        "Extracted repeated gap-plan cache invalidation into a local helper used by create, update, cancel, and review mutations."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/mobile/src/components/staff/staff-library-screen.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 378,
+      "lineCountAfter": 378,
+      "issuesFixed": [
+        "Reviewed library barcode lookup, checkout/checkin states, image rows, and permissions flow; no safe local edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/web/src/components/invoices/manual-invoice-form.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 359,
+      "lineCountAfter": 359,
+      "issuesFixed": [
+        "Reviewed invoice validation, selected-student handling, date defaults, and submit payload construction; no safe local edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/mobile/src/components/timetable/mobile-schedule-editor.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 346,
+      "lineCountAfter": 348,
+      "issuesFixed": [
+        "Extracted the lesson/break kind tuple to a named constant."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/web/src/components/personal-tasks/personal-tasks-client.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 337,
+      "lineCountAfter": 337,
+      "issuesFixed": [
+        "Reviewed task timing helpers, mutation state, empty/error states, and form validation; no safe local edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
+    },
+    "apps/mobile/src/components/staff/staff-club-manager-form-modal.tsx": {
+      "lastReviewedAt": "2026-10-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 330,
+      "lineCountAfter": 332,
+      "issuesFixed": [
+        "Extracted minute-to-time input formatting from the club draft mapper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Daily tech-debt review selected this unreviewed oversized React/source file; changes were behavior-preserving and limited to lint/type/editor hygiene or local duplication reduction."
     }
   },
   "deferredFiles": {
