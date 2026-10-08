@@ -161,7 +161,7 @@ function ParentInvoiceCard({
           <small>
             {invoice.kind === 'Manual'
               ? (invoice.invoiceTitle ?? 'Manual invoice')
-              : (invoice.term ?? 'Centre fees')}{' '}
+              : (invoice.term ?? 'Centre Fees')}{' '}
             · Due {formatInvoiceDate(invoice.dueOn)}
           </small>
         </span>
@@ -384,7 +384,7 @@ export function ParentFeesClient() {
         <>
           <section aria-labelledby="parent-centre-fee-invoices-title">
             <div className="section-title">
-              <h2 id="parent-centre-fee-invoices-title">Centre fees</h2>
+              <h2 id="parent-centre-fee-invoices-title">Centre Fees</h2>
             </div>
             {schoolFeeInvoices.length === 0 ? (
               <InvoiceEmptyState
