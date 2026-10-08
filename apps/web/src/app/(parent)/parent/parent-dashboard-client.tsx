@@ -157,7 +157,7 @@ function ParentHomeMetricGrid({ child }: { child: DashboardChild }) {
       <StatCard
         accent="#166534"
         className="head-stat-card"
-        label="Attendance"
+        label="Oasis attendance"
         sub={attendanceSub(child)}
         value={
           child.metrics.attendanceRate === null ? '-' : `${String(child.metrics.attendanceRate)}%`
@@ -309,7 +309,7 @@ function ChildDashboard({ child }: { child: DashboardChild }) {
         <DashboardSection
           empty={child.attendance.length === 0}
           icon={<CalendarCheck aria-hidden="true" size={16} />}
-          title="Recent Attendance"
+          title="Recent Oasis attendance"
         >
           <div className="supervisor-dashboard-list">
             {child.attendance.map((row) => (

@@ -110,8 +110,8 @@ export function StudentAttendanceClient() {
     <div className="student-page student-attendance-page">
       <section className="student-wallet-hero student-attendance-hero">
         <div>
-          <p>Attendance</p>
-          <h1>Attendance Summary</h1>
+          <p>Oasis sessions</p>
+          <h1>Attendance at Oasis</h1>
           <span>
             {formatDate(attendance.data.from)} to {formatDate(attendance.data.to)}
           </span>

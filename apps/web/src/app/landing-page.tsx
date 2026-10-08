@@ -14,7 +14,6 @@ import {
   MessageCircle,
   ShoppingCart,
   Star,
-  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { AttendanceBars } from '@/components/landing/attendance-bars';
@@ -36,7 +35,7 @@ import type { LandingCalendarEvent, LandingPageData } from './landing-data';
 
 const signInHref = '/sign-in/' as const;
 
-type RoleTone = 'leads' | 'parent' | 'staff' | 'student';
+type RoleTone = 'parent' | 'staff' | 'student';
 
 interface RoleCardContent {
   description: string;
@@ -67,12 +66,11 @@ const roleCards: RoleCardContent[] = [
     tag: 'For families',
     title: 'Parent Portal',
     description:
-      'A weekly snapshot of each of your children without trawling through email threads.',
+      'A weekly view of your child’s learning and activities at Oasis, alongside the home education you lead.',
     items: [
-      'Attendance, PACE progress and behaviour for every child in one place',
+      'Oasis session attendance, PACE progress and updates for every child in one place',
       'E-sign permission slips and pay fees from your phone',
       "Message your child's supervisor directly, no app store needed",
-      'Sign up for after-school clubs and pay club fees',
     ],
     foot: 'Used by 184 families',
   },
@@ -84,9 +82,9 @@ const roleCards: RoleCardContent[] = [
     description:
       'A focused space for students to see their work, rewards and next steps without the noise.',
     items: [
-      'Check PACE progress, recent scores and attendance at a glance',
+      'Check PACE progress, recent scores and Oasis session attendance at a glance',
       'Track merit balances across spend, save, invest and tithe pots',
-      'Open clubs, notices, faith corner and shop from one student-safe view',
+      'Open notices, faith corner and shop from one student-safe view',
       'Respect parent and centre locks, quiet days and daily usage limits',
     ],
     foot: 'Student-safe access',
@@ -97,38 +95,23 @@ const roleCards: RoleCardContent[] = [
     tag: 'For supervisors',
     title: 'Staff Portal',
     description:
-      'Everything a supervisor or head needs to run the day: register, log, message, approve.',
+      'Everything a supervisor or head needs to support the day: check in, log, message, approve.',
     items: [
-      'Morning register with one-tap merit and demerit entry',
+      'Session check-in with one-tap merit and demerit entry',
       'PACE scoring, paper records and the audit log in one feed',
       'Approve refunds, write praise postcards, run the merit shop',
       'Issue, chase and reconcile term invoices and bursaries',
     ],
     foot: '4 staff seats / admin tier',
   },
-  {
-    id: 'leads',
-    tone: 'leads',
-    tag: 'For volunteers and leads',
-    title: 'Clubs Lead Portal',
-    description:
-      'A trimmed-down view for the parents and volunteers who run our after-school clubs.',
-    items: [
-      'See only the clubs you lead: Drama, Chess, Bell-ringing',
-      'Take register, record DBS status, message parents',
-      'Mark merit entries that feed into the main portal',
-      'Print weekly attendance for the Head of Centre',
-    ],
-    foot: '12 leads / invite-only',
-  },
 ];
 
 const features: FeatureContent[] = [
   {
     icon: CalendarCheck,
-    title: 'Attendance and register',
+    title: 'Oasis session attendance',
     description:
-      'Take the morning register from any device: late, absent, prior-notice, and parents see it live.',
+      'Record attendance at Oasis sessions from any device: late, absent, prior notice, and parents see it live.',
     tag: 'All roles',
   },
   {
@@ -136,7 +119,7 @@ const features: FeatureContent[] = [
     title: 'Merits and demerits',
     description:
       "Award character, scripture or academic merits in two taps. Spend, save, invest or tithe: child's choice.",
-    tag: 'Staff / Clubs Leads',
+    tag: 'Staff',
   },
   {
     icon: BookOpen,
@@ -173,13 +156,6 @@ const features: FeatureContent[] = [
       'Threaded conversations between supervisors and parents, kept on record for safeguarding.',
     tag: 'All roles',
   },
-  {
-    icon: Users,
-    title: 'Clubs and activities',
-    description:
-      'Drama, chess, bell-ringing: clubs leads run their own register, parents see attendance.',
-    tag: 'All roles',
-  },
 ];
 
 const trustItems: TrustContent[] = [
@@ -203,8 +179,7 @@ const trustItems: TrustContent[] = [
   {
     icon: Home,
     title: 'Built for one centre',
-    description:
-      'Not a generic schools SaaS. Every workflow is shaped around how Oasis actually runs.',
+    description: 'Built around the people and routines at Oasis Learning Centre.',
   },
 ];
 
@@ -403,7 +378,7 @@ function TermGlance({ data }: { data: LandingPageData }) {
         </Parallax>
       </div>
       <div className="landing-wrap">
-        <SectionHead eyebrow="School calendar" title={`${periodLabel}, at a glance.`}>
+        <SectionHead eyebrow="Oasis session calendar" title={`${periodLabel}, at a glance.`}>
           The dates supervisors plan to and parents need to remember, pulled from the same calendar
           that drives the portal.
         </SectionHead>
@@ -473,9 +448,9 @@ export function LandingPage({ data }: { data: LandingPageData }) {
                   </span>
                 </h1>
                 <p className="landing-cascade" style={{ '--d': '520ms' } as CSSProperties}>
-                  Attendance, PACE progress, merits, fees, permission slips, club sign-ups and
-                  Friday messages, all in a single calm portal for parents, students, staff and
-                  clubs leads.
+                  Oasis gives home-educating parents a space and structure to carry out their
+                  children&apos;s learning. Keep track of centre sessions, PACE progress and family
+                  updates in one calm portal.
                 </p>
                 <div
                   className="landing-hero__actions landing-cascade"
@@ -494,8 +469,8 @@ export function LandingPage({ data }: { data: LandingPageData }) {
                   style={{ '--d': '840ms' } as CSSProperties}
                 >
                   <span>
-                    <strong>4 roles</strong>
-                    Parent / Student / Staff / Clubs Lead
+                    <strong>3 roles</strong>
+                    Parent / Student / Staff
                   </span>
                   <span>
                     <strong>1 sign-in</strong>
@@ -517,11 +492,11 @@ export function LandingPage({ data }: { data: LandingPageData }) {
           <section className="landing-roles-band" id="parents">
             <div className="landing-wrap">
               <SectionHead
-                eyebrow="Four portals / One centre"
+                eyebrow="Three portals / One centre"
                 title="A view of Oasis built for the way you use it."
               >
-                The same data, the same crest, shaped around what parents, students, supervisors
-                and clubs leads each actually need to do this week.
+                The same data, the same crest, shaped around what parents, students and supervisors
+                each need to do this week.
               </SectionHead>
               <RoleDeck>
                 {roleCards.map((role) => (
@@ -537,8 +512,8 @@ export function LandingPage({ data }: { data: LandingPageData }) {
                 eyebrow="Inside the portal"
                 title="Built around how a centre actually runs."
               >
-                Not a generic schools product. Every screen reflects how Oasis works day to day,
-                from PACE booklets to Friday assembly mentions.
+                Every screen supports the parent-led learning that happens at Oasis, from PACE
+                booklets to session updates and family messages.
               </SectionHead>
               <div className="landing-features">
                 {features.map((feature, index) => (
@@ -573,7 +548,10 @@ export function LandingPage({ data }: { data: LandingPageData }) {
             <div className="landing-wrap">
               <div className="landing-cta-card">
                 <div>
-                  <MaskHeading className="landing-serif landing-cta-card__title" text="Ready when you are." />
+                  <MaskHeading
+                    className="landing-serif landing-cta-card__title"
+                    text="Ready when you are."
+                  />
                   <Reveal delay={0.18} y={16}>
                     <p>
                       Sign in with your Oasis email. New family? Speak to the office on Monday and
@@ -609,7 +587,12 @@ export function LandingPage({ data }: { data: LandingPageData }) {
             </div>
             <div className="landing-footer__powered-by">
               <span>Powered by FSS Ltd</span>
-              <Image alt="Faithful Software Solutions" height={84} src="/fss-logo.png" width={300} />
+              <Image
+                alt="Faithful Software Solutions"
+                height={84}
+                src="/fss-logo.png"
+                width={300}
+              />
             </div>
             <p>
               UK/EU GDPR / eu-west-2 / v4.2.0

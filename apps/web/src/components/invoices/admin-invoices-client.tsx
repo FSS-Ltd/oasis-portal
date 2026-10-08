@@ -283,7 +283,7 @@ export function AdminInvoicesClient() {
       <header className="invoice-page__header">
         <div>
           <p>Finance</p>
-          <h1>Invoices & School Fees</h1>
+          <h1>Invoices & Centre Fees</h1>
         </div>
         <div className="invoice-header-actions">
           <Button

@@ -13,7 +13,6 @@ const navLinks = [
   { href: '#parents', id: 'parents', label: 'For Parents' },
   { href: '#students', id: 'students', label: 'For Students' },
   { href: '#staff', id: 'staff', label: 'For Staff' },
-  { href: '#leads', id: 'leads', label: 'Clubs Leads' },
   { href: '#inside', id: 'inside', label: 'Inside the portal' },
   { href: '#term', id: 'term', label: 'This term' },
 ] as const;

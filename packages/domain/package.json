@@ -17,6 +17,7 @@
     "./shop": "./src/shop.ts",
     "./leaderboard": "./src/leaderboard.ts",
     "./clubs": "./src/clubs.ts",
+    "./portal-visibility": "./src/portal-visibility.ts",
     "./demeritPolicy": "./src/demeritPolicy.ts",
     "./invoice": "./src/invoice.ts",
     "./permissionSlips": "./src/permissionSlips.ts",

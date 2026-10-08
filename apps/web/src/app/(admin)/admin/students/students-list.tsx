@@ -102,7 +102,7 @@ export function StudentsList({ canManageStudents }: StudentsListProps) {
             <Avatar className="student-row__avatar" name={student.fullName} />
             <span className="student-row__text">
               <strong>{student.fullName}</strong>
-              <span>Enrolled {formatStudentDate(student.enrolmentDate)}</span>
+              <span>Joined Oasis {formatStudentDate(student.enrolmentDate)}</span>
             </span>
             <DailyDemeritBadge status={demeritStatusQuery.statusByStudentId.get(student.id)} />
           </div>

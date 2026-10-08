@@ -20,7 +20,7 @@ test('linked staff accounts receive scoped parent-volunteer navigation', () => {
   assert.match(parentLayout, /canUseParentVolunteerNavigation\(parentVolunteerAccess\)/);
   assert.match(parentLayout, /<ParentSidebarNav \{\.\.\.parentNavProps\} \/>/);
   assert.match(parentVolunteerClient, /slots\.scope === 'parent'/);
-  assert.match(parentVolunteerClient, /Lunch \+ Clubs-only/);
+  assert.match(parentVolunteerClient, /Lunch volunteering access/);
   assert.match(parentVolunteerClient, /role="status"/);
   assert.match(parentVolunteerClient, /role="alert"/);
 });

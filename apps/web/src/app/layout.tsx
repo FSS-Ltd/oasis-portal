@@ -10,7 +10,7 @@ import './landing-motion.css';
 
 export const metadata = {
   title: 'Oasis Learning Centre',
-  description: 'Bespoke centre management platform',
+  description: 'A space and structure supporting parent-led home education at Oasis.',
   icons: {
     icon: [{ url: '/oasis-favicon.svg', type: 'image/svg+xml' }],
   },

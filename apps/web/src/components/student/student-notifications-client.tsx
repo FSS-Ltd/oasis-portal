@@ -3,11 +3,7 @@
 import { Bell, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import {
-  friendlyErrorMessage,
-  showErrorToast,
-  showSuccessToast,
-} from '@/lib/notifications';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 
 type StudentNotification = RouterOutputs['studentNotification']['list'][number];
@@ -71,7 +67,7 @@ export function StudentNotificationsClient() {
         <div>
           <p>Notifications</p>
           <h1>Latest updates</h1>
-          <span>Merits, shop confirmations, club notices, and Learning Centre announcements.</span>
+          <span>Merits, shop confirmations, and Learning Centre announcements.</span>
         </div>
         <div className="student-notifications-hero__meta">
           <Bell aria-hidden="true" size={18} />
@@ -81,9 +77,15 @@ export function StudentNotificationsClient() {
       </section>
 
       {notifications.data.length === 0 ? (
-        <EmptyState detail="Updates will appear here when they are sent." title="No notifications yet" />
+        <EmptyState
+          detail="Updates will appear here when they are sent."
+          title="No notifications yet"
+        />
       ) : (
-        <section className="student-dashboard-panel" aria-labelledby="student-notification-list-title">
+        <section
+          className="student-dashboard-panel"
+          aria-labelledby="student-notification-list-title"
+        >
           <div className="student-dashboard-panel__head">
             <div>
               <p>Inbox</p>

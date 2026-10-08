@@ -31,7 +31,7 @@ const schema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
   dob: z.string().min(1, 'Enter the date of birth'),
   yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
-  enrolmentDate: z.string().min(1, 'Enter the enrolment date'),
+  enrolmentDate: z.string().min(1, 'Enter the Oasis start date'),
   address: z.string().trim().optional(),
 });
 
@@ -121,7 +121,7 @@ export function NewStudentForm() {
           <Field error={errors.dob?.message} label="Date of birth">
             <TextInput type="date" {...register('dob')} />
           </Field>
-          <Field error={errors.enrolmentDate?.message} label="Enrolment date">
+          <Field error={errors.enrolmentDate?.message} label="Oasis start date">
             <TextInput type="date" {...register('enrolmentDate')} />
           </Field>
         </div>

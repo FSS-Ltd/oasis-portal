@@ -1,3 +1,4 @@
+import { ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import {
@@ -176,18 +177,20 @@ export function SupervisorDashboardOverview({
           sub={attendanceBreakdown}
           value={`${String(attendingTodayCount)}/${String(totalStudents)}`}
         />
-        <StatCard
-          accent="#5B90C5"
-          className="head-stat-card"
-          label="Today's shifts"
-          sub="assigned to you"
-          value={todayShifts.length}
-        />
+        {ROTA_VISIBLE ? (
+          <StatCard
+            accent="#5B90C5"
+            className="head-stat-card"
+            label="Today's shifts"
+            sub="assigned to you"
+            value={todayShifts.length}
+          />
+        ) : null}
         <StatCard
           accent="#92400E"
           className="head-stat-card"
           label="Open items"
-          sub="messages and swaps"
+          sub={ROTA_VISIBLE ? 'messages and swaps' : 'messages'}
           value={openItems}
         />
         <StatCard
@@ -201,67 +204,69 @@ export function SupervisorDashboardOverview({
 
       <div className="head-dashboard-layout">
         <div className="supervisor-dashboard-main">
-          <section className="panel panel__body supervisor-week-panel">
-            <div className="section-title">
-              <div>
-                <h2>This week</h2>
-                <p className="muted">
-                  {dateKey(weekStart)} to {dateKey(weekEnd)}
-                </p>
+          {ROTA_VISIBLE ? (
+            <section className="panel panel__body supervisor-week-panel">
+              <div className="section-title">
+                <div>
+                  <h2>This week</h2>
+                  <p className="muted">
+                    {dateKey(weekStart)} to {dateKey(weekEnd)}
+                  </p>
+                </div>
+                <Link className="button button--secondary button--sm" href="/supervisor/rota">
+                  Open rota
+                </Link>
               </div>
-              <Link className="button button--secondary button--sm" href="/supervisor/rota">
-                Open rota
-              </Link>
-            </div>
 
-            {weekRotaError ? <p className="status--error">{weekRotaError}</p> : null}
-            <div className="supervisor-week-grid">
-              {weekDays.map((dayItem) => {
-                const dayKey = dateKey(dayItem);
-                const shiftsForDay = weekShiftsByDate.get(dayKey) ?? [];
-                const isToday = isSameDay(dayItem, date);
-                const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
-                const className = [
-                  'supervisor-day-card',
-                  isToday ? 'is-today' : undefined,
-                  isPast ? 'is-past' : undefined,
-                  shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
-                ]
-                  .filter(Boolean)
-                  .join(' ');
+              {weekRotaError ? <p className="status--error">{weekRotaError}</p> : null}
+              <div className="supervisor-week-grid">
+                {weekDays.map((dayItem) => {
+                  const dayKey = dateKey(dayItem);
+                  const shiftsForDay = weekShiftsByDate.get(dayKey) ?? [];
+                  const isToday = isSameDay(dayItem, date);
+                  const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
+                  const className = [
+                    'supervisor-day-card',
+                    isToday ? 'is-today' : undefined,
+                    isPast ? 'is-past' : undefined,
+                    shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
 
-                return (
-                  <article className={className} key={dayKey}>
-                    <div className="supervisor-day-card__head">
-                      <span>{dayLabel(dayItem)}</span>
-                      <strong>{dayNumber(dayItem)}</strong>
-                    </div>
-                    {shiftsForDay.length === 0 ? (
-                      <p className="supervisor-day-card__empty">No shift scheduled</p>
-                    ) : (
-                      <div className="supervisor-day-card__shifts">
-                        {shiftsForDay.map((shift) => (
-                          <div className="supervisor-day-shift" key={shift.id}>
-                            <span
-                              aria-hidden="true"
-                              className="supervisor-day-shift__swatch"
-                              style={{ backgroundColor: shift.bandColour ?? undefined }}
-                            />
-                            <div>
-                              <strong>
-                                {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
-                              </strong>
-                              <span>{shift.bandName ?? 'Unassigned band'}</span>
-                            </div>
-                          </div>
-                        ))}
+                  return (
+                    <article className={className} key={dayKey}>
+                      <div className="supervisor-day-card__head">
+                        <span>{dayLabel(dayItem)}</span>
+                        <strong>{dayNumber(dayItem)}</strong>
                       </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+                      {shiftsForDay.length === 0 ? (
+                        <p className="supervisor-day-card__empty">No shift scheduled</p>
+                      ) : (
+                        <div className="supervisor-day-card__shifts">
+                          {shiftsForDay.map((shift) => (
+                            <div className="supervisor-day-shift" key={shift.id}>
+                              <span
+                                aria-hidden="true"
+                                className="supervisor-day-shift__swatch"
+                                style={{ backgroundColor: shift.bandColour ?? undefined }}
+                              />
+                              <div>
+                                <strong>
+                                  {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
+                                </strong>
+                                <span>{shift.bandName ?? 'Unassigned band'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
           <section className="panel panel__body head-activity-panel">
             <div className="section-title">
@@ -346,7 +351,11 @@ export function SupervisorDashboardOverview({
             <div className="section-title">
               <div>
                 <h2>Pending</h2>
-                <p className="muted">Messages and shift swap requests needing attention.</p>
+                <p className="muted">
+                  {ROTA_VISIBLE
+                    ? 'Messages and shift swap requests needing attention.'
+                    : 'Messages needing attention.'}
+                </p>
               </div>
               <span className="badge badge--blue">
                 {dashboardMessages.length + mySwapRequests.length} open
@@ -375,37 +384,41 @@ export function SupervisorDashboardOverview({
               )}
             </div>
 
-            <div className="supervisor-dashboard-list">
-              <h3>
-                <Send aria-hidden="true" size={15} />
-                Swap requests
-              </h3>
-              {mySwapRequestsError ? <p className="status--error">{mySwapRequestsError}</p> : null}
-              {!mySwapRequestsLoading && mySwapRequests.length === 0 ? (
-                <div className="dashboard-empty-state">No pending shift swap requests.</div>
-              ) : null}
-              {mySwapRequests.map((request) => {
-                const otherPerson =
-                  request.direction === 'Requested'
-                    ? request.targetUser.fullName
-                    : request.requester.fullName;
-                return (
-                  <article className="dashboard-list-row" key={request.id}>
-                    <strong>
-                      {request.direction === 'Requested'
-                        ? 'Awaiting Head review'
-                        : 'Incoming request'}{' '}
-                      with {otherPerson}
-                    </strong>
-                    <span>
-                      {request.fromShift.date} {formatTime(request.fromShift.startsAt)} →{' '}
-                      {request.toShift.date} {formatTime(request.toShift.startsAt)}
-                    </span>
-                    <small>{formatShortDateTime(request.createdAt)}</small>
-                  </article>
-                );
-              })}
-            </div>
+            {ROTA_VISIBLE ? (
+              <div className="supervisor-dashboard-list">
+                <h3>
+                  <Send aria-hidden="true" size={15} />
+                  Swap requests
+                </h3>
+                {mySwapRequestsError ? (
+                  <p className="status--error">{mySwapRequestsError}</p>
+                ) : null}
+                {!mySwapRequestsLoading && mySwapRequests.length === 0 ? (
+                  <div className="dashboard-empty-state">No pending shift swap requests.</div>
+                ) : null}
+                {mySwapRequests.map((request) => {
+                  const otherPerson =
+                    request.direction === 'Requested'
+                      ? request.targetUser.fullName
+                      : request.requester.fullName;
+                  return (
+                    <article className="dashboard-list-row" key={request.id}>
+                      <strong>
+                        {request.direction === 'Requested'
+                          ? 'Awaiting Head review'
+                          : 'Incoming request'}{' '}
+                        with {otherPerson}
+                      </strong>
+                      <span>
+                        {request.fromShift.date} {formatTime(request.fromShift.startsAt)} →{' '}
+                        {request.toShift.date} {formatTime(request.toShift.startsAt)}
+                      </span>
+                      <small>{formatShortDateTime(request.createdAt)}</small>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : null}
           </section>
 
           <section className="panel panel__body supervisor-dashboard-card supervisor-dashboard-card--rail">

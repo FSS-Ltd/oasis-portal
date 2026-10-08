@@ -134,7 +134,7 @@ function AttendanceSummaryCard({ child }: { child: ParentDashboardChild }) {
   return (
     <Card style={styles.compactCard}>
       <View style={styles.cardHeader}>
-        <SectionTitle>Attendance summary</SectionTitle>
+        <SectionTitle>Oasis attendance</SectionTitle>
         <Badge variant="blue">{attendanceRate}</Badge>
       </View>
       <View style={styles.statRow}>

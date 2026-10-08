@@ -1,5 +1,7 @@
 'use client';
 
+import { roleLabel } from '@/lib/profile-display';
+
 import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
 import { ShieldCheck } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
@@ -44,7 +46,7 @@ export function UserTagManager() {
         </span>
       ),
     },
-    { id: 'role', header: 'Role', render: (user) => user.role },
+    { id: 'role', header: 'Role', render: (user) => roleLabel(user.role) },
     {
       id: 'tags',
       header: 'Permission tags',

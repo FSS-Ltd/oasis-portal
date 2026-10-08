@@ -39,7 +39,7 @@ const columns: readonly DataTableColumn<ChildRow>[] = [
         <Avatar className="student-row__avatar" name={student.fullName} />
         <span className="student-row__text">
           <strong>{student.fullName}</strong>
-          <span>Enrolled {student.enrolmentDate}</span>
+          <span>Joined Oasis {student.enrolmentDate}</span>
         </span>
       </div>
     ),

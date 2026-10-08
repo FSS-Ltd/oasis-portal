@@ -238,14 +238,10 @@ export function StudentHomeClient() {
           </>
         ) : null}
         <StudentMetricCard
-          detail={`${String(dashboard.data.shortcuts.activeClubCount)} active clubs and ${String(
-            dashboard.data.shortcuts.activeShopItemCount,
-          )} shop items available.`}
+          detail={`${String(dashboard.data.shortcuts.activeShopItemCount)} shop items available.`}
           icon={Trophy}
           title="Shortcuts"
-          value={String(
-            dashboard.data.shortcuts.activeClubCount + dashboard.data.shortcuts.activeShopItemCount,
-          )}
+          value={String(dashboard.data.shortcuts.activeShopItemCount)}
         />
       </section>
       <div className="student-dashboard-main">

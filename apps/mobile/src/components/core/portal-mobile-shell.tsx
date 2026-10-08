@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
 import { useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -146,11 +147,18 @@ export function PortalMobileHeader({
 
 export function PortalMobileBottomNav<T extends string>({
   activeId,
-  items,
+  items: allItems,
   onSelect,
   primaryItemLimit = 4,
   variant = 'light',
 }: PortalMobileBottomNavProps<T>) {
+  const items = useMemo(
+    () =>
+      allItems.filter(
+        (item) => (CLUBS_VISIBLE || item.id !== 'clubs') && (ROTA_VISIBLE || item.id !== 'rota'),
+      ),
+    [allItems],
+  );
   const dark = variant === 'dark';
   const [drawerVisible, setDrawerVisible] = useState(false);
   const drawerOffset = useRef(new Animated.Value(360)).current;

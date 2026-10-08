@@ -82,7 +82,7 @@ describe('student learning status mobile wiring', () => {
     for (const text of [
       'Learning',
       'PACE progress',
-      'Attendance summary',
+      'Oasis attendance',
       'Positive ranks',
       'Loading learning status',
       'Learning unavailable',

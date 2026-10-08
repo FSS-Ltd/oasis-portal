@@ -22,7 +22,7 @@ export function StudentAttendancePanel({
   if (error && !attendance) {
     return (
       <Card style={styles.stateCard}>
-        <SectionTitle>Attendance summary</SectionTitle>
+        <SectionTitle>Oasis attendance</SectionTitle>
         <ErrorText>{error}</ErrorText>
       </Card>
     );
@@ -32,7 +32,7 @@ export function StudentAttendancePanel({
     <Card style={styles.sectionCard}>
       <View style={styles.rowBetween}>
         <View style={styles.headingCopy}>
-          <Text style={styles.eyebrow}>Attendance summary</Text>
+          <Text style={styles.eyebrow}>Oasis attendance</Text>
           <SectionTitle>
             {formatAttendanceRate(attendance?.summary.attendanceRate ?? null)}
           </SectionTitle>

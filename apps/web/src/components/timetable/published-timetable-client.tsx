@@ -66,8 +66,8 @@ export function PublishedTimetableClient({ mode }: PublishedTimetableClientProps
       <header className={styles.readOnlyHero}>
         <div>
           <p>{mode === 'parent' ? 'Parent portal' : 'Student portal'}</p>
-          <h1>Timetable</h1>
-          <span>Your published Tuesday–Friday lesson plan, kept clear and easy to scan.</span>
+          <h1>Oasis session timetable</h1>
+          <span>This plan covers learning sessions at Oasis from Tuesday to Friday.</span>
         </div>
         <span className={styles.viewOnlyBadge}>
           <Eye aria-hidden="true" size={16} /> View only

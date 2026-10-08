@@ -30,6 +30,7 @@ function togglePermissionTag(tags: readonly string[], tag: PermissionTag): Permi
 }
 
 function permissionTagLabel(tag: PermissionTag): string {
+  if (tag === 'club-lead') return 'Activity Lead';
   return tag.replaceAll('-', ' ');
 }
 

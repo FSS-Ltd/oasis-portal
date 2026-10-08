@@ -420,7 +420,7 @@ function IncidentForm({
           </div>
           <SwitchRow
             checked={form.offSite}
-            label="Was this during a school trip or off-site activity?"
+            label="Was this during an Oasis visit or off-site activity?"
             onChange={(checked) => {
               onChange({ offSite: checked });
             }}

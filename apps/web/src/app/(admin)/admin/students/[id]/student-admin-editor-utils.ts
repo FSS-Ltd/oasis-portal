@@ -14,7 +14,7 @@ export const editSchema = z.object({
   fullName: z.string().trim().min(1, 'Enter the student name'),
   dob: z.string().min(1, 'Enter the date of birth'),
   yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
-  enrolmentDate: z.string().min(1, 'Enter the enrolment date'),
+  enrolmentDate: z.string().min(1, 'Enter the Oasis start date'),
   address: z.string().trim().optional(),
 });
 

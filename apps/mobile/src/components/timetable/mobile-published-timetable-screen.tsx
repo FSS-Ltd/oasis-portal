@@ -84,8 +84,10 @@ export function MobilePublishedTimetableScreen({
         <View style={styles.heroHeading}>
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>Oasis Learning Centre</Text>
-            <SectionTitle>Timetable</SectionTitle>
-            <MutedText>Published Tuesday–Friday lessons and breaks.</MutedText>
+            <SectionTitle>Oasis session timetable</SectionTitle>
+            <MutedText>
+              Published learning sessions and breaks at Oasis, Tuesday to Friday.
+            </MutedText>
           </View>
           <Badge variant="blue">View only</Badge>
         </View>

@@ -66,9 +66,7 @@ function drillThroughTabs(
   const standardTabs = includePaceHistory
     ? BASE_DRILL_THROUGH_TABS
     : BASE_DRILL_THROUGH_TABS.filter(([id]) => id !== 'pace');
-  return canViewFinance
-    ? [...standardTabs, ['finance', 'Finance'] as const]
-    : standardTabs;
+  return canViewFinance ? [...standardTabs, ['finance', 'Finance'] as const] : standardTabs;
 }
 
 interface StudentDrillThroughContentProps {
@@ -140,7 +138,7 @@ function StudentHero({
           <div>
             <h1>{data.student.fullName}</h1>
             <p>
-              {displaySchoolYearLabel(data.student.yearGroup)} · Enrolled{' '}
+              {displaySchoolYearLabel(data.student.yearGroup)} · Joined Oasis{' '}
               {formatLongDate(data.student.enrolmentDate)}
             </p>
           </div>

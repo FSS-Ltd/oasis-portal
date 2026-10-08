@@ -1,5 +1,7 @@
 'use client';
 
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
+
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -323,7 +325,9 @@ export function SelfProfileClient({
               }
             >
               <legend>Optional email categories</legend>
-              {PARENT_EMAIL_NOTIFICATION_CATEGORIES.map((category) => (
+              {PARENT_EMAIL_NOTIFICATION_CATEGORIES.filter(
+                (category) => CLUBS_VISIBLE || category !== 'Club',
+              ).map((category) => (
                 <label className="parent-settings-switch" key={category}>
                   <span>
                     <strong>{parentEmailNotificationLabels[category]}</strong>

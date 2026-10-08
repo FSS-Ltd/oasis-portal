@@ -6,8 +6,8 @@ const roleLabels: Record<Role, string> = {
   Pastor: 'Pastor',
   HeadOfDiscipline: 'Head of Discipline',
   TechnicalSupport: 'Technical Support',
-  ClubsAdmin: 'Clubs Admin',
-  ClubsLead: 'Clubs Lead',
+  ClubsAdmin: 'Activities Admin',
+  ClubsLead: 'Activities Lead',
   Supervisor: 'Supervisor',
   Parent: 'Parent',
   Student: 'Student',
@@ -35,7 +35,7 @@ const permissionTagLabels: Partial<Record<PermissionTag, string>> = {
   'supervisor-primary-students': 'Supervisor Primary Students',
   'calendar-manager': 'Calendar Manager',
   'parent-message-responder': 'Parent Message Responder',
-  'club-lead': 'Club Lead',
+  'club-lead': 'Activity Lead',
   librarian: 'Librarian',
 };
 

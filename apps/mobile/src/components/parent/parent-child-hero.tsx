@@ -33,7 +33,7 @@ export function ParentChildHero({ child }: { child: ParentDashboardChild }) {
           tone={attendanceTone(child.todayStatus.label)}
           value={child.todayStatus.label}
         />
-        <HeroMetric label="Attendance" value={attendanceRate} />
+        <HeroMetric label="Oasis attendance" value={attendanceRate} />
         <HeroMetric label="PACEs" value={String(child.metrics.pacesCompletedThisAcademicYear)} />
       </View>
     </View>

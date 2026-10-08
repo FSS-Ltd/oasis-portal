@@ -36,7 +36,7 @@ export function ParentLibraryClient() {
         <div>
           <p className="eyebrow">Oasis Learning Centre</p>
           <h1>Library</h1>
-          <p>Browse the school collection and keep track of books your family has borrowed.</p>
+          <p>Browse the Oasis collection and keep track of books your family has borrowed.</p>
         </div>
       </header>
       <section className="library-loan-section">

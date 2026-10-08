@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -35,7 +36,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
   const [linkedChildren, assignedClubLeadCount, unreadMessageCount, unreadNoticeCount] =
     await Promise.all([
       linkedChildCount(user.id),
-      canUseClubLeadAccess(user)
+      CLUBS_VISIBLE && canUseClubLeadAccess(user)
         ? prisma.clubLeadAssignment.count({
             where: { userId: user.id, club: { active: true } },
           })
@@ -61,7 +62,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
       }),
     ]);
   const hasLinkedChildren = linkedChildren > 0;
-  const hasAssignedClub = assignedClubLeadCount > 0;
+  const hasAssignedClub = CLUBS_VISIBLE && assignedClubLeadCount > 0;
   const staffView = staffPortalViewForUser(user);
   const portalViews = [
     ...(staffView ? [staffView] : []),

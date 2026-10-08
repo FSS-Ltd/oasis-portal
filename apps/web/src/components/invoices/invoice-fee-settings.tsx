@@ -55,7 +55,7 @@ export function InvoiceFeeSettings({
       termAmountPence === null ||
       monthlyAmountPence === null
     ) {
-      setError('Enter a valid school year and fee amounts.');
+      setError('Enter a valid fee year and fee amounts.');
       return;
     }
     setError(null);

@@ -1,5 +1,7 @@
 'use client';
 
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
+
 import { AlertTriangle, CheckCircle2, Filter, UserPlus, X } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
@@ -271,7 +273,7 @@ function StudentPortalTable({
             <th>Merits</th>
             <th>Attendance</th>
             <th>PACE</th>
-            <th>Clubs</th>
+            {CLUBS_VISIBLE ? <th>Clubs</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -350,7 +352,7 @@ function StudentPortalTable({
                   <span className="muted">No PACE records</span>
                 )}
               </td>
-              <td>{String(row.activeClubSignupCount)}</td>
+              {CLUBS_VISIBLE ? <td>{String(row.activeClubSignupCount)}</td> : null}
             </tr>
           ))}
         </tbody>

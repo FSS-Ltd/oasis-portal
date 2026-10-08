@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
@@ -356,7 +357,9 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
           <ToggleTrack checked={emailNotificationPreferences.enabled} />
         </Pressable>
         <Text style={styles.readLabel}>Optional email categories</Text>
-        {PARENT_EMAIL_NOTIFICATION_CATEGORIES.map((category) => {
+        {PARENT_EMAIL_NOTIFICATION_CATEGORIES.filter(
+          (category) => CLUBS_VISIBLE || category !== 'Club',
+        ).map((category) => {
           const enabled = !emailNotificationPreferences.optedOutCategories.includes(category);
           const disabled = !emailNotificationPreferences.enabled || mutationPending;
           return (

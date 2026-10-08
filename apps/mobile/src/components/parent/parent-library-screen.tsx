@@ -37,7 +37,7 @@ export function ParentLibraryScreen({
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>OASIS LIBRARY</Text>
         <Text style={styles.heroTitle}>Books for your family</Text>
-        <MutedText>Browse the school collection and see what is currently on loan.</MutedText>
+        <MutedText>Browse the Oasis collection and see what is currently on loan.</MutedText>
       </View>
       <Card>
         <SectionTitle>Your loans</SectionTitle>

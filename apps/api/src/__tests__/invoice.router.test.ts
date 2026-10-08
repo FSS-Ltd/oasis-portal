@@ -1518,7 +1518,7 @@ describe('invoiceRouter', () => {
     expect(created.discountAmountPence).toBe(11025);
     expect(created.totalAmountPence).toBe(37975);
     expect(created.discounts.map((discount) => discount.appliedAmountPence)).toEqual([6125, 4900]);
-    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('School Fee Invoice');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('Centre Fee Invoice');
     expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain(
       'Invoice for Learning Centre Fees',
     );
@@ -1586,8 +1586,8 @@ describe('invoiceRouter', () => {
     expect(decrypt(fakeDb.invoices[0]?.invoiceTitleEnc)).toBe('Sign-up fee');
     expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('Invoice\n');
     expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('Sign-up fee');
-    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain('School Fee Invoice');
-    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain('School fees');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain('Centre Fee Invoice');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain('Centre fees');
     expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain(
       SCHOOL_FEE_DISCOUNT_EXPLANATION,
     );
@@ -1756,7 +1756,7 @@ describe('invoiceRouter', () => {
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'only school fee invoices can be edited',
+      message: 'only centre fee invoices can be edited',
     });
 
     const { caller: parentCaller } = createCaller(parentUser, fakeDb);
@@ -1819,7 +1819,7 @@ describe('invoiceRouter', () => {
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'only school fee drafts can be published',
+      message: 'only centre fee drafts can be published',
     });
   });
 
@@ -1932,7 +1932,7 @@ describe('invoiceRouter', () => {
 
   it('renders discounts and per-child net amounts for school-fee lines on continuation pages', async () => {
     const input = makePdfInput(9);
-    input.documentTitle = 'School Fee Invoice';
+    input.documentTitle = 'Centre Fee Invoice';
     input.billingLabel = 'Invoice for Learning Centre Fees';
     input.schoolYear = 2026;
     input.billingCadence = 'Monthly';

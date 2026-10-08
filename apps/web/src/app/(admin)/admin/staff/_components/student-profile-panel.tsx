@@ -29,7 +29,7 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
           <div>
             <h2>{student.fullName}</h2>
             <p>
-              {displaySchoolYearLabel(student.yearGroup)} · Enrolled{' '}
+              {displaySchoolYearLabel(student.yearGroup)} · Joined Oasis{' '}
               {formatDate(student.enrolmentDate)}
             </p>
           </div>
@@ -80,7 +80,7 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
               <strong>{displaySchoolYearLabel(student.yearGroup)}</strong>
             </div>
             <div className="profile-field-row">
-              <span>Enrolment date</span>
+              <span>Oasis start date</span>
               <strong>{formatDate(student.enrolmentDate)}</strong>
             </div>
           </div>
@@ -129,9 +129,7 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
         </section>
       ) : null}
 
-      {activeTab === 'attendance' ? (
-        <StudentAttendanceHistoryPanel studentId={student.id} />
-      ) : null}
+      {activeTab === 'attendance' ? <StudentAttendanceHistoryPanel studentId={student.id} /> : null}
     </div>
   );
 }
