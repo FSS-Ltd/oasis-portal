@@ -16,7 +16,7 @@ export const parentPermissionSlipCategoryLabels = {
   Activity: 'Activity',
   Consent: 'Consent',
   Reward: 'Reward',
-  SchoolTrip: 'School Trip',
+  SchoolTrip: 'Oasis visit',
 } as const satisfies Record<ParentPermissionSlip['category'], string>;
 
 export function formatParentSlipDate(value: Date | string | null): string {

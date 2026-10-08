@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { resolvePostSignInPortal, type SessionUser } from '@oasis/domain';
 
 export type PostSignInDestination =
@@ -21,8 +22,8 @@ const DESTINATION_BY_PORTAL = {
   'full-admin': '/admin',
   'admin-operations': '/admin',
   'account-admin': '/admin/access',
-  'clubs-admin': '/admin/clubs',
-  'clubs-lead': '/clubs-lead',
+  'clubs-admin': CLUBS_VISIBLE ? '/admin/clubs' : '/supervisor',
+  'clubs-lead': CLUBS_VISIBLE ? '/clubs-lead' : '/not-ready',
   supervisor: '/supervisor',
   parent: '/parent',
   student: '/student',

@@ -73,7 +73,7 @@ export function ParentFeesInvoicesList({
               <View style={styles.rowBody}>
                 <Text style={styles.invoiceNumber}>{invoiceTitle(invoice)}</Text>
                 <Text style={styles.meta}>
-                  {invoice.term ?? 'School fees'} · Due {formatInvoiceDate(invoice.dueOn)}
+                  {invoice.term ?? 'Centre fees'} · Due {formatInvoiceDate(invoice.dueOn)}
                 </Text>
               </View>
               <Badge variant={invoiceStatusBadgeVariant(invoice.displayStatus)}>

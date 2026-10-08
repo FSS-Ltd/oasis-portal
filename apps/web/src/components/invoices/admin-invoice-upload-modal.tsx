@@ -237,7 +237,7 @@ export function AdminInvoiceUploadModal({
     }
     const year = Number(schoolYear);
     if (!Number.isInteger(year)) {
-      setError('School year must be a number.');
+      setError('Fee year must be a number.');
       return;
     }
     if (!selectedFamily) {
@@ -320,7 +320,7 @@ export function AdminInvoiceUploadModal({
           <section className="invoice-create-section">
             <h3>Invoice details</h3>
             <div className="invoice-review-grid">
-              <Field label="School year" required>
+              <Field label="Fee year" required>
                 <TextInput
                   onChange={(event) => {
                     setSchoolYear(event.target.value);

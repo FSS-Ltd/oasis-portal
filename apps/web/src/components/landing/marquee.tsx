@@ -6,7 +6,6 @@ const marqueeItems = [
   'Permission slips',
   'Merit shop',
   'Messages',
-  'Clubs',
 ] as const;
 
 /**

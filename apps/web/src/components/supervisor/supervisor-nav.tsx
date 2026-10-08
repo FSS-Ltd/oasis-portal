@@ -1,5 +1,7 @@
 'use client';
 
+import { CLUBS_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -159,6 +161,8 @@ function badgeForLabel(
 }
 
 function itemVisible(item: NavItem, access: SupervisorNavAccess): boolean {
+  if (item.label === 'Rota' && !ROTA_VISIBLE) return false;
+  if (item.permission === 'canManageClubs' && !CLUBS_VISIBLE) return false;
   if (!item.permission) return true;
   return access[item.permission];
 }

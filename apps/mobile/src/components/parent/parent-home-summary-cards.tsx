@@ -12,7 +12,6 @@ export function ParentUrgentActionCards({ signals }: { signals: ParentHomeSignal
   const rows = [
     { label: 'Unread messages', value: signals.unreadMessageCount, tone: 'blue' as const },
     { label: 'Unread notices', value: signals.unreadNoticeCount, tone: 'warning' as const },
-    { label: 'Club prompts', value: signals.clubPromptCount, tone: 'success' as const },
     { label: 'Fees due', value: signals.feeDueCount, tone: 'danger' as const },
     { label: 'Permission slips', value: signals.permissionSlipCount, tone: 'crimson' as const },
   ];

@@ -131,7 +131,7 @@ export function StaffIncidentFormCard({
         onChangeText={(activity) => {
           onChange({ ...form, activity });
         }}
-        placeholder="Classroom, break, club, trip..."
+        placeholder="Classroom, break, trip..."
         value={form.activity}
       />
 

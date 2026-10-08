@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { auth } from '@clerk/nextjs/server';
 import { createContext } from '@oasis/api';
 import { canAnswerChildRegistrationPrompt, canUseClubLeadAccess } from '@oasis/domain';
@@ -38,7 +39,8 @@ function destinationForPortalSwitch(
   counts: { assignedClubLeadCount: number; linkedChildrenCount: number },
 ): PostSignInDestination | null {
   if (switchTarget === 'parent' && counts.linkedChildrenCount > 0) return '/parent';
-  if (switchTarget === 'club' && counts.assignedClubLeadCount > 0) return '/clubs-lead';
+  if (CLUBS_VISIBLE && switchTarget === 'club' && counts.assignedClubLeadCount > 0)
+    return '/clubs-lead';
   return null;
 }
 
@@ -76,7 +78,7 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
         select: { id: true },
       }),
       ctx.db.guardian.count({ where: { userId: ctx.user.id } }),
-      canUseClubLeadAccess(ctx.user)
+      CLUBS_VISIBLE && canUseClubLeadAccess(ctx.user)
         ? ctx.db.clubLeadAssignment.count({
             where: { userId: ctx.user.id, club: { active: true } },
           })
@@ -108,6 +110,10 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
     pendingParentLinkRequests,
     parentNeedsRegistration,
   });
+  if (!CLUBS_VISIBLE && destination === '/not-ready' && linkedChildrenCount > 0) {
+    return <PostSignInTransition destination="/parent" />;
+  }
+
   const switchDestination = destinationForPortalSwitch(switchTarget, {
     assignedClubLeadCount,
     linkedChildrenCount,

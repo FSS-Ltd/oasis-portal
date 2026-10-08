@@ -263,7 +263,7 @@ function invoiceBillingDetail(input: GenerateSchoolFeeInvoicePdfInput): string {
     .filter(Boolean)
     .join(' / ');
   if (billingText) return billingText;
-  return input.documentTitle === 'School Fee Invoice' ? 'School fees' : '';
+  return input.documentTitle === 'Centre Fee Invoice' ? 'Centre fees' : '';
 }
 
 interface InvoiceLinePageResult {
@@ -485,7 +485,7 @@ function drawInvoiceLineRow(
 }
 
 function showInvoiceDiscountRow(input: GenerateSchoolFeeInvoicePdfInput): boolean {
-  return input.discountAmountPence !== 0 || input.documentTitle === 'School Fee Invoice';
+  return input.discountAmountPence !== 0 || input.documentTitle === 'Centre Fee Invoice';
 }
 
 function invoiceTotalOffset(input: GenerateSchoolFeeInvoicePdfInput): number {

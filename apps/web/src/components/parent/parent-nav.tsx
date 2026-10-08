@@ -1,5 +1,7 @@
 'use client';
 
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -76,9 +78,11 @@ interface ParentNavProps {
 }
 
 export function parentNavigationItems(canUseParentVolunteer: boolean): readonly ParentNavItem[] {
-  return canUseParentVolunteer
-    ? parentNavItems
-    : parentNavItems.filter((item) => item.href !== '/parent/volunteer');
+  return parentNavItems.filter(
+    (item) =>
+      (CLUBS_VISIBLE || item.href !== '/parent/clubs') &&
+      (canUseParentVolunteer || item.href !== '/parent/volunteer'),
+  );
 }
 
 export function parentBottomNavigationItems(

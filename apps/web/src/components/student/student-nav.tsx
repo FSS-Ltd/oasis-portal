@@ -1,5 +1,7 @@
 'use client';
 
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -57,8 +59,9 @@ function useVisibleStudentNavItems() {
 
   return studentNavItems.filter(
     (item) =>
-      (item.href !== '/student/pace' && item.href !== '/student/attendance') ||
-      academicScreensEnabled,
+      (CLUBS_VISIBLE || item.href !== '/student/clubs') &&
+      ((item.href !== '/student/pace' && item.href !== '/student/attendance') ||
+        academicScreensEnabled),
   );
 }
 

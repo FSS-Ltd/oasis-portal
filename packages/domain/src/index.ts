@@ -12,6 +12,7 @@ export * from './shop.js';
 export * from './leaderboard.js';
 export * from './library.js';
 export * from './clubs.js';
+export * from './portal-visibility.js';
 export * from './report.js';
 export * from './scoreKeyReport.js';
 export * from './schoolYears.js';

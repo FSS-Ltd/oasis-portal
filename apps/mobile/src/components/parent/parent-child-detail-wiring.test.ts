@@ -45,7 +45,7 @@ describe('parent child detail mobile wiring', () => {
 
     for (const text of [
       'Child detail',
-      'Attendance summary',
+      'Oasis attendance',
       'Current PACE',
       'Visible behaviour',
       'Visible notes',

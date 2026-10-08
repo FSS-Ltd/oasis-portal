@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import {
@@ -52,7 +53,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canManageAccounts = canManageUserAccounts(user);
   const canExportAttendanceCsv = canExportAttendance(user);
   const canManageCalendarDates = canManageCalendar(user);
-  const canManageClubModule = canManageClubs(user);
+  const canManageClubModule = CLUBS_VISIBLE && canManageClubs(user);
   const canManageInvoiceModule = canManageInvoices(user);
   const canManagePermissionSlipModule = canManagePermissionSlips(user);
   const canUseShop = canManageShop(user) || canSellInShop(user);
@@ -60,7 +61,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canUseMessages = canRespondToParentMessages(user) || canUseStaffMessaging(user);
   const [linkedChildren, assignedClubLeadCount, unreadMessageCount] = await Promise.all([
     linkedChildCount(user.id),
-    canUseClubLeadAccess(user)
+    CLUBS_VISIBLE && canUseClubLeadAccess(user)
       ? prisma.clubLeadAssignment.count({
           where: { userId: user.id, club: { active: true } },
         })
@@ -78,7 +79,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       : Promise.resolve(0),
   ]);
   const hasLinkedChildren = linkedChildren > 0;
-  const hasAssignedClub = assignedClubLeadCount > 0;
+  const hasAssignedClub = CLUBS_VISIBLE && assignedClubLeadCount > 0;
   const staffView = staffPortalViewForUser(user);
   const portalViews = [
     ...(staffView ? [staffView] : []),

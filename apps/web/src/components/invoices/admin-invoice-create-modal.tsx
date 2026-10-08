@@ -96,8 +96,7 @@ function defaultAmountForStudent({
 }): number {
   const summary = studentYearSummary(family, student.id);
   if (!summary) return fallbackAmountPence;
-  const availableAmountPence =
-    summary.grossLeftToInvoiceAmountPence + alreadyIssuedAmountPence;
+  const availableAmountPence = summary.grossLeftToInvoiceAmountPence + alreadyIssuedAmountPence;
   if (availableAmountPence <= 0) return 0;
   return Math.min(fallbackAmountPence, availableAmountPence);
 }
@@ -150,7 +149,7 @@ function defaultLineFormForStudent(
 ): LineForm {
   return {
     studentId: student.id,
-    description: `${cadenceLabels[cadence]} school fee - ${student.fullName}`,
+    description: `${cadenceLabels[cadence]} centre fee - ${student.fullName}`,
     quantity: '1',
     unitAmount: penceToPoundsInput(
       defaultAmountForStudent({
@@ -173,7 +172,7 @@ function lineFormsForStudents(
     return [
       {
         studentId: null,
-        description: `${cadenceLabels[cadence]} school fee`,
+        description: `${cadenceLabels[cadence]} centre fee`,
         quantity: '1',
         unitAmount: penceToPoundsInput(amountPence),
       },
@@ -191,7 +190,7 @@ function isUntouchedPlaceholderLine(
 ): boolean {
   return (
     line.studentId === null &&
-    line.description === `${cadenceLabels[cadence]} school fee` &&
+    line.description === `${cadenceLabels[cadence]} centre fee` &&
     line.quantity === '1' &&
     parsePenceInput(line.unitAmount) === amountPence
   );
@@ -349,27 +348,24 @@ function selectedPresetDiscountsForInvoice(
 ): PresetDiscountForm[] {
   if (!invoice) return [];
   const presetCodes = new Set<string>(presets.map((preset) => preset.code));
-  return invoice.discounts
-    .flatMap((discount) => {
-      const presetCode = sourcePresetCode(discount.presetCode);
-      if (
-        discount.optedOut ||
-        discount.kind !== 'Preset' ||
-        !presetCode ||
-        !presetCodes.has(presetCode)
-      ) {
-        return [];
-      }
-      const childIndex = childIndexFromPresetCode(discount.presetCode);
-      return [{ code: presetCode, studentId: invoice.students[childIndex ?? -1]?.id ?? '' }];
-    });
+  return invoice.discounts.flatMap((discount) => {
+    const presetCode = sourcePresetCode(discount.presetCode);
+    if (
+      discount.optedOut ||
+      discount.kind !== 'Preset' ||
+      !presetCode ||
+      !presetCodes.has(presetCode)
+    ) {
+      return [];
+    }
+    const childIndex = childIndexFromPresetCode(discount.presetCode);
+    return [{ code: presetCode, studentId: invoice.students[childIndex ?? -1]?.id ?? '' }];
+  });
 }
 
 function childIndexFromPresetCode(presetCode: string | null): number | null {
   if (!presetCode?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)) return null;
-  const rawIndex = presetCode
-    .slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length)
-    .split('|', 1)[0];
+  const rawIndex = presetCode.slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length).split('|', 1)[0];
   if (!rawIndex || !/^[0-9]+$/u.test(rawIndex)) return null;
   return Number(rawIndex);
 }
@@ -681,7 +677,7 @@ function SchoolFeeInvoiceForm({
     if (pending) return;
     const year = Number(schoolYear);
     if (!Number.isInteger(year)) {
-      setError('School year must be a number.');
+      setError('Fee year must be a number.');
       return;
     }
     if (!selectedFamily) {
@@ -836,7 +832,7 @@ function SchoolFeeInvoiceForm({
           <section className="invoice-create-section">
             <h3>Invoice details</h3>
             <div className="invoice-review-grid">
-              <Field label="School year" required>
+              <Field label="Fee year" required>
                 <TextInput
                   disabled={pending}
                   onChange={(event) => {
@@ -1331,7 +1327,7 @@ function AdminInvoiceFormModal({
         }}
         value={invoiceKind}
       >
-        <option value="SchoolFee">School fee</option>
+        <option value="SchoolFee">Centre fee</option>
         <option value="Manual">Manual</option>
       </SelectInput>
     </Field>

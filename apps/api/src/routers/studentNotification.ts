@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { canonicalSchoolYear } from '@oasis/domain';
@@ -84,7 +85,11 @@ export const studentNotificationRouter = router({
 
     return ctx.withRls(async (tx) => ({
       count: await tx.studentNotification.count({
-        where: { studentId: student.id, readAt: null },
+        where: {
+          studentId: student.id,
+          readAt: null,
+          ...(!CLUBS_VISIBLE ? { kind: { not: 'ClubNotice' } } : {}),
+        },
       }),
     }));
   }),

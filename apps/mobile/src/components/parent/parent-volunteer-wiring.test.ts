@@ -9,7 +9,7 @@ function readMobile(relativePath: string): string {
 }
 
 describe('parent volunteer mobile wiring', () => {
-  it('adds Centre Volunteer and Lunch + Clubs choices with private availability and save controls', () => {
+  it('adds Centre Volunteer and Lunch supervision choices with private availability and save controls', () => {
     const screenPath = path.join(mobileRoot, 'src/components/parent/parent-volunteer-screen.tsx');
     const portal = readMobile('src/components/parent/parent-portal-screen.tsx');
     const screen = readFileSync(screenPath, 'utf8');
@@ -28,7 +28,7 @@ describe('parent volunteer mobile wiring', () => {
     expect(portal).toMatch(/route === 'volunteer'/);
     expect(screen).toMatch(/api\.rota\.setMyParentVolunteerDays\.useMutation/);
     expect(screen).toContain('Centre Volunteer');
-    expect(screen).toContain('Lunch + Clubs');
+    expect(screen).toContain('Lunch supervision');
     expect(screen).toContain('Primary · 3 spaces daily');
     expect(screen).toContain('Secondary · 2 spaces daily');
     expect(screen).toMatch(/centreDates/);
@@ -37,7 +37,7 @@ describe('parent volunteer mobile wiring', () => {
     expect(screen).not.toMatch(/parent\.fullName/);
   });
 
-  it('keeps staff volunteer access scoped to Lunch + Clubs', () => {
+  it('keeps staff volunteer access scoped to Lunch supervision', () => {
     const screen = readMobile('src/components/parent/parent-volunteer-screen.tsx');
     const staffScheduleStart = screen.indexOf('function StaffVolunteerSchedule');
     const screenExportStart = screen.indexOf('export function ParentVolunteerScreen');
@@ -45,7 +45,7 @@ describe('parent volunteer mobile wiring', () => {
 
     expect(screen).toMatch(/Extract<ParentVolunteerSlots, \{ scope: 'parent' \}>/);
     expect(screen).toMatch(/Extract<ParentVolunteerSlots, \{ scope: 'staff' \}>/);
-    expect(screen).toContain('Lunch + Clubs-only access for staff volunteers.');
+    expect(screen).toContain('Lunch volunteering access for staff volunteers.');
     expect(screen).toMatch(/slots\?\.scope === 'parent'/);
     expect(screen).toMatch(/slots\?\.scope === 'staff'/);
     expect(staffSchedule).not.toMatch(/centreDates|CentreVolunteerCard|centreVolunteer/);
@@ -58,13 +58,13 @@ describe('parent volunteer mobile wiring', () => {
     expect(router).toMatch(
       /const parentVolunteerAccess = health\.data\?\.parentVolunteerAccess \?\? null/,
     );
-    expect(router).toMatch(/<ParentPortalScreen[\s\S]*parentVolunteerAccess=\{parentVolunteerAccess\}/);
+    expect(router).toMatch(
+      /<ParentPortalScreen[\s\S]*parentVolunteerAccess=\{parentVolunteerAccess\}/,
+    );
     expect(router).toMatch(/AppState\.addEventListener\('change'/);
     expect(router).toMatch(/void health\.refetch\(\)/);
     expect(router).toMatch(/onRefreshEntitlement=\{health\.refetch\}/);
-    expect(portal).toMatch(
-      /enabled: canUseParentVolunteer && route === 'volunteer'/,
-    );
+    expect(portal).toMatch(/enabled: canUseParentVolunteer && route === 'volunteer'/);
     expect(portal).toMatch(/canUseParentVolunteer \|\| tab\.id !== 'volunteer'/);
     expect(portal).toMatch(/onRefreshEntitlement\(\)/);
     expect(portal).toMatch(/!canUseParentVolunteer && route === 'volunteer'/);

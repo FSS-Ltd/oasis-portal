@@ -172,7 +172,7 @@ function LunchAndClubsCard({
       <View style={styles.cardHeader}>
         <View style={styles.headerText}>
           <Text style={styles.cardEyebrow}>Daily cover</Text>
-          <SectionTitle>Lunch + Clubs</SectionTitle>
+          <SectionTitle>Lunch supervision</SectionTitle>
           <MutedText>Choose either Primary or Secondary for each day.</MutedText>
         </View>
         <Badge variant="neutral">{String(selectedCount)} selected</Badge>
@@ -428,7 +428,7 @@ function StaffVolunteerSchedule({ slots }: { slots: StaffVolunteerScheduleSlots 
             {formatDate(selectedTerm.from)} - {formatDate(selectedTerm.to)}
           </MutedText>
           <Card style={styles.daysCard}>
-            <MutedText>Lunch + Clubs-only access for staff volunteers.</MutedText>
+            <MutedText>Lunch volunteering access for staff volunteers.</MutedText>
           </Card>
           <LunchAndClubsCard
             onTogglePrimary={(date) => {

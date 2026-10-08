@@ -23,7 +23,7 @@ type VolunteerTab = 'centre' | 'lunchAndClubs';
 
 const volunteerTabs = [
   { id: 'centre', label: 'Centre Volunteer' },
-  { id: 'lunchAndClubs', label: 'Lunch + Clubs' },
+  { id: 'lunchAndClubs', label: 'Lunch supervision' },
 ] as const satisfies readonly { id: VolunteerTab; label: string }[];
 
 function initialVolunteerTab(scope: ParentVolunteerSlots['scope']): VolunteerTab {
@@ -181,7 +181,7 @@ function LunchAndClubsWeeks({
   return (
     <div className="parent-volunteer-weeks">
       {weeks.map((week, index) => (
-        <section aria-label={`Lunch and clubs volunteer week ${String(index + 1)}`} key={index}>
+        <section aria-label={`Lunch supervision volunteer week ${String(index + 1)}`} key={index}>
           <h3>Week {String(index + 1)}</h3>
           <div className="parent-volunteer-lunch-grid">
             {week.primary.map((primarySlot, dayIndex) => {
@@ -278,10 +278,10 @@ function LunchAndClubsPanel({
   const utils = api.useUtils();
   const saveLunchAndClubsDays = api.rota.setMyParentVolunteerDays.useMutation({
     onError: (error) => {
-      showErrorToast(error, 'Lunch and clubs volunteer days could not be saved.');
+      showErrorToast(error, 'Lunch supervision volunteer days could not be saved.');
     },
     onSuccess: async () => {
-      showSuccessToast('Lunch and clubs volunteer days have been saved.');
+      showSuccessToast('Lunch supervision volunteer days have been saved.');
       await utils.rota.parentVolunteerSlots.invalidate();
     },
   });
@@ -302,12 +302,12 @@ function LunchAndClubsPanel({
       <div className="parent-volunteer-panel__header">
         <div>
           <p className="muted">Daily cover</p>
-          <h2>Lunch + Clubs</h2>
+          <h2>Lunch supervision</h2>
           {scope === 'staff' ? (
-            <p className="muted">Lunch + Clubs-only access for staff volunteers.</p>
+            <p className="muted">Lunch volunteering access for staff volunteers.</p>
           ) : null}
           <p className="muted">
-            Help during lunch and clubs. Choose either Primary or Secondary for each day.
+            Help during lunch supervision. Choose either Primary or Secondary for each day.
           </p>
         </div>
         <div className="parent-volunteer-panel__actions">
@@ -327,7 +327,7 @@ function LunchAndClubsPanel({
             type="button"
           >
             <Save aria-hidden="true" size={16} />
-            Save Lunch + Clubs
+            Save Lunch supervision
           </Button>
         </div>
       </div>

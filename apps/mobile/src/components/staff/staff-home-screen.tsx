@@ -1,8 +1,10 @@
+import { CLUBS_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
 import { useMemo } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
+import { roleLabel } from '../access/user-access-model';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MobileButton, MutedText } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
@@ -42,7 +44,7 @@ function todayDate(): Date {
 
 function greetingName(user: SessionUser | undefined): string {
   if (!user) return 'staff';
-  return user.role;
+  return roleLabel(user.role);
 }
 
 function formatDate(value: string): string {
@@ -225,11 +227,13 @@ export function StaffHomeScreen({
             </View>
 
             <View style={styles.metricGrid}>
-              <MetricCard
-                label="Rota"
-                sub="shifts this week"
-                value={String(data.rota.shiftsThisWeek)}
-              />
+              {ROTA_VISIBLE ? (
+                <MetricCard
+                  label="Rota"
+                  sub="shifts this week"
+                  value={String(data.rota.shiftsThisWeek)}
+                />
+              ) : null}
               <MetricCard
                 label="Attendance"
                 sub={view.attendanceProgressLabel}
@@ -259,18 +263,20 @@ export function StaffHomeScreen({
               />
             </View>
 
-            <Card style={styles.nextTaskCard}>
-              <View style={styles.rowHeader}>
-                <View style={styles.rowBody}>
-                  <Text style={styles.cardTitle}>Next task</Text>
-                  <Text style={styles.nextTaskTitle}>{view.nextTask.title}</Text>
-                  <MutedText>{nextShiftLabel(data)}</MutedText>
+            {ROTA_VISIBLE ? (
+              <Card style={styles.nextTaskCard}>
+                <View style={styles.rowHeader}>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.cardTitle}>Next task</Text>
+                    <Text style={styles.nextTaskTitle}>{view.nextTask.title}</Text>
+                    <MutedText>{nextShiftLabel(data)}</MutedText>
+                  </View>
+                  <Badge variant={view.nextTask.tone === 'warning' ? 'warning' : 'blue'}>
+                    {view.nextTask.metric}
+                  </Badge>
                 </View>
-                <Badge variant={view.nextTask.tone === 'warning' ? 'warning' : 'blue'}>
-                  {view.nextTask.metric}
-                </Badge>
-              </View>
-            </Card>
+              </Card>
+            ) : null}
 
             <Card style={styles.compactCard}>
               <View style={styles.rowHeader}>
@@ -291,13 +297,19 @@ export function StaffHomeScreen({
 
             <Card style={styles.compactCard}>
               <Text style={styles.cardTitle}>Quick actions</Text>
-              {view.quickActions.map((action) => (
-                <QuickActionRow
-                  action={action}
-                  key={action.id}
-                  onPress={quickActionHandlers[action.id]}
-                />
-              ))}
+              {view.quickActions
+                .filter(
+                  (action) =>
+                    (CLUBS_VISIBLE || (action.id !== 'clubs' && action.id !== 'club-manager')) &&
+                    (ROTA_VISIBLE || action.id !== 'rota'),
+                )
+                .map((action) => (
+                  <QuickActionRow
+                    action={action}
+                    key={action.id}
+                    onPress={quickActionHandlers[action.id]}
+                  />
+                ))}
             </Card>
 
             <Card style={styles.compactCard}>
@@ -307,11 +319,13 @@ export function StaffHomeScreen({
                 value={`${String(data.behaviour.entriesRecordedToday)} today`}
               />
               <SignalRow label="Staff notices" value={`${String(data.notices.unread)} unread`} />
-              <SignalRow
-                label="Pending swaps"
-                value={`${String(data.rota.pendingSwapCount)} open`}
-              />
-              {data.permissions.canUseClubs ? (
+              {ROTA_VISIBLE ? (
+                <SignalRow
+                  label="Pending swaps"
+                  value={`${String(data.rota.pendingSwapCount)} open`}
+                />
+              ) : null}
+              {CLUBS_VISIBLE && data.permissions.canUseClubs ? (
                 <SignalRow
                   label="Club access"
                   value={`${String(data.clubs.assignedClubCount)} available`}

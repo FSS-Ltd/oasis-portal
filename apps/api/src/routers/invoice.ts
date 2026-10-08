@@ -1639,7 +1639,7 @@ async function loadDraftForPublishing(tx: RlsTx, invoiceId: string) {
   if (invoice.kind !== 'SchoolFee') {
     throw new TRPCError({
       code: 'BAD_REQUEST',
-      message: 'only school fee drafts can be published',
+      message: 'only centre fee drafts can be published',
     });
   }
 }
@@ -2146,7 +2146,7 @@ async function buildGeneratedInvoicePdf(
   invoice: InvoiceRow,
 ): Promise<{ pdfBase64: string; extractedText: string; fileSizeBytes: number }> {
   const students = mapStudentRows(ctx, invoice);
-  const invoiceNumber = invoice.invoiceNumber ?? 'School Fee Invoice';
+  const invoiceNumber = invoice.invoiceNumber ?? 'Centre Fee Invoice';
   const invoiceTitle = decryptOptional(ctx.db.$enc.decrypt, invoice.invoiceTitleEnc);
   const lineItems = invoice.lineItems.map((line) => lineInputFromRow(ctx, line));
   const lineItemDtos = invoice.lineItems.map((line) => lineDtoFromRow(ctx, line));
@@ -2168,7 +2168,7 @@ async function buildGeneratedInvoicePdf(
     })),
   }));
   const pdfInput: GenerateSchoolFeeInvoicePdfInput = {
-    documentTitle: invoice.kind === 'Manual' ? 'Invoice' : 'School Fee Invoice',
+    documentTitle: invoice.kind === 'Manual' ? 'Invoice' : 'Centre Fee Invoice',
     billingLabel:
       invoice.kind === 'Manual' ? (invoiceTitle ?? 'Invoice') : 'Invoice for Learning Centre Fees',
     invoiceNumber,
@@ -2694,7 +2694,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
               },
               include: invoiceInclude,
             }),
-          { notFoundMessage: 'only school fee drafts can be published' },
+          { notFoundMessage: 'only centre fee drafts can be published' },
         );
 
         await tx.auditLog.create({
@@ -2935,7 +2935,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             yearGroup: student.yearGroup,
           }));
           const pdf = await generateSchoolFeeInvoicePdf({
-            documentTitle: 'School Fee Invoice',
+            documentTitle: 'Centre Fee Invoice',
             billingLabel: 'Invoice for Learning Centre Fees',
             invoiceNumber: input.invoiceNumber,
             issuedOn: parseDateInput(input.issuedOn),
@@ -3077,7 +3077,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
           if (existing.kind !== 'SchoolFee') {
             throw new TRPCError({
               code: 'BAD_REQUEST',
-              message: 'only school fee invoices can be edited',
+              message: 'only centre fee invoices can be edited',
             });
           }
           if (existing.status !== 'Draft' && existing.status !== 'Unpaid') {
@@ -3094,7 +3094,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             yearGroup: student.yearGroup,
           }));
           const pdf = await generateSchoolFeeInvoicePdf({
-            documentTitle: 'School Fee Invoice',
+            documentTitle: 'Centre Fee Invoice',
             billingLabel: 'Invoice for Learning Centre Fees',
             invoiceNumber: input.invoiceNumber,
             issuedOn: parseDateInput(input.issuedOn),

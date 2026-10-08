@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { PERMISSION_TAGS, ROLES } from '@oasis/domain';
 import { api } from '@/lib/trpc';
-import { permissionTagLabel } from '@/lib/profile-display';
+import { permissionTagLabel, roleLabel } from '@/lib/profile-display';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -76,7 +76,7 @@ export function InviteUserForm() {
             <SelectInput {...register('role')}>
               {ROLES.map((role) => (
                 <option key={role} value={role}>
-                  {role}
+                  {roleLabel(role)}
                 </option>
               ))}
             </SelectInput>

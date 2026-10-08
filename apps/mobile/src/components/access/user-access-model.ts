@@ -25,6 +25,8 @@ export function formatAccountDate(value: Date | string): string {
 }
 
 export function roleLabel(role: string): string {
+  if (role === 'ClubsAdmin') return 'Activities Admin';
+  if (role === 'ClubsLead') return 'Activities Lead';
   return role === 'TechnicalSupport' ? 'Technical Support' : role;
 }
 

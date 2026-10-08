@@ -3,17 +3,15 @@
 import { Badge } from '@/components/ui/badge';
 import type { RouterOutputs } from '@/lib/trpc';
 
-export type AdminPermissionSlip =
-  RouterOutputs['permissionSlip']['listAdmin']['slips'][number];
-export type ParentPermissionSlip =
-  RouterOutputs['permissionSlip']['listParent']['slips'][number];
+export type AdminPermissionSlip = RouterOutputs['permissionSlip']['listAdmin']['slips'][number];
+export type ParentPermissionSlip = RouterOutputs['permissionSlip']['listParent']['slips'][number];
 export type PermissionSlipRecipient = AdminPermissionSlip['recipients'][number];
 export type PermissionSlipQuestion = AdminPermissionSlip['questions'][number];
 
 export const permissionSlipCategories = ['SchoolTrip', 'Activity', 'Reward', 'Consent'] as const;
 
 export const permissionSlipCategoryLabels = {
-  SchoolTrip: 'School Trip',
+  SchoolTrip: 'Oasis visit',
   Activity: 'Activity',
   Reward: 'Reward',
   Consent: 'Consent',
@@ -67,11 +65,19 @@ export function paymentLabel(status: PermissionSlipRecipient['paymentStatus']) {
   return status;
 }
 
-export function ResponseStatusBadge({ status }: { status: PermissionSlipRecipient['responseStatus'] }) {
+export function ResponseStatusBadge({
+  status,
+}: {
+  status: PermissionSlipRecipient['responseStatus'];
+}) {
   return <Badge tone={responseTone(status)}>{responseLabel(status)}</Badge>;
 }
 
-export function PaymentStatusBadge({ status }: { status: PermissionSlipRecipient['paymentStatus'] }) {
+export function PaymentStatusBadge({
+  status,
+}: {
+  status: PermissionSlipRecipient['paymentStatus'];
+}) {
   return <Badge tone={paymentTone(status)}>{paymentLabel(status)}</Badge>;
 }
 

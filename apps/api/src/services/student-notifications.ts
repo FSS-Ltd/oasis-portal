@@ -1,3 +1,4 @@
+import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { TRPCError } from '@trpc/server';
 import type { Prisma, StudentNotificationKind } from '@oasis/db';
 import type { AppContext, RlsTx } from '../context.js';
@@ -97,10 +98,18 @@ export async function loadStudentNotificationPreview(
   studentId: string,
 ): Promise<StudentNotificationPreviewDto> {
   const [count, unreadCount, latest] = await Promise.all([
-    db.studentNotification.count({ where: { studentId } }),
-    db.studentNotification.count({ where: { studentId, readAt: null } }),
+    db.studentNotification.count({
+      where: { studentId, ...(!CLUBS_VISIBLE ? { kind: { not: 'ClubNotice' } } : {}) },
+    }),
+    db.studentNotification.count({
+      where: {
+        studentId,
+        readAt: null,
+        ...(!CLUBS_VISIBLE ? { kind: { not: 'ClubNotice' } } : {}),
+      },
+    }),
     db.studentNotification.findMany({
-      where: { studentId },
+      where: { studentId, ...(!CLUBS_VISIBLE ? { kind: { not: 'ClubNotice' } } : {}) },
       select: studentNotificationPreviewSelect,
       orderBy: { createdAt: 'desc' },
       take: 3,
@@ -125,7 +134,7 @@ export async function listStudentNotifications(
   studentId: string,
 ): Promise<StudentNotificationDto[]> {
   const rows = await db.studentNotification.findMany({
-    where: { studentId },
+    where: { studentId, ...(!CLUBS_VISIBLE ? { kind: { not: 'ClubNotice' } } : {}) },
     select: studentNotificationSelect,
     orderBy: { createdAt: 'desc' },
     take: 50,

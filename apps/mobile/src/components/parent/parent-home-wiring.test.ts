@@ -85,7 +85,7 @@ describe('parent home mobile wiring', () => {
     expect(home).toMatch(/Child registration needed/);
     expect(summary).toMatch(/Unread messages/);
     expect(summary).toMatch(/Unread notices/);
-    expect(summary).toMatch(/Club prompts/);
+    expect(summary).not.toMatch(/Club prompts/);
     expect(summary).toMatch(/Fees due/);
     expect(summary).toMatch(/Permission slips/);
     expect(switcher).toMatch(/Switch child/);

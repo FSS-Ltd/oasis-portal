@@ -69,7 +69,7 @@ export function invoiceStatusLabel(status: InvoiceDisplayStatus | 'All'): string
 }
 
 export function invoiceKindLabel(kind: InvoiceDto['kind']): string {
-  return kind === 'Manual' ? 'Manual' : 'School fee';
+  return kind === 'Manual' ? 'Manual' : 'Centre fee';
 }
 
 export function InvoiceStatusBadge({ status }: { status: InvoiceDisplayStatus }) {

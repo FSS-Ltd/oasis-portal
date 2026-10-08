@@ -1,5 +1,7 @@
 'use client';
 
+import { ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
+
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
@@ -84,7 +86,7 @@ export function SupervisorDashboardClient({
   const utils = api.useUtils();
 
   const usesStudentRoster = view === 'dashboard' || view === 'attendance' || view === 'behaviour';
-  const usesRota = view === 'dashboard';
+  const usesRota = ROTA_VISIBLE && view === 'dashboard';
   const demeritStatusQuery = useDailyDemeritStatusMap(date, usesStudentRoster);
 
   const attendanceRosterQuery = api.attendance.forDate.useQuery(
@@ -100,7 +102,7 @@ export function SupervisorDashboardClient({
     { enabled: usesRota, retry: false },
   );
   const mySwapRequestsQuery = api.rota.mySwapRequests.useQuery(undefined, {
-    enabled: view === 'dashboard',
+    enabled: usesRota,
     retry: false,
   });
   const dashboardActivityQuery = api.behaviour.dashboardActivity.useQuery(
@@ -175,7 +177,7 @@ export function SupervisorDashboardClient({
 
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
-  const mySwapRequests = mySwapRequestsQuery.data ?? [];
+  const mySwapRequests = ROTA_VISIBLE ? (mySwapRequestsQuery.data ?? []) : [];
   const behaviourEntries = behaviourQuery.data?.entries ?? [];
   const rosterRows = useMemo(() => attendanceRosterQuery.data ?? [], [attendanceRosterQuery.data]);
   const rosterStudentIds = useMemo(

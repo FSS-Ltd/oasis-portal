@@ -92,9 +92,7 @@ export function StudentNotificationsScreen({
       <Card style={styles.heroCard}>
         <Text style={styles.eyebrow}>Updates</Text>
         <SectionTitle>Latest updates</SectionTitle>
-        <MutedText>
-          Merits, shop confirmations, club notices, and Learning Centre announcements.
-        </MutedText>
+        <MutedText>Merits, shop confirmations, and Learning Centre announcements.</MutedText>
         <View style={styles.heroStats}>
           <HeroStat label="Unread" value={String(unreadCount)} />
           <HeroStat label="Total updates" value={String(notificationRows.length)} />

@@ -86,6 +86,7 @@ interface FakeNotificationWhere {
   id?: string;
   studentId?: string;
   readAt?: null;
+  kind?: { not: 'ClubNotice' };
 }
 
 interface FakeNotificationFindManyArgs {
@@ -139,6 +140,7 @@ function matchesWhere(notification: StoredNotification, where: FakeNotificationW
   if (where.id !== undefined && notification.id !== where.id) return false;
   if (where.studentId !== undefined && notification.studentId !== where.studentId) return false;
   if (where.readAt === null && notification.readAt !== null) return false;
+  if (where.kind?.not === notification.kind) return false;
   return true;
 }
 
@@ -253,6 +255,21 @@ function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
 }
 
 describe('studentNotification router', () => {
+  it('excludes hidden club notices from the student list and unread count', async () => {
+    const db = makeFakeDb({
+      notifications: [
+        makeNotification({ studentId: primaryStudentId, kind: 'ClubNotice', title: 'Club update' }),
+        makeNotification({ studentId: primaryStudentId, title: 'General update' }),
+      ],
+    });
+    const caller = makeCaller(primaryStudentUser, db);
+
+    await expect(caller.studentNotification.list()).resolves.toMatchObject([
+      { title: 'General update' },
+    ]);
+    await expect(caller.studentNotification.unreadCount()).resolves.toEqual({ count: 1 });
+  });
+
   it('targets primary announcements and only lists notifications for the signed-in student', async () => {
     const db = makeFakeDb();
     const adminCaller = makeCaller(headUser, db);

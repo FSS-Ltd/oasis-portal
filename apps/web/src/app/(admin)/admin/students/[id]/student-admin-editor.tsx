@@ -257,7 +257,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                   <Field error={errors.dob?.message} label="Date of birth">
                     <TextInput type="date" {...register('dob')} />
                   </Field>
-                  <Field error={errors.enrolmentDate?.message} label="Enrolment date">
+                  <Field error={errors.enrolmentDate?.message} label="Oasis start date">
                     <TextInput type="date" {...register('enrolmentDate')} />
                   </Field>
                 </div>

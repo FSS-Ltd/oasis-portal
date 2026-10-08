@@ -132,7 +132,7 @@ export default async function AdminIndexPage() {
     <MotionPage>
       <div className="dashboard-hero">
         <p>
-          {formatLongDate(start)} · {academicPeriod?.label ?? 'School calendar unavailable'}
+          {formatLongDate(start)} · {academicPeriod?.label ?? 'Centre calendar unavailable'}
         </p>
         <h1>Good morning, {headName}</h1>
         <span>Head of Centre · Oasis Learning Centre</span>
