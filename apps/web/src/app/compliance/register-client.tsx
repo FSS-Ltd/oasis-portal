@@ -129,8 +129,8 @@ export function RegisterClient() {
           <p>Safeguarding compliance</p>
           <h1>DBS & Training</h1>
           <p>
-            Supervisor and parent records. DBS status is entered by your team; it is not an
-            automatic status check.
+            Adult account records. DBS status is entered by your team; it is not an automatic status
+            check.
           </p>
         </div>
         {register.data?.canEdit ? (
@@ -149,7 +149,7 @@ export function RegisterClient() {
         <div className="compliance-register__toolbar">
           <label className="compliance-register__search">
             <Search aria-hidden="true" size={17} />
-            <span className="sr-only">Search supervisors and parents</span>
+            <span className="sr-only">Search adults in the compliance register</span>
             <input
               onChange={(event) => {
                 setSearch(event.target.value);

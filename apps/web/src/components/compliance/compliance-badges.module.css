@@ -2,12 +2,27 @@
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-inline-start: 7px;
+  gap: 3px;
+  margin-inline-start: 5px;
+  max-width: 100%;
   vertical-align: middle;
 }
 
+:global(.profile-hero__identity) .badges,
+:global(.people-directory-row__identity) .badges {
+  margin-inline-start: 0;
+}
+
 .badges :global(.badge) {
-  font-size: 0.64rem;
+  min-height: 20px;
+  padding: 2px 7px;
+  font-size: 0.62rem;
+  line-height: 1.2;
   white-space: nowrap;
+}
+
+:global(.profile-hero) .badges :global(.badge--grey) {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
 }

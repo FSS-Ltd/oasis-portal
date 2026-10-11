@@ -149,7 +149,7 @@ type AdminNavProps = {
   canUseAdminOperations: boolean;
   canUsePersonalTasks: boolean;
   canUseLibrary: boolean;
-  canUseCompliance: boolean;
+  canViewCompliance: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
   isHead: boolean;
@@ -184,7 +184,7 @@ function badgeForLabel(label: string, unreadMessageCount: number): string | null
 }
 
 function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
-  if (item.label === 'DBS & Training' || item.label === 'MedTab') return access.canUseCompliance;
+  if (item.label === 'DBS & Training' || item.label === 'MedTab') return access.canViewCompliance;
   if (item.label === 'Rota' && !ROTA_VISIBLE) return false;
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;

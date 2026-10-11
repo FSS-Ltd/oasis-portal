@@ -9043,6 +9043,15 @@ button.club-assignment-row {
   gap: 3px;
 }
 
+.people-directory-row__identity,
+.profile-hero__identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  min-width: 0;
+}
+
 .people-directory-row strong {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -9138,6 +9147,12 @@ button.club-assignment-row {
   flex: 1;
   min-width: 0;
   gap: 10px;
+}
+
+.profile-hero__identity h2 {
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .profile-hero h1,

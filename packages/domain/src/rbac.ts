@@ -185,7 +185,7 @@ export function canUseCompliance(user: Pick<SessionUser, 'role'>): boolean {
 }
 
 export function canViewCompliance(user: Pick<SessionUser, 'role'>): boolean {
-  return canUseCompliance(user) || user.role === 'Supervisor';
+  return user.role !== 'Parent' && user.role !== 'Student';
 }
 
 export function requireCanManageLibrary(user: SessionUser): void {

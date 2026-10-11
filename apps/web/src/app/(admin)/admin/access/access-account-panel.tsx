@@ -132,8 +132,10 @@ export function AccessAccountPanel({
           <Avatar className="profile-hero__avatar" name={account.fullName} />
           <div className="profile-hero__body">
             <div>
-              <h2>{account.fullName}</h2>
-              <ComplianceBadges summary={complianceSummary} />
+              <div className="profile-hero__identity">
+                <h2>{account.fullName}</h2>
+                <ComplianceBadges summary={complianceSummary} />
+              </div>
               <p>{roleLabel(account.role)}</p>
             </div>
             <div className="profile-hero__badges">

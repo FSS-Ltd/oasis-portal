@@ -13,6 +13,18 @@ const supervisor: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const technicalSupport: SessionUser = {
+  id: 'tech-support',
+  role: 'TechnicalSupport',
+  tags: [],
+  requires2fa: false,
+};
+const activitiesLead: SessionUser = {
+  id: 'activities-lead',
+  role: 'ClubsLead',
+  tags: [],
+  requires2fa: false,
+};
 
 const validUpdate = {
   userId: 'parent-1',
@@ -39,6 +51,7 @@ function makeDb() {
     upsert: vi.fn().mockResolvedValue({ userId: 'parent-1' }),
     findMany: vi.fn().mockResolvedValue([]),
   };
+  const student = { update: vi.fn().mockResolvedValue({ id: 'student-1' }) };
   const studentRegistrationProfile = {
     findMany: vi.fn().mockResolvedValue([]),
   };
@@ -46,6 +59,7 @@ function makeDb() {
   const db = {
     user,
     adultCompliance,
+    student,
     studentRegistrationProfile,
     auditLog,
     $enc: {
@@ -84,6 +98,24 @@ describe('compliance access and records', () => {
       makeCaller(supervisor, db).compliance.register({ page: 1, search: '' }),
     ).resolves.toHaveProperty('canEdit', false);
     await expect(makeCaller(supervisor, db).compliance.medTab()).resolves.toEqual([]);
+    await expect(
+      makeCaller(technicalSupport, db).compliance.register({ page: 1, search: '' }),
+    ).resolves.toHaveProperty('canEdit', false);
+    await expect(makeCaller(technicalSupport, db).compliance.medTab()).resolves.toEqual([]);
+    await expect(
+      makeCaller(activitiesLead, db).compliance.register({ page: 1, search: '' }),
+    ).resolves.toHaveProperty('canEdit', false);
+    await expect(makeCaller(activitiesLead, db).compliance.medTab()).resolves.toEqual([]);
+    await expect(
+      makeCaller(activitiesLead, db).compliance.update(validUpdate),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      makeCaller(technicalSupport, db).compliance.update(validUpdate),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
     await expect(makeCaller(supervisor, db).compliance.update(validUpdate)).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -112,13 +144,36 @@ describe('compliance access and records', () => {
     expect(db.auditLog.create.mock.calls[0]?.[0]).toHaveProperty('data.entityId', 'parent-1');
   });
 
-  it('rejects updates to accounts outside the exact register roles', async () => {
+  it('rejects updates to activities leads without another role', async () => {
     const db = makeDb();
-    db.user.findUnique.mockResolvedValue({ id: 'parent-1', role: 'Principal' });
+    db.user.findUnique.mockResolvedValue({ id: 'parent-1', role: 'ClubsLead' });
     await expect(makeCaller(lead, db).compliance.update(validUpdate)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
     expect(db.adultCompliance.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects an under-18 date of birth on update', async () => {
+    const db = makeDb();
+    await expect(
+      makeCaller(lead, db).compliance.update({ ...validUpdate, dob: '2020-01-01' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.adultCompliance.upsert).not.toHaveBeenCalled();
+  });
+
+  it('updates a confirmed adult student date of birth in both records', async () => {
+    const db = makeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'student-1',
+      role: 'Student',
+      dobEnc: null,
+      studentProfile: { dobEnc: 'enc:1987-01-02' },
+    });
+    await makeCaller(lead, db).compliance.update({ ...validUpdate, userId: 'student-1' });
+    expect(db.student.update).toHaveBeenCalledWith({
+      where: { userId: 'student-1' },
+      data: { dobEnc: 'enc:1987-01-02' },
+    });
   });
 
   it('filters MedTab to active students with recorded medical text', async () => {
@@ -157,7 +212,9 @@ describe('compliance access and records', () => {
 
   it('returns a not recorded DBS summary for an adult without a compliance record', async () => {
     const db = makeDb();
-    db.user.findMany.mockResolvedValue([{ id: 'parent-1', adultCompliance: null }]);
+    db.user.findMany.mockResolvedValue([
+      { id: 'parent-1', role: 'Parent', dobEnc: 'enc:1987-01-02', adultCompliance: null },
+    ]);
     await expect(
       makeCaller(supervisor, db).compliance.badgeSummaries({ userIds: ['parent-1'] }),
     ).resolves.toEqual([
@@ -166,10 +223,79 @@ describe('compliance access and records', () => {
         badges: { dbsStatus: 'NotRecorded', firstAidTrained: false, safeguardingTrained: false },
       },
     ]);
-    expect(db.user.findMany.mock.calls[0]?.[0]).toHaveProperty('where.role.in', [
-      'Supervisor',
-      'Parent',
+    expect(db.user.findMany.mock.calls[0]?.[0]).toHaveProperty(
+      'where.role.in',
+      expect.arrayContaining(['Pastor', 'TechnicalSupport', 'Supervisor', 'Parent']),
+    );
+  });
+
+  it('shows badges for adult student accounts but not minors or activities leads only', async () => {
+    const db = makeDb();
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'adult-student',
+        role: 'Student',
+        dobEnc: null,
+        studentProfile: { dobEnc: 'enc:2000-01-01' },
+        adultCompliance: null,
+      },
+      {
+        id: 'minor',
+        role: 'Student',
+        dobEnc: null,
+        studentProfile: { dobEnc: 'enc:2012-01-01' },
+        adultCompliance: null,
+      },
+      { id: 'activities-lead', role: 'ClubsLead', dobEnc: null, adultCompliance: null },
     ]);
+    const badges = await makeCaller(supervisor, db).compliance.allBadgeSummaries();
+    expect(badges.map((row) => row.userId)).toEqual(['adult-student']);
+  });
+
+  it('includes adult staff across roles and excludes confirmed minors from the register', async () => {
+    const db = makeDb();
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'pastor',
+        role: 'Pastor',
+        active: true,
+        fullNameEnc: 'enc:Pastor',
+        dobEnc: 'enc:1980-01-01',
+      },
+      {
+        id: 'support',
+        role: 'TechnicalSupport',
+        active: true,
+        fullNameEnc: 'enc:Support',
+        dobEnc: null,
+      },
+      {
+        id: 'minor',
+        role: 'Supervisor',
+        active: true,
+        fullNameEnc: 'enc:Minor',
+        dobEnc: 'enc:2010-01-01',
+      },
+      {
+        id: 'adult-student',
+        role: 'Student',
+        active: true,
+        fullNameEnc: 'enc:Adult Student',
+        dobEnc: null,
+        studentProfile: { dobEnc: 'enc:2000-01-01' },
+      },
+      {
+        id: 'young-student',
+        role: 'Student',
+        active: true,
+        fullNameEnc: 'enc:Young Student',
+        dobEnc: null,
+        studentProfile: { dobEnc: 'enc:2012-01-01' },
+      },
+    ]);
+    const result = await makeCaller(lead, db).compliance.register({ page: 1, search: '' });
+    expect(result.rows.map((row) => row.id)).toEqual(['adult-student', 'pastor', 'support']);
+    expect(result.total).toBe(3);
   });
 
   it('pages across every matching account, including inactive adults', async () => {

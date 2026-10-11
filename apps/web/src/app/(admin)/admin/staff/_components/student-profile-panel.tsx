@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink, GraduationCap } from 'lucide-react';
-import { displaySchoolYearLabel } from '@oasis/domain';
+import { displaySchoolYearLabel, type AdultComplianceBadgeSummary } from '@oasis/domain';
+import { ComplianceBadges } from '@/components/compliance/compliance-badges';
 import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StudentAttendanceHistoryPanel } from './attendance-history-panel';
@@ -14,7 +15,13 @@ import {
   type StudentRow,
 } from './people-profile-model';
 
-export function StudentProfilePanel({ student }: { student: StudentRow }) {
+export function StudentProfilePanel({
+  student,
+  complianceSummary,
+}: {
+  student: StudentRow;
+  complianceSummary: AdultComplianceBadgeSummary | null;
+}) {
   const [activeTab, setActiveTab] = useState<StudentProfileTab>('personal');
 
   useEffect(() => {
@@ -27,7 +34,10 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
         <Avatar className="profile-hero__avatar" name={student.fullName} />
         <div className="profile-hero__body">
           <div>
-            <h2>{student.fullName}</h2>
+            <div className="profile-hero__identity">
+              <h2>{student.fullName}</h2>
+              <ComplianceBadges summary={complianceSummary} />
+            </div>
             <p>
               {displaySchoolYearLabel(student.yearGroup)} · Joined Oasis{' '}
               {formatDate(student.enrolmentDate)}

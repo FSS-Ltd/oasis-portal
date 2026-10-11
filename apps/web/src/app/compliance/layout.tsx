@@ -12,6 +12,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function ComplianceLayout({ children }: { children: ReactNode }) {
   const user = await getComplianceUser();
+  const portalHref =
+    user.role === 'Supervisor'
+      ? '/supervisor'
+      : user.role === 'ClubsLead'
+        ? '/clubs-lead'
+        : user.role === 'SafeguardingLead'
+          ? null
+          : '/admin';
 
   return (
     <div className="admin-shell compliance-shell">
@@ -35,10 +43,7 @@ export default async function ComplianceLayout({ children }: { children: ReactNo
         </div>
         <ComplianceNav />
         <div className="admin-shell__foot">
-          {user.role === 'Supervisor' ? <Link href="/supervisor">Back to portal</Link> : null}
-          {user.role === 'Head' || user.role === 'Pastor' ? (
-            <Link href="/admin">Back to portal</Link>
-          ) : null}
+          {portalHref ? <Link href={portalHref}>Back to portal</Link> : null}
           <LogoutButton />
         </div>
       </aside>
@@ -46,10 +51,7 @@ export default async function ComplianceLayout({ children }: { children: ReactNo
         <header className="compliance-shell__mobile-header">
           <Image alt="Oasis Learning Centre" height={36} src="/oasis-logo.svg" width={90} />
           <strong>Compliance</strong>
-          {user.role === 'Supervisor' ? <Link href="/supervisor">Portal</Link> : null}
-          {user.role === 'Head' || user.role === 'Pastor' ? (
-            <Link href="/admin">Portal</Link>
-          ) : null}
+          {portalHref ? <Link href={portalHref}>Portal</Link> : null}
           <LogoutButton />
         </header>
         <div className="compliance-shell__mobile-nav">

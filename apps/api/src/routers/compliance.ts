@@ -2,9 +2,12 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import type { Prisma } from '@oasis/db';
 import {
+  COMPLIANCE_ACCOUNT_ROLES,
   canUseCompliance,
   complianceBadgeSummary,
+  isComplianceAccount,
   updateAdultComplianceInput,
+  type Role,
   type UpdateAdultComplianceInput,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -35,6 +38,13 @@ function dbDate(value: string | null): Date | null {
 
 function encryptedText(ctx: AppContext, value: string | null): string | null {
   return value ? ctx.db.$enc.encrypt(value) : null;
+}
+
+function personDob(
+  ctx: AppContext,
+  user: { role: Role; dobEnc: string | null; studentProfile: { dobEnc: string } | null },
+): string | null {
+  return ctx.db.$enc.decrypt(user.role === 'Student' ? user.studentProfile?.dobEnc : user.dobEnc);
 }
 
 function mapRecord(ctx: AppContext, record: ComplianceRecord | null) {
@@ -70,8 +80,15 @@ function recordData(ctx: AppContext, input: UpdateAdultComplianceInput) {
 export const complianceRouter = router({
   peopleOptions: complianceEditorProcedure.query(async ({ ctx }) => {
     const users = await ctx.db.user.findMany({
-      where: { role: { in: ['Supervisor', 'Parent'] } },
-      select: { id: true, role: true, active: true, fullNameEnc: true },
+      where: { role: { in: [...COMPLIANCE_ACCOUNT_ROLES] } },
+      select: {
+        id: true,
+        role: true,
+        active: true,
+        fullNameEnc: true,
+        dobEnc: true,
+        studentProfile: { select: { dobEnc: true } },
+      },
     });
     await ctx.db.auditLog.create({
       data: {
@@ -82,6 +99,7 @@ export const complianceRouter = router({
       },
     });
     return users
+      .filter((user) => isComplianceAccount(user.role, personDob(ctx, user)))
       .map((user) => ({
         id: user.id,
         role: user.role,
@@ -93,8 +111,15 @@ export const complianceRouter = router({
 
   register: complianceProcedure.input(registerInput).query(async ({ ctx, input }) => {
     const users = await ctx.db.user.findMany({
-      where: { role: { in: ['Supervisor', 'Parent'] } },
-      select: { id: true, role: true, active: true, fullNameEnc: true, dobEnc: true },
+      where: { role: { in: [...COMPLIANCE_ACCOUNT_ROLES] } },
+      select: {
+        id: true,
+        role: true,
+        active: true,
+        fullNameEnc: true,
+        dobEnc: true,
+        studentProfile: { select: { dobEnc: true } },
+      },
     });
     const search = input.search.toLocaleLowerCase();
     const matching = users
@@ -103,8 +128,9 @@ export const complianceRouter = router({
         role: user.role,
         active: user.active,
         fullName: ctx.db.$enc.decrypt(user.fullNameEnc),
-        dobEnc: user.dobEnc,
+        dob: personDob(ctx, user),
       }))
+      .filter((user) => isComplianceAccount(user.role, user.dob))
       .filter((user) => user.fullName.toLocaleLowerCase().includes(search))
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
     const pageUsers = matching.slice((input.page - 1) * PAGE_SIZE, input.page * PAGE_SIZE);
@@ -138,7 +164,7 @@ export const complianceRouter = router({
         role: user.role,
         active: user.active,
         fullName: user.fullName,
-        dob: ctx.db.$enc.decrypt(user.dobEnc),
+        dob: user.dob,
         ...mapRecord(ctx, byUserId.get(user.id) ?? null),
         badges: complianceBadgeSummary(byUserId.get(user.id) ?? null),
       })),
@@ -148,9 +174,16 @@ export const complianceRouter = router({
   person: complianceEditorProcedure.input(personInput).query(async ({ ctx, input }) => {
     const user = await ctx.db.user.findUnique({
       where: { id: input.userId },
-      select: { id: true, role: true, active: true, fullNameEnc: true, dobEnc: true },
+      select: {
+        id: true,
+        role: true,
+        active: true,
+        fullNameEnc: true,
+        dobEnc: true,
+        studentProfile: { select: { dobEnc: true } },
+      },
     });
-    if (!user || (user.role !== 'Supervisor' && user.role !== 'Parent')) {
+    if (!user || !isComplianceAccount(user.role, personDob(ctx, user))) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Person not found in the register.' });
     }
     const record = await ctx.withRls((tx) =>
@@ -170,7 +203,7 @@ export const complianceRouter = router({
       role: user.role,
       active: user.active,
       fullName: ctx.db.$enc.decrypt(user.fullNameEnc),
-      dob: ctx.db.$enc.decrypt(user.dobEnc),
+      dob: personDob(ctx, user),
       ...mapRecord(ctx, record),
     };
   }),
@@ -182,15 +215,32 @@ export const complianceRouter = router({
       await ctx.withRls(async (tx) => {
         const user = await tx.user.findUnique({
           where: { id: input.userId },
-          select: { id: true, role: true },
+          select: {
+            id: true,
+            role: true,
+            dobEnc: true,
+            studentProfile: { select: { dobEnc: true } },
+          },
         });
-        if (!user || (user.role !== 'Supervisor' && user.role !== 'Parent')) {
+        if (!user || !isComplianceAccount(user.role, personDob(ctx, user))) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Person not found in the register.' });
+        }
+        if (!isComplianceAccount(user.role, input.dob)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Under-18 accounts cannot have compliance records.',
+          });
         }
         await tx.user.update({
           where: { id: user.id },
           data: { dobEnc: encryptedText(ctx, input.dob) },
         });
+        if (user.role === 'Student' && input.dob) {
+          await tx.student.update({
+            where: { userId: user.id },
+            data: { dobEnc: ctx.db.$enc.encrypt(input.dob) },
+          });
+        }
         await tx.adultCompliance.upsert({
           where: { userId: user.id },
           create: { userId: user.id, ...data },
@@ -202,7 +252,12 @@ export const complianceRouter = router({
             action: 'Update',
             entity: 'AdultCompliance',
             entityId: user.id,
-            meta: { source: 'compliance.update', fields: Object.keys(data).concat('dobEnc') },
+            meta: {
+              source: 'compliance.update',
+              fields: Object.keys(data).concat(
+                user.role === 'Student' ? ['dobEnc', 'studentDobEnc'] : ['dobEnc'],
+              ),
+            },
           },
         });
       });
@@ -247,9 +302,12 @@ export const complianceRouter = router({
     if (userIds.length === 0) return [];
     const users = await ctx.withRls((tx) =>
       tx.user.findMany({
-        where: { id: { in: userIds }, role: { in: ['Supervisor', 'Parent'] } },
+        where: { id: { in: userIds }, role: { in: [...COMPLIANCE_ACCOUNT_ROLES] } },
         select: {
           id: true,
+          role: true,
+          dobEnc: true,
+          studentProfile: { select: { dobEnc: true } },
           adultCompliance: {
             select: {
               dbsStatus: true,
@@ -262,18 +320,31 @@ export const complianceRouter = router({
         },
       }),
     );
-    return users.map((user) => ({
-      userId: user.id,
-      badges: complianceBadgeSummary(user.adultCompliance),
-    }));
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'AdultCompliance',
+        meta: { count: users.length, source: 'compliance.badgeSummaries' },
+      },
+    });
+    return users
+      .filter((user) => isComplianceAccount(user.role, personDob(ctx, user)))
+      .map((user) => ({
+        userId: user.id,
+        badges: complianceBadgeSummary(user.adultCompliance),
+      }));
   }),
 
   allBadgeSummaries: complianceBadgeProcedure.query(async ({ ctx }) => {
     const users = await ctx.withRls((tx) =>
       tx.user.findMany({
-        where: { role: { in: ['Supervisor', 'Parent'] } },
+        where: { role: { in: [...COMPLIANCE_ACCOUNT_ROLES] } },
         select: {
           id: true,
+          role: true,
+          dobEnc: true,
+          studentProfile: { select: { dobEnc: true } },
           adultCompliance: {
             select: {
               dbsStatus: true,
@@ -286,9 +357,19 @@ export const complianceRouter = router({
         },
       }),
     );
-    return users.map((user) => ({
-      userId: user.id,
-      badges: complianceBadgeSummary(user.adultCompliance),
-    }));
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'AdultCompliance',
+        meta: { count: users.length, source: 'compliance.allBadgeSummaries' },
+      },
+    });
+    return users
+      .filter((user) => isComplianceAccount(user.role, personDob(ctx, user)))
+      .map((user) => ({
+        userId: user.id,
+        badges: complianceBadgeSummary(user.adultCompliance),
+      }));
   }),
 });
