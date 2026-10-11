@@ -145,8 +145,10 @@ export function UserProfilePanel({
           <Avatar className="profile-hero__avatar" name={user.fullName} />
           <div className="profile-hero__body">
             <div>
-              <h2>{user.fullName}</h2>
-              <ComplianceBadges summary={complianceSummary} />
+              <div className="profile-hero__identity">
+                <h2>{user.fullName}</h2>
+                <ComplianceBadges summary={complianceSummary} />
+              </div>
               <p>{kind === 'parent' ? 'Parent / Guardian' : roleLabel(user.role)}</p>
             </div>
             <div className="profile-hero__badges">

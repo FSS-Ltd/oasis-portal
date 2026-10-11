@@ -200,12 +200,14 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
                   name={row.kind === 'account' ? row.account.fullName : row.invitation.email}
                 />
                 <span>
-                  <strong>
-                    {row.kind === 'account' ? row.account.fullName : row.invitation.email}
-                  </strong>
-                  {row.kind === 'account' ? (
-                    <ComplianceBadges summary={badgesByUserId.get(row.account.id) ?? null} />
-                  ) : null}
+                  <span className="people-directory-row__identity">
+                    <strong>
+                      {row.kind === 'account' ? row.account.fullName : row.invitation.email}
+                    </strong>
+                    {row.kind === 'account' ? (
+                      <ComplianceBadges summary={badgesByUserId.get(row.account.id) ?? null} />
+                    ) : null}
+                  </span>
                   <small>
                     <i aria-hidden="true" />
                     {row.kind === 'account' ? (

@@ -1,4 +1,20 @@
 import { z } from 'zod';
+import { ADULT_USER_ACCOUNT_ROLES, type Role } from './rbac.js';
+import { isStudentAdult } from './studentPortalSettings.js';
+
+export const COMPLIANCE_ACCOUNT_ROLES: readonly Role[] = [
+  ...ADULT_USER_ACCOUNT_ROLES.filter((role) => role !== 'ClubsLead'),
+  'Student',
+];
+
+export function isComplianceAccount(role: Role, dob: string | null, asOf = new Date()): boolean {
+  return (
+    COMPLIANCE_ACCOUNT_ROLES.some((eligibleRole) => eligibleRole === role) &&
+    (role === 'Student'
+      ? Boolean(dob && isStudentAdult({ dateOfBirth: dob, asOf }))
+      : !dob || isStudentAdult({ dateOfBirth: dob, asOf }))
+  );
+}
 
 export const DBS_APPLICATION_TYPES = ['Basic', 'Standard', 'Enhanced'] as const;
 export const DBS_CERTIFICATE_STATUSES = [

@@ -83,10 +83,16 @@ export function PeopleDirectory({
               name={item.title}
             />
             <span>
-              <strong>{item.title}</strong>
-              {item.kind === 'parent' || item.kind === 'supervisor' ? (
-                <ComplianceBadges summary={badgesByUserId.get(item.user.id) ?? null} />
-              ) : null}
+              <span className="people-directory-row__identity">
+                <strong>{item.title}</strong>
+                {item.kind === 'student' ? (
+                  <ComplianceBadges
+                    summary={badgesByUserId.get(item.student.userId ?? '') ?? null}
+                  />
+                ) : item.kind === 'parent' || item.kind === 'supervisor' ? (
+                  <ComplianceBadges summary={badgesByUserId.get(item.user.id) ?? null} />
+                ) : null}
+              </span>
               <small>
                 <i aria-hidden="true" />
                 {item.subtitle}

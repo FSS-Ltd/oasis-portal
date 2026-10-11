@@ -32,9 +32,12 @@ export function PeopleProfilesClient({
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
   const usersQuery = api.admin.listUsers.useQuery(undefined, { retry: false });
-  const badgesByUserId = useComplianceBadges((usersQuery.data ?? []).map((user) => user.id));
   const invitationsQuery = api.admin.listUserInvitations.useQuery(undefined, { retry: false });
   const studentsQuery = api.student.list.useQuery({ includeInactive: true }, { retry: false });
+  const badgesByUserId = useComplianceBadges([
+    ...(usersQuery.data ?? []).map((user) => user.id),
+    ...(studentsQuery.data ?? []).flatMap((student) => (student.userId ? [student.userId] : [])),
+  ]);
 
   const directoryItems = useMemo<DirectoryItem[]>(() => {
     const studentItems: DirectoryItem[] = (studentsQuery.data ?? []).map((student) => ({
@@ -162,7 +165,10 @@ export function PeopleProfilesClient({
             />
           ) : null}
           {selectedItem?.kind === 'student' ? (
-            <StudentProfilePanel student={selectedItem.student} />
+            <StudentProfilePanel
+              complianceSummary={badgesByUserId.get(selectedItem.student.userId ?? '') ?? null}
+              student={selectedItem.student}
+            />
           ) : null}
           {selectedItem?.kind === 'parent' || selectedItem?.kind === 'supervisor' ? (
             <UserProfilePanel

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { complianceBadgeSummary, updateAdultComplianceInput } from '../compliance.js';
+import {
+  COMPLIANCE_ACCOUNT_ROLES,
+  complianceBadgeSummary,
+  isComplianceAccount,
+  updateAdultComplianceInput,
+} from '../compliance.js';
 import {
   canManageCalendar,
   canUseCompliance,
@@ -43,13 +48,36 @@ describe('safeguarding lead access', () => {
     expect(resolvePostSignInPortal({ ...lead, requires2fa: true })).toBe('two-factor-required');
   });
 
-  it('lets supervisors view compliance while reserving editing for three named roles', () => {
+  it('lets staff view compliance while reserving editing for three named roles', () => {
     expect(canUseCompliance({ role: 'Head' })).toBe(true);
     expect(canUseCompliance({ role: 'Pastor' })).toBe(true);
     expect(canUseCompliance({ role: 'Supervisor' })).toBe(false);
     expect(canViewCompliance({ role: 'Supervisor' })).toBe(true);
+    expect(canViewCompliance({ role: 'TechnicalSupport' })).toBe(true);
+    expect(canViewCompliance({ role: 'Principal' })).toBe(true);
+    expect(canViewCompliance({ role: 'HeadOfDiscipline' })).toBe(true);
+    expect(canViewCompliance({ role: 'ClubsAdmin' })).toBe(true);
+    expect(canUseCompliance({ role: 'TechnicalSupport' })).toBe(false);
+    expect(canViewCompliance({ role: 'ClubsLead' })).toBe(true);
+    expect(canUseCompliance({ role: 'ClubsLead' })).toBe(false);
     expect(canUseCompliance({ role: 'Parent' })).toBe(false);
     expect(canViewCompliance({ role: 'Parent' })).toBe(false);
+  });
+
+  it('includes adult roles with activity duties but excludes minors and activities leads only', () => {
+    expect(COMPLIANCE_ACCOUNT_ROLES).toContain('Pastor');
+    expect(COMPLIANCE_ACCOUNT_ROLES).toContain('TechnicalSupport');
+    expect(COMPLIANCE_ACCOUNT_ROLES).toContain('Parent');
+    expect(COMPLIANCE_ACCOUNT_ROLES).toContain('Student');
+    expect(COMPLIANCE_ACCOUNT_ROLES).not.toContain('ClubsLead');
+    expect(isComplianceAccount('Pastor', '1980-01-01', new Date('2026-10-11'))).toBe(true);
+    expect(isComplianceAccount('Supervisor', '2010-01-01', new Date('2026-10-11'))).toBe(false);
+    expect(isComplianceAccount('ClubsLead', '1980-01-01', new Date('2026-10-11'))).toBe(false);
+    expect(isComplianceAccount('Parent', null, new Date('2026-10-11'))).toBe(true);
+    expect(isComplianceAccount('Student', '2000-01-01', new Date('2026-10-11'))).toBe(true);
+    expect(isComplianceAccount('Student', null, new Date('2026-10-11'))).toBe(false);
+    expect(isComplianceAccount('Student', '2008-10-11', new Date('2026-10-11'))).toBe(true);
+    expect(isComplianceAccount('Student', '2008-10-12', new Date('2026-10-11'))).toBe(false);
   });
 });
 

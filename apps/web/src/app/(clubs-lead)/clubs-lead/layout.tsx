@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Bell, ClipboardList, Home, Smartphone, Star } from 'lucide-react';
+import { Bell, ClipboardList, Home, ShieldAlert, Smartphone, Star } from 'lucide-react';
 import { prisma } from '@oasis/db';
 import { getClubsLeadUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -26,6 +26,8 @@ const navItems = [
   { href: '/clubs-lead?tab=behaviour', label: 'Behaviour', icon: Star },
   { href: '/clubs-lead?tab=attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/clubs-lead?tab=noticeboard', label: 'Noticeboard', icon: Bell },
+  { href: '/compliance/dbs-training', label: 'DBS & Training', icon: ShieldAlert },
+  { href: '/compliance/medtab', label: 'MedTab', icon: ClipboardList },
   { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
 
