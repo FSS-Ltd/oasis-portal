@@ -28,3 +28,4 @@ export * from './paceGaps.js';
 export * from './parentVolunteer.js';
 export * from './parentEmailNotifications.js';
 export * from './timetable.js';
+export * from './compliance.js';

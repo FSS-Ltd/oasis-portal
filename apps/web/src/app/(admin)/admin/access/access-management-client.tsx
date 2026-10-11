@@ -8,6 +8,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { friendlyErrorMessage } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
+import { ComplianceBadges } from '@/components/compliance/compliance-badges';
+import { useComplianceBadges } from '@/components/compliance/use-compliance-badges';
 import { AccessAccountPanel } from './access-account-panel';
 import {
   accessFilters,
@@ -61,6 +63,7 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
   const accountsQuery = api.admin.listUserAccounts.useQuery(undefined, { retry: false });
   const invitationsQuery = api.admin.listUserInvitations.useQuery(undefined, { retry: false });
   const accounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
+  const badgesByUserId = useComplianceBadges(accounts.map((account) => account.id));
   const invitations = useMemo(() => invitationsQuery.data ?? [], [invitationsQuery.data]);
 
   const directoryRows = useMemo<AccessDirectoryRow[]>(() => {
@@ -200,6 +203,9 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
                   <strong>
                     {row.kind === 'account' ? row.account.fullName : row.invitation.email}
                   </strong>
+                  {row.kind === 'account' ? (
+                    <ComplianceBadges summary={badgesByUserId.get(row.account.id) ?? null} />
+                  ) : null}
                   <small>
                     <i aria-hidden="true" />
                     {row.kind === 'account' ? (
@@ -223,7 +229,11 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
             <EmptyState detail="Invite a person to begin." title="No account selected" />
           ) : null}
           {selectedRow?.kind === 'account' ? (
-            <AccessAccountPanel account={selectedRow.account} currentUserId={currentUserId} />
+            <AccessAccountPanel
+              account={selectedRow.account}
+              complianceSummary={badgesByUserId.get(selectedRow.account.id) ?? null}
+              currentUserId={currentUserId}
+            />
           ) : null}
           {selectedRow?.kind === 'invitation' ? (
             <AccessPendingInvitePanel invitation={selectedRow.invitation} />

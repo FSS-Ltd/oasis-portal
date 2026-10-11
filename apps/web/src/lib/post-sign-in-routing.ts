@@ -6,6 +6,7 @@ export type PostSignInDestination =
   | '/admin'
   | '/admin/access'
   | '/admin/clubs'
+  | '/compliance/dbs-training'
   | '/clubs-lead'
   | '/children-check'
   | '/supervisor'
@@ -24,6 +25,7 @@ const DESTINATION_BY_PORTAL = {
   'account-admin': '/admin/access',
   'clubs-admin': CLUBS_VISIBLE ? '/admin/clubs' : '/supervisor',
   'clubs-lead': CLUBS_VISIBLE ? '/clubs-lead' : '/not-ready',
+  compliance: '/compliance/dbs-training',
   supervisor: '/supervisor',
   parent: '/parent',
   student: '/student',
@@ -48,6 +50,9 @@ export function resolvePostSignInDestinationForState(
     parentNeedsRegistration: boolean;
   },
 ): PostSignInDestination {
+  if (user?.role === 'SafeguardingLead') {
+    return user.requires2fa ? '/2fa' : '/compliance/dbs-training';
+  }
   if (state.pendingParentLinkRequests) return '/parent-link-requests';
   if (user?.role === 'Parent' && state.parentNeedsRegistration) return '/registration';
   if (state.childRegistrationRequired) return '/registration';

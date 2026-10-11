@@ -1,12 +1,15 @@
 'use client';
 
 import { Search } from 'lucide-react';
+import type { AdultComplianceBadgeSummary } from '@oasis/domain';
+import { ComplianceBadges } from '@/components/compliance/compliance-badges';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { directoryFilters, type DirectoryFilter, type DirectoryItem } from './people-profile-model';
 
 interface PeopleDirectoryProps {
+  badgesByUserId: ReadonlyMap<string, AdultComplianceBadgeSummary>;
   filter: DirectoryFilter;
   items: readonly DirectoryItem[];
   loading: boolean;
@@ -18,6 +21,7 @@ interface PeopleDirectoryProps {
 }
 
 export function PeopleDirectory({
+  badgesByUserId,
   filter,
   items,
   loading,
@@ -80,6 +84,9 @@ export function PeopleDirectory({
             />
             <span>
               <strong>{item.title}</strong>
+              {item.kind === 'parent' || item.kind === 'supervisor' ? (
+                <ComplianceBadges summary={badgesByUserId.get(item.user.id) ?? null} />
+              ) : null}
               <small>
                 <i aria-hidden="true" />
                 {item.subtitle}

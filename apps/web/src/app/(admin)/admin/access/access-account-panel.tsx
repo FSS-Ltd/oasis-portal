@@ -4,6 +4,8 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Mail, MapPin, Phone, Save, ShieldCheck, UserCheck, UserX } from 'lucide-react';
 import { ADULT_USER_ACCOUNT_ROLES, PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
+import type { AdultComplianceBadgeSummary } from '@oasis/domain';
+import { ComplianceBadges } from '@/components/compliance/compliance-badges';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +23,7 @@ import {
 
 interface AccessAccountPanelProps {
   account: AccessAccount;
+  complianceSummary: AdultComplianceBadgeSummary | null;
   currentUserId: string;
 }
 
@@ -42,7 +45,11 @@ function isAdultUserAccountRole(value: string): value is (typeof ADULT_USER_ACCO
   return ADULT_USER_ACCOUNT_ROLES.some((role) => role === value);
 }
 
-export function AccessAccountPanel({ account, currentUserId }: AccessAccountPanelProps) {
+export function AccessAccountPanel({
+  account,
+  complianceSummary,
+  currentUserId,
+}: AccessAccountPanelProps) {
   const utils = api.useUtils();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(accountForm(account));
@@ -126,6 +133,7 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
           <div className="profile-hero__body">
             <div>
               <h2>{account.fullName}</h2>
+              <ComplianceBadges summary={complianceSummary} />
               <p>{roleLabel(account.role)}</p>
             </div>
             <div className="profile-hero__badges">
@@ -324,7 +332,11 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
                   <label className={checked ? 'tag-toggle is-checked' : 'tag-toggle'} key={tag}>
                     <input
                       checked={checked}
-                      disabled={!account.active || updateTags.isPending}
+                      disabled={
+                        !account.active ||
+                        account.role === 'SafeguardingLead' ||
+                        updateTags.isPending
+                      }
                       onChange={() => {
                         updateTags.mutate({
                           userId: account.id,
@@ -339,6 +351,12 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
                 );
               })}
             </div>
+            {account.role === 'SafeguardingLead' ? (
+              <p className="muted">
+                Safeguarding Lead access is limited to the compliance pages and has no permission
+                tags.
+              </p>
+            ) : null}
             {!account.active ? (
               <p className="muted">Reactivate the account before changing permission tags.</p>
             ) : null}

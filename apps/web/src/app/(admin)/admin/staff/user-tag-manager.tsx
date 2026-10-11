@@ -5,6 +5,7 @@ import { roleLabel } from '@/lib/profile-display';
 import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
 import { ShieldCheck } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { permissionTagLabel } from '@/lib/profile-display';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
@@ -42,6 +43,7 @@ export function UserTagManager() {
       render: (user) => (
         <span className="student-row__text">
           <strong>{user.fullName}</strong>
+          <AdultNameBadges userId={user.id} />
           <span>{user.email}</span>
         </span>
       ),

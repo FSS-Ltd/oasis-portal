@@ -127,12 +127,12 @@ export function assertCanSellInShop(user: SessionUser): void {
 }
 
 export function canManageShop(user: SessionUser): boolean {
-  if (canUseClubsLeadPortal(user)) return false;
+  if (canUseClubsLeadPortal(user) || user.role === 'SafeguardingLead') return false;
   return canUseAdminOperations(user) || hasTag(user, 'shopadmin');
 }
 
 export function canSellInShop(user: SessionUser): boolean {
-  if (canUseClubsLeadPortal(user)) return false;
+  if (canUseClubsLeadPortal(user) || user.role === 'SafeguardingLead') return false;
   return canUseAdminOperations(user) || hasTag(user, 'shopkeeper');
 }
 

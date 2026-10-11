@@ -5,6 +5,7 @@ const roleLabels: Record<Role, string> = {
   Principal: 'Principal',
   Pastor: 'Pastor',
   HeadOfDiscipline: 'Head of Discipline',
+  SafeguardingLead: 'Safeguarding Lead',
   TechnicalSupport: 'Technical Support',
   ClubsAdmin: 'Activities Admin',
   ClubsLead: 'Activities Lead',

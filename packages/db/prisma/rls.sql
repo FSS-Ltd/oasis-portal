@@ -8,6 +8,26 @@
 --   SET app.user_role = 'Head' | 'Principal' | ...;
 --   SET app.full_admin = 'true' | 'false';
 
+ALTER TABLE "AdultCompliance" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "AdultCompliance" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS adult_compliance_staff_select ON "AdultCompliance";
+DROP POLICY IF EXISTS adult_compliance_manager_insert ON "AdultCompliance";
+DROP POLICY IF EXISTS adult_compliance_manager_update ON "AdultCompliance";
+
+CREATE POLICY adult_compliance_staff_select ON "AdultCompliance" FOR SELECT
+  USING (current_setting('app.user_role', true) IN (
+    'Head', 'Pastor', 'SafeguardingLead', 'Principal', 'HeadOfDiscipline',
+    'TechnicalSupport', 'ClubsAdmin', 'ClubsLead', 'Supervisor'
+  ));
+
+CREATE POLICY adult_compliance_manager_insert ON "AdultCompliance" FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor', 'SafeguardingLead'));
+
+CREATE POLICY adult_compliance_manager_update ON "AdultCompliance" FOR UPDATE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor', 'SafeguardingLead'))
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor', 'SafeguardingLead'));
+
 ALTER TABLE "PersonalTask" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "PersonalTask" FORCE ROW LEVEL SECURITY;
 

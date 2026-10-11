@@ -1,0 +1,13 @@
+.badges {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-inline-start: 7px;
+  vertical-align: middle;
+}
+
+.badges :global(.badge) {
+  font-size: 0.64rem;
+  white-space: nowrap;
+}

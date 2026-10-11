@@ -9,6 +9,7 @@ const PORTAL_COPY_BY_DESTINATION = {
   '/admin/access': 'Preparing your access portal',
   '/admin/clubs': 'Preparing your clubs portal',
   '/clubs-lead': 'Preparing your clubs portal',
+  '/compliance/dbs-training': 'Preparing your compliance pages',
   '/children-check': 'Preparing your Oasis portal',
   '/supervisor': 'Preparing your supervisor portal',
   '/parent': 'Preparing your parent portal',

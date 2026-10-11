@@ -5,6 +5,7 @@ import {
   formatDate,
   formatTime,
 } from '@/app/(supervisor)/supervisor/_components/supervisor-utils';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 
 type RotaShift = {
   bandColour: string | null;
@@ -14,12 +15,13 @@ type RotaShift = {
   id: string;
   kind: 'Cover' | 'Meeting';
   notes: string | null;
+  staffUserId?: string;
   staff?: { fullName: string } | null;
   startsAt: Date;
 };
 
 type PersonalRotaShift =
-  | RotaShift & { source?: 'centre' }
+  | (RotaShift & { source?: 'centre' })
   | {
       source: 'club';
       id: string;
@@ -33,7 +35,7 @@ type PersonalRotaShift =
 type ParentVolunteer = {
   date: string;
   id: string;
-  parent: { fullName: string };
+  parent: { id: string; fullName: string };
   placement: 'Centre' | 'LunchAndClubsPrimary' | 'LunchAndClubsSecondary';
 };
 
@@ -81,10 +83,17 @@ function ShiftList({
         <article
           className="staff-rota-shift"
           key={shift.id}
-          style={{ borderLeftColor: shift.source === 'club' ? '#0E5C3A' : (shift.bandColour ?? undefined) }}
+          style={{
+            borderLeftColor: shift.source === 'club' ? '#0E5C3A' : (shift.bandColour ?? undefined),
+          }}
         >
           <strong>
-            {showStaff && 'staff' in shift && shift.staff ? `${shift.staff.fullName} · ` : null}
+            {showStaff && 'staff' in shift && shift.staff ? (
+              <>
+                {shift.staff.fullName}
+                <AdultNameBadges userId={shift.staffUserId} /> ·{' '}
+              </>
+            ) : null}
             {shiftLabel(shift)}
           </strong>
           <span>
@@ -107,6 +116,7 @@ function VolunteerList({ volunteers }: { volunteers: readonly ParentVolunteer[] 
       {volunteers.map((volunteer) => (
         <article className="staff-rota-volunteer" key={volunteer.id}>
           <strong>{volunteer.parent.fullName}</strong>
+          <AdultNameBadges userId={volunteer.parent.id} />
           <span>{volunteerPlacementLabel(volunteer)}</span>
         </article>
       ))}

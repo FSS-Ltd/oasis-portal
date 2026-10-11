@@ -1,5 +1,6 @@
 import { CalendarDays, Pencil, UsersRound, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import {
   audienceLabels,
   categoryClassNames,
@@ -12,12 +13,14 @@ interface CalendarEventDetailModalProps {
   event: CalendarEvent;
   onClose: () => void;
   onEdit?: (event: CalendarEvent) => void;
+  showComplianceBadges: boolean;
 }
 
 export function CalendarEventDetailModal({
   event,
   onClose,
   onEdit,
+  showComplianceBadges,
 }: CalendarEventDetailModalProps) {
   return (
     <div
@@ -65,7 +68,15 @@ export function CalendarEventDetailModal({
               <UsersRound aria-hidden="true" size={16} />
               <div>
                 <strong>Needed</strong>
-                <span>{event.requiredPeople.map((person) => person.fullName).join(', ')}</span>
+                <span>
+                  {event.requiredPeople.map((person, index) => (
+                    <span key={person.id}>
+                      {index > 0 ? ', ' : null}
+                      {person.fullName}
+                      {showComplianceBadges ? <AdultNameBadges userId={person.id} /> : null}
+                    </span>
+                  ))}
+                </span>
               </div>
             </div>
           ) : null}

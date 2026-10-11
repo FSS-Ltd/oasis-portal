@@ -1,0 +1,303 @@
+.compliance-shell__mobile-header,
+.compliance-shell__mobile-nav {
+  display: none;
+}
+
+.compliance-nav {
+  display: grid;
+  gap: 6px;
+  padding: 18px 10px;
+}
+.compliance-nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  color: #e8eefc;
+  font-size: 0.86rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+.compliance-nav a:hover,
+.compliance-nav a:focus-visible,
+.compliance-nav a[aria-current='page'] {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+.compliance-shell .admin-shell__foot a {
+  color: #e8eefc;
+  font-size: 0.8rem;
+}
+.compliance-page {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+.compliance-page__header > .button {
+  flex: none;
+}
+.compliance-register,
+.compliance-medtab {
+  overflow: hidden;
+}
+.compliance-register__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--oasis-border);
+  color: var(--oasis-text-secondary);
+  font-size: 0.83rem;
+}
+.compliance-register__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 330px);
+  padding: 0 12px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: white;
+}
+.compliance-register__search:focus-within {
+  outline: 2px solid var(--oasis-blue);
+  outline-offset: 2px;
+}
+.compliance-register__search input {
+  width: 100%;
+  height: 40px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--oasis-text);
+}
+.compliance-register__scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.compliance-register table,
+.compliance-medtab table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.compliance-register th,
+.compliance-register td,
+.compliance-medtab th,
+.compliance-medtab td {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--oasis-border-light);
+  vertical-align: top;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+.compliance-register thead th,
+.compliance-medtab thead th {
+  background: #f7f9fd;
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.compliance-register__person {
+  min-width: 180px;
+}
+.compliance-register__person strong,
+.compliance-register__person span {
+  display: block;
+}
+.compliance-register__person span {
+  margin-top: 3px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.75rem;
+}
+.compliance-register__detail-row td {
+  padding: 0 18px 12px;
+}
+.compliance-record-details {
+  border-radius: 7px;
+  background: #f7f9fd;
+}
+.compliance-record-details summary {
+  padding: 9px 12px;
+  color: var(--oasis-navy);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.compliance-record-details summary:focus-visible {
+  outline: 2px solid var(--oasis-blue);
+  outline-offset: 2px;
+}
+.compliance-record-details dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 8px 12px 16px;
+}
+.compliance-detail dt {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.compliance-detail dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  font-weight: 750;
+}
+.compliance-register__pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  font-size: 0.8rem;
+}
+.compliance-feedback {
+  margin: 0;
+  padding: 20px;
+}
+.compliance-medtab th:first-child {
+  min-width: 160px;
+}
+.compliance-medtab td {
+  min-width: 160px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.compliance-modal {
+  width: min(760px, calc(100vw - 28px));
+  max-height: min(90vh, 850px);
+  padding: 0;
+  border: 1px solid var(--oasis-border);
+  border-radius: 14px;
+  color: var(--oasis-text);
+  background: white;
+  box-shadow: 0 20px 70px rgba(16, 31, 66, 0.25);
+}
+.compliance-modal::backdrop {
+  background: rgba(15, 23, 42, 0.56);
+}
+.compliance-modal form {
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 850px);
+}
+.compliance-modal__header,
+.compliance-modal__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 22px;
+}
+.compliance-modal__header {
+  border-bottom: 1px solid var(--oasis-border);
+}
+.compliance-modal__header p {
+  margin: 0 0 3px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+.compliance-modal__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.compliance-modal__body {
+  display: grid;
+  gap: 20px;
+  overflow-y: auto;
+  padding: 20px 22px;
+}
+.compliance-modal fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 15px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 9px;
+}
+.compliance-modal legend {
+  padding: 0 7px;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.compliance-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+.compliance-modal__footer {
+  border-top: 1px solid var(--oasis-border);
+}
+
+@media (max-width: 760px) {
+  .compliance-shell {
+    display: block;
+  }
+  .compliance-shell__sidebar {
+    display: none;
+  }
+  .compliance-shell__mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 60px;
+    padding: 8px 18px;
+    background: var(--oasis-navy);
+    color: white;
+  }
+  .compliance-shell__mobile-header a {
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 750;
+  }
+  .compliance-shell__mobile-nav {
+    display: block;
+    background: var(--oasis-navy);
+  }
+  .compliance-shell__mobile-nav .compliance-nav {
+    display: flex;
+    overflow-x: auto;
+    padding: 0 12px 10px;
+  }
+  .compliance-shell .admin-shell__main {
+    padding: 20px 16px 40px;
+  }
+  .compliance-page__header {
+    align-items: flex-start;
+  }
+  .compliance-record-details dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .compliance-register table,
+  .compliance-medtab table {
+    min-width: 690px;
+  }
+}
+
+@media (max-width: 520px) {
+  .compliance-shell__mobile-header strong {
+    display: none;
+  }
+  .compliance-page__header {
+    flex-direction: column;
+  }
+  .compliance-page__header > .button {
+    align-self: flex-start;
+  }
+  .compliance-record-details dl,
+  .compliance-modal__grid {
+    grid-template-columns: 1fr;
+  }
+  .compliance-modal__header,
+  .compliance-modal__footer {
+    padding: 14px 16px;
+  }
+  .compliance-modal__body {
+    padding: 16px;
+  }
+}

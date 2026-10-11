@@ -25,6 +25,7 @@ enum Role {
   Principal
   Pastor
   HeadOfDiscipline
+  SafeguardingLead
   TechnicalSupport
   ClubsAdmin
   ClubsLead
@@ -160,6 +161,8 @@ model User {
   createdAt                         DateTime                      @default(now())
   updatedAt                         DateTime                      @updatedAt
 
+  adultCompliance                   AdultCompliance?
+
   guardianOf                       Guardian[]
   studentProfile                   Student?                         @relation("StudentLogin")
   behaviourEntries                 BehaviourEntry[]                 @relation("RecordedBehaviour")
@@ -274,6 +277,35 @@ model User {
   libraryEmailReminders            LibraryEmailReminder[]           @relation("LibraryEmailRemindersRecipient")
 
   @@index([role])
+}
+
+enum DbsApplicationType {
+  Basic
+  Standard
+  Enhanced
+}
+
+enum DbsCertificateStatus {
+  AwaitingCertificate
+  RecordedCurrent
+  NoLongerCurrent
+}
+
+model AdultCompliance {
+  userId                     String                @id
+  user                       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dbsCertificateNumberEnc    String?
+  dbsApplicationReferenceEnc String?
+  dbsCompletedAt             DateTime?             @db.Date
+  dbsIssueDate               DateTime?             @db.Date
+  dbsApplicationType         DbsApplicationType?
+  dbsStatus                  DbsCertificateStatus  @default(AwaitingCertificate)
+  firstAidCompletedAt        DateTime?             @db.Date
+  firstAidLevel              String?
+  safeguardingCompletedAt    DateTime?             @db.Date
+  safeguardingLevel          String?
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
 }
 
 model PersonalTask {

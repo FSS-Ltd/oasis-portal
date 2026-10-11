@@ -51,6 +51,20 @@ export function counterpartRole(
   return conversation.kind === 'SupervisorHead' ? 'Supervisor' : 'Parent';
 }
 
+export function counterpartUserId(
+  mode: MessageMode,
+  conversation: ConversationSummary | ConversationDetail,
+): string | null {
+  if (conversation.kind === 'Staffroom') return null;
+  if (conversation.kind === 'StaffDirect' || conversation.kind === 'StudentDirect') {
+    return otherDirectParticipant(conversation)?.id ?? null;
+  }
+  if (mode === 'parent' || mode === 'supervisor') return conversation.adminId;
+  return conversation.kind === 'SupervisorHead'
+    ? (conversation.supervisor?.id ?? null)
+    : conversation.parentId;
+}
+
 export function conversationRecipientId(
   mode: MessageMode,
   kind: ConversationKind | null,
