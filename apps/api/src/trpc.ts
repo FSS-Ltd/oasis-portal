@@ -9,6 +9,11 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import {
   AccessDeniedError,
+  canUseCompliance,
+  canViewCompliance,
+  canUseClubsLeadPortal,
+  canUseAdminOperations,
+  isStaff,
   requireAdminOperations,
   requireFullAdmin,
   requireRole,
@@ -55,7 +60,43 @@ const requireAuth = t.middleware(({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
-export const authedProcedure = publicProcedure.use(requireAuth);
+const authenticatedProcedure = publicProcedure.use(requireAuth);
+
+export const authedProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role === 'SafeguardingLead') {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'This role is limited to compliance pages.',
+    });
+  }
+  return next();
+});
+
+export const complianceProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (!canViewCompliance(ctx.user)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Compliance access required.' });
+  }
+  return next();
+});
+
+export const complianceEditorProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (!canUseCompliance(ctx.user)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Compliance editing access required.' });
+  }
+  return next();
+});
+
+export const complianceBadgeProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (
+    !canUseCompliance(ctx.user) &&
+    !isStaff(ctx.user) &&
+    !canUseAdminOperations(ctx.user) &&
+    !canUseClubsLeadPortal(ctx.user)
+  ) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Staff access required.' });
+  }
+  return next();
+});
 
 function unwrapAccessDenied(err: unknown): AccessDeniedError | null {
   if (err instanceof AccessDeniedError) return err;

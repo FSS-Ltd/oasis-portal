@@ -7,6 +7,7 @@ import { friendlyErrorMessage } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { roleLabel } from '@/lib/profile-display';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useComplianceBadges } from '@/components/compliance/use-compliance-badges';
 import { InviteUserForm } from './invite-user-form';
 import { PeopleDirectory } from './_components/people-directory';
 import { PendingInviteProfilePanel } from './_components/pending-invite-profile-panel';
@@ -31,6 +32,7 @@ export function PeopleProfilesClient({
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
   const usersQuery = api.admin.listUsers.useQuery(undefined, { retry: false });
+  const badgesByUserId = useComplianceBadges((usersQuery.data ?? []).map((user) => user.id));
   const invitationsQuery = api.admin.listUserInvitations.useQuery(undefined, { retry: false });
   const studentsQuery = api.student.list.useQuery({ includeInactive: true }, { retry: false });
 
@@ -142,6 +144,7 @@ export function PeopleProfilesClient({
 
       <div className="people-profiles__layout">
         <PeopleDirectory
+          badgesByUserId={badgesByUserId}
           filter={filter}
           items={filteredItems}
           loading={loading}
@@ -163,6 +166,7 @@ export function PeopleProfilesClient({
           ) : null}
           {selectedItem?.kind === 'parent' || selectedItem?.kind === 'supervisor' ? (
             <UserProfilePanel
+              complianceSummary={badgesByUserId.get(selectedItem.user.id) ?? null}
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
               kind={selectedItem.kind}

@@ -1,12 +1,13 @@
 import { Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { formatDateTime } from './rota-utils';
 
 type PendingSwap = {
   fromShift: { date: string; startsAt: Date };
   id: string;
-  requester: { fullName: string };
-  targetUser: { fullName: string };
+  requester: { id: string; fullName: string };
+  targetUser: { id: string; fullName: string };
   toShift: { date: string; startsAt: Date };
 };
 
@@ -49,7 +50,9 @@ export function RotaSwapReview({
           {swaps.map((swap) => (
             <article className="swap-card" key={swap.id}>
               <strong>
-                {swap.requester.fullName} with {swap.targetUser.fullName}
+                {swap.requester.fullName}
+                <AdultNameBadges userId={swap.requester.id} /> with {swap.targetUser.fullName}
+                <AdultNameBadges userId={swap.targetUser.id} />
               </strong>
               <span>
                 {swap.fromShift.date} {formatDateTime(swap.fromShift.startsAt)} for{' '}

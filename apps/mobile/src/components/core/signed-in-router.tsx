@@ -30,13 +30,21 @@ export function SignedInRouter() {
   const parentVolunteerAccess = health.data?.parentVolunteerAccess ?? null;
   const hasCachedHealthRefreshError = health.isError && Boolean(health.data);
   const canSwitchToParent =
-    Boolean(user) && user?.role !== 'Parent' && user?.role !== 'Student' && linkedChildCount > 0;
+    Boolean(user) &&
+    user?.role !== 'Parent' &&
+    user?.role !== 'Student' &&
+    user?.role !== 'SafeguardingLead' &&
+    linkedChildCount > 0;
 
   function renderCachedSession(content: ReactNode) {
     return (
       <View style={styles.sessionShell}>
         {hasCachedHealthRefreshError ? (
-          <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.refreshWarning}>
+          <View
+            accessibilityLiveRegion="polite"
+            accessibilityRole="alert"
+            style={styles.refreshWarning}
+          >
             <Text style={styles.refreshWarningText}>
               We could not refresh your access. Showing your last available information.
             </Text>

@@ -21,6 +21,7 @@ import {
   canUseFullPaceAccess,
   canUseClubLeadAccess,
   canUseAdminOperations,
+  canViewCompliance,
   resolveParentVolunteerAccess,
   canViewAuditLog,
   canManageUserAccounts,
@@ -69,6 +70,7 @@ async function getRequiredSessionUser(
 }
 
 function canUseAdminShell(user: SessionUser): boolean {
+  if (user.role === 'SafeguardingLead') return false;
   return (
     canUseAdminOperations(user) ||
     canViewBehaviourReports(user) ||
@@ -120,6 +122,12 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     notFound();
   }
 
+  return user;
+}
+
+export async function getComplianceUser(): Promise<SessionUser> {
+  const user = await getRequiredSessionUser();
+  if (!canViewCompliance(user)) notFound();
   return user;
 }
 

@@ -6,6 +6,7 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { CalendarEventCard } from './calendar-event-card';
@@ -496,6 +497,7 @@ export function SharedCalendar({
                           />
                           <span>
                             <strong>{person.fullName}</strong>
+                            <AdultNameBadges userId={person.id} />
                             <small>{roleLabel(person.role)}</small>
                           </span>
                         </label>
@@ -604,6 +606,7 @@ export function SharedCalendar({
                   canManage={canManage}
                   canDelete={canDelete}
                   event={event}
+                  showComplianceBadges={mode !== 'parent'}
                   key={event.id}
                   onArchive={() => {
                     requestDestructiveAction('archive', event);
@@ -635,6 +638,7 @@ export function SharedCalendar({
       {selectedEvent ? (
         <CalendarEventDetailModal
           event={selectedEvent}
+          showComplianceBadges={mode !== 'parent'}
           {...(canManage && selectedEvent.source === 'Manual'
             ? {
                 onEdit: (event: CalendarEvent) => {

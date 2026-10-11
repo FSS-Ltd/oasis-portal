@@ -6,6 +6,8 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { roleLabel } from '@/lib/profile-display';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
+import { ComplianceBadges } from '@/components/compliance/compliance-badges';
+import { useComplianceBadges } from '@/components/compliance/use-compliance-badges';
 import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -149,6 +151,7 @@ export function StaffAttendanceRoster() {
   }
 
   const rows = staffQuery.data?.rows ?? [];
+  const badgesByUserId = useComplianceBadges(rows.map((row) => row.staffUserId));
   const unscheduledOptions = staffQuery.data?.unscheduledOptions ?? [];
   const unscheduledStaffOptions = unscheduledOptions.filter(
     (option) => option.personKind === 'staff',
@@ -165,6 +168,7 @@ export function StaffAttendanceRoster() {
       render: (row) => (
         <span className="student-row__text">
           <strong>{row.staffName}</strong>
+          <ComplianceBadges summary={badgesByUserId.get(row.staffUserId) ?? null} />
           <span className="badge-list">
             {roleLabel(row.role)}
             {row.isParentVolunteer ? <Badge tone="green">Parent volunteer</Badge> : null}

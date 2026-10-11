@@ -195,6 +195,12 @@ function assertCanChangeUserTags(
   target: { active: boolean; id: string; role: Role; tags: readonly string[] },
   nextTags: readonly PermissionTag[],
 ) {
+  if (target.role === 'SafeguardingLead' && nextTags.length > 0) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Safeguarding Lead cannot have permission tags',
+    });
+  }
   if (isFullAdmin(actor)) {
     assertCanChangeHeadOnlyTags(actor.role, target.tags, nextTags);
     return;
@@ -223,6 +229,12 @@ function assertCanChangeUserTags(
 }
 
 function assertCanInviteUser(actor: SessionUser, role: Role, tags: readonly string[]) {
+  if (role === 'SafeguardingLead' && tags.length > 0) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Safeguarding Lead cannot have permission tags',
+    });
+  }
   if (isFullAdmin(actor)) {
     assertCanChangeHeadOnlyTags(actor.role, [], tags);
     return;
@@ -1301,8 +1313,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
         }
 
-        const nextTags = input.role === 'Parent' ? [] : existingUser.tags;
-        const clearedTags = input.role === 'Parent' ? existingUser.tags : [];
+        const clearTags = input.role === 'Parent' || input.role === 'SafeguardingLead';
+        const nextTags = clearTags ? [] : existingUser.tags;
+        const clearedTags = clearTags ? existingUser.tags : [];
 
         try {
           const user = await ctx.db.user.update({

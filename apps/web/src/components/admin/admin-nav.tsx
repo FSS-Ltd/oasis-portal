@@ -113,6 +113,8 @@ const navGroups: NavGroup[] = [
     label: 'Governance',
     icon: FileText,
     items: [
+      { href: '/compliance/dbs-training', label: 'DBS & Training', icon: ShieldAlert },
+      { href: '/compliance/medtab', label: 'MedTab', icon: ClipboardList },
       { href: '/admin/reports', label: 'Reports', icon: FileText },
       { href: '/admin/audit', label: 'Audit', icon: ClipboardList },
       { href: '/admin/sensitive-review', label: 'Sensitive Review', icon: ClipboardList },
@@ -147,6 +149,7 @@ type AdminNavProps = {
   canUseAdminOperations: boolean;
   canUsePersonalTasks: boolean;
   canUseLibrary: boolean;
+  canUseCompliance: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
   isHead: boolean;
@@ -181,6 +184,7 @@ function badgeForLabel(label: string, unreadMessageCount: number): string | null
 }
 
 function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
+  if (item.label === 'DBS & Training' || item.label === 'MedTab') return access.canUseCompliance;
   if (item.label === 'Rota' && !ROTA_VISIBLE) return false;
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;

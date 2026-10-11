@@ -1,5 +1,6 @@
 import { Archive, CalendarDays, Pencil, Trash2, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import {
   audienceLabels,
   categoryClassNames,
@@ -20,6 +21,7 @@ interface CalendarEventCardProps {
   onView?: (event: CalendarEvent) => void;
   pendingArchive: boolean;
   pendingDelete: boolean;
+  showComplianceBadges: boolean;
 }
 
 export function CalendarEventCard({
@@ -33,6 +35,7 @@ export function CalendarEventCard({
   onView,
   pendingArchive,
   pendingDelete,
+  showComplianceBadges,
 }: CalendarEventCardProps) {
   const canEdit =
     canManage &&
@@ -125,7 +128,16 @@ export function CalendarEventCard({
         {event.requiredPeople.length > 0 ? (
           <div className="calendar-required-summary">
             <UsersRound aria-hidden="true" size={14} />
-            <span>Needed: {event.requiredPeople.map((person) => person.fullName).join(', ')}</span>
+            <span>
+              Needed:{' '}
+              {event.requiredPeople.map((person, index) => (
+                <span key={person.id}>
+                  {index > 0 ? ', ' : null}
+                  {person.fullName}
+                  {showComplianceBadges ? <AdultNameBadges userId={person.id} /> : null}
+                </span>
+              ))}
+            </span>
           </div>
         ) : null}
         {event.description ? <p>{event.description}</p> : null}

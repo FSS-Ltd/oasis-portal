@@ -3,6 +3,7 @@
 import { Plus, UserRound } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { accentStyle, capacityPercent, capacityText, type Club } from './club-management-model';
 import { clubAccentStyle, clubVisual } from './club-visuals';
 
@@ -71,6 +72,7 @@ export function ClubCard({ club, onOpen }: { club: Club; onOpen: (club: Club) =>
                 <Avatar name={leadPreview.fullName} />
                 <span>
                   <strong>{leadPreview.fullName}</strong>
+                  <AdultNameBadges userId={leadPreview.id} />
                   <small>
                     {club.assignedLeads.length === 1
                       ? 'Club Lead'

@@ -14,6 +14,7 @@ export const ROLE_LABELS = {
   Principal: 'Principal',
   Pastor: 'Pastor',
   HeadOfDiscipline: 'Head of Discipline',
+  SafeguardingLead: 'Safeguarding Lead',
   TechnicalSupport: 'Technical Support',
   ClubsAdmin: 'Clubs Admin',
   ClubsLead: 'Clubs Lead',
@@ -32,6 +33,7 @@ export function portalLabelForRole(role: Role): string {
   if (role === 'Parent') return 'Parent Portal';
   if (role === 'Student') return 'Student Portal';
   if (role === 'ClubsLead') return 'Clubs Lead Portal';
+  if (role === 'SafeguardingLead') return 'Compliance Portal';
   if (role === 'Supervisor' || role === 'ClubsAdmin') return 'Staff Portal';
   return 'Admin Portal';
 }

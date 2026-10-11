@@ -4,9 +4,11 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import {
   counterpartLabel,
   counterpartRole,
+  counterpartUserId,
   formatDateTime,
   submitFormOnEnter,
 } from './message-display';
@@ -26,9 +28,11 @@ interface MessageConversationPanelProps {
 function MessageBubble({
   currentUserId,
   message,
+  showComplianceBadges,
 }: {
   currentUserId: string | null;
   message: ConversationDetail['messages'][number];
+  showComplianceBadges: boolean;
 }) {
   const mine = currentUserId === message.senderId;
 
@@ -36,6 +40,7 @@ function MessageBubble({
     <article className={mine ? 'message-bubble is-mine' : 'message-bubble'}>
       <header>
         <strong>{mine ? 'You' : message.sender.fullName}</strong>
+        {!mine && showComplianceBadges ? <AdultNameBadges userId={message.senderId} /> : null}
         <time>{formatDateTime(message.createdAt)}</time>
       </header>
       <p>{message.body}</p>
@@ -137,6 +142,9 @@ export function MessageConversationPanel({
           <div>
             <p>{counterpartRole(mode, headerConversation)}</p>
             <h2>{counterpartLabel(mode, headerConversation)}</h2>
+            {mode !== 'parent' ? (
+              <AdultNameBadges userId={counterpartUserId(mode, headerConversation)} />
+            ) : null}
             <span>{messageCount === 1 ? '1 message' : `${String(messageCount)} messages`}</span>
           </div>
         </div>
@@ -158,7 +166,12 @@ export function MessageConversationPanel({
               />
             ) : (
               selectedConversation.messages.map((message) => (
-                <MessageBubble currentUserId={currentUserId} key={message.id} message={message} />
+                <MessageBubble
+                  currentUserId={currentUserId}
+                  key={message.id}
+                  message={message}
+                  showComplianceBadges={mode !== 'parent'}
+                />
               ))
             )}
           </div>

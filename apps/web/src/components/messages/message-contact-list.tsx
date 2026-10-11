@@ -1,9 +1,11 @@
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import {
   conversationRecipientId,
   counterpartLabel,
   counterpartRole,
+  counterpartUserId,
   formatDateTime,
 } from './message-display';
 import type {
@@ -68,6 +70,9 @@ function ConversationRow({
     >
       <span>
         <strong>{counterpartLabel(mode, conversation)}</strong>
+        {mode !== 'parent' ? (
+          <AdultNameBadges userId={counterpartUserId(mode, conversation)} />
+        ) : null}
         <small>{counterpartRole(mode, conversation)}</small>
       </span>
       <span className="message-thread-row__meta">
@@ -95,11 +100,13 @@ function RecipientRow({
   onSelect,
   pending,
   recipient,
+  showComplianceBadges,
 }: {
   active: boolean;
   onSelect: (recipientId: string) => void;
   pending: boolean;
   recipient: Recipient;
+  showComplianceBadges: boolean;
 }) {
   return (
     <button
@@ -113,6 +120,7 @@ function RecipientRow({
     >
       <span>
         <strong>{recipient.fullName}</strong>
+        {showComplianceBadges ? <AdultNameBadges userId={recipient.id} /> : null}
         <small>{recipient.role}</small>
       </span>
       <span className="message-thread-row__meta">{pending ? 'Opening' : 'New'}</span>
@@ -244,6 +252,7 @@ export function MessageContactList({
                   onSelect={onSelectRecipient}
                   pending={recipient.id === openingRecipientId}
                   recipient={recipient}
+                  showComplianceBadges={mode !== 'parent'}
                 />
               ))}
             </>

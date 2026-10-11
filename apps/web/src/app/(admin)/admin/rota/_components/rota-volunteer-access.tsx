@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { childLabel } from '../../staff/_components/people-profile-model';
 import {
   isPendingVolunteerRow,
@@ -42,7 +43,9 @@ export function RotaVolunteerAccess() {
         <p className="muted">
           Allow eligible staff who are also parents to book parent-volunteer rota slots.
         </p>
-        {accessQuery.isLoading ? <div className="empty-state">Loading volunteer access...</div> : null}
+        {accessQuery.isLoading ? (
+          <div className="empty-state">Loading volunteer access...</div>
+        ) : null}
         {accessQuery.error ? (
           <p className="status--error" role="alert">
             {friendlyErrorMessage(accessQuery.error)}
@@ -57,6 +60,7 @@ export function RotaVolunteerAccess() {
               <label className="rota-volunteer-access-row" key={member.id}>
                 <span>
                   <strong>{member.fullName}</strong>
+                  <AdultNameBadges userId={member.id} />
                   <small>
                     {roleLabel(member.role)} · {childLabel(member.childCount)}
                   </small>

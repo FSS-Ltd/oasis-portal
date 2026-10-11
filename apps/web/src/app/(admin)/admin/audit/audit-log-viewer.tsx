@@ -6,6 +6,7 @@ import { Clock3, Database, Filter, RotateCcw, ShieldCheck, UserRound } from 'luc
 import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -242,6 +243,7 @@ export function AuditLogViewer() {
             </span>
             <span>
               <strong>{row.actor.fullName}</strong>
+              <AdultNameBadges userId={row.actor.id} />
               <span>{row.actor.email}</span>
             </span>
           </span>

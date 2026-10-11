@@ -1,6 +1,7 @@
 import { CheckSquare, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import {
   dateKey,
   dayLabels,
@@ -96,6 +97,7 @@ export function RotaWeekSchedule({
           {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
         </span>
         <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
+        <AdultNameBadges userId={shift.staffUserId} />
         <span className="rota-role-chip is-staff">Staff</span>
         <small>
           <i style={{ backgroundColor: shiftColour }} />
@@ -249,6 +251,7 @@ export function RotaWeekSchedule({
                         key={volunteer.id}
                       >
                         {volunteer.parent.fullName}
+                        <AdultNameBadges userId={volunteer.parent.id} />
                         <small>{parentVolunteerPlacementLabel(volunteer.placement)}</small>
                       </span>
                     ))
@@ -311,6 +314,7 @@ export function RotaWeekSchedule({
                           {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
                         </span>
                         <strong>{shift.participant?.fullName ?? 'Selected cover'}</strong>
+                        <AdultNameBadges userId={shift.participant?.id} />
                         <span className="rota-role-chip is-clubs">Clubs volunteer</span>
                         <small>
                           <i style={{ backgroundColor: '#0E5C3A' }} />

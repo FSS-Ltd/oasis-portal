@@ -15,6 +15,8 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { permissionTagLabel, personTypeLabel, roleLabel } from '@/lib/profile-display';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Avatar } from '@/components/ui/avatar';
+import type { AdultComplianceBadgeSummary } from '@oasis/domain';
+import { ComplianceBadges } from '@/components/compliance/compliance-badges';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -31,6 +33,7 @@ import {
 } from './people-profile-model';
 
 interface UserProfilePanelProps {
+  complianceSummary: AdultComplianceBadgeSummary | null;
   currentUserId: string;
   currentUserRole: Role;
   kind: 'parent' | 'supervisor';
@@ -52,6 +55,7 @@ function canChangeUserRole(currentUserRole: Role, isSelf: boolean): boolean {
 }
 
 export function UserProfilePanel({
+  complianceSummary,
   currentUserId,
   currentUserRole,
   kind,
@@ -142,6 +146,7 @@ export function UserProfilePanel({
           <div className="profile-hero__body">
             <div>
               <h2>{user.fullName}</h2>
+              <ComplianceBadges summary={complianceSummary} />
               <p>{kind === 'parent' ? 'Parent / Guardian' : roleLabel(user.role)}</p>
             </div>
             <div className="profile-hero__badges">
@@ -310,7 +315,7 @@ export function UserProfilePanel({
                         >
                           <input
                             checked={checked}
-                            disabled={updateTags.isPending}
+                            disabled={user.role === 'SafeguardingLead' || updateTags.isPending}
                             onChange={() => {
                               updateTags.mutate({
                                 userId: user.id,

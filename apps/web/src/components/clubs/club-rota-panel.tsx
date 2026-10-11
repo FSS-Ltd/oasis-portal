@@ -6,6 +6,7 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { roleLabel } from '@/lib/profile-display';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import {
@@ -105,6 +106,7 @@ function CandidatePicker({
           />
           <span>
             <strong>{candidate.fullName}</strong>
+            <AdultNameBadges userId={candidate.id} />
             <small>
               {roleLabel(candidate.role)} · {candidate.email}
             </small>
@@ -165,10 +167,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
     ? selectedDateStatus?.kind === 'operating' || selectedDateStatus?.kind === 'fieldTrip'
     : selectedDates.length > 0;
   const mutationError =
-    setParticipants.error ??
-    createShiftBatch.error ??
-    updateShift.error ??
-    deleteShift.error;
+    setParticipants.error ?? createShiftBatch.error ?? updateShift.error ?? deleteShift.error;
 
   useEffect(() => {
     if (!candidatesQuery.data) return;
@@ -223,7 +222,8 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
           clubId: club.id,
           participantUserId: shiftForm.participantUserId,
           dates: selectedDates,
-          startMinute: Number(shiftForm.startsAt.slice(0, 2)) * 60 + Number(shiftForm.startsAt.slice(3)),
+          startMinute:
+            Number(shiftForm.startsAt.slice(0, 2)) * 60 + Number(shiftForm.startsAt.slice(3)),
           endMinute: Number(shiftForm.endsAt.slice(0, 2)) * 60 + Number(shiftForm.endsAt.slice(3)),
           repeatScope,
           notes: shiftForm.notes || undefined,
@@ -412,6 +412,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
             {selectedAvailability ? (
               <div className="availability-list">
                 <strong>{selectedAvailability.fullName}</strong>
+                <AdultNameBadges userId={selectedAvailability.id} />
                 {selectedAvailability.availability.length === 0 ? (
                   <span className="muted">No volunteer availability set</span>
                 ) : (
@@ -501,7 +502,9 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
         {scheduleQuery.error ? (
           <p className="status--error">{friendlyErrorMessage(scheduleQuery.error)}</p>
         ) : null}
-        {operatingDays.length === 0 ? <div className="empty-state">No operating days this week.</div> : null}
+        {operatingDays.length === 0 ? (
+          <div className="empty-state">No operating days this week.</div>
+        ) : null}
         <div className="rota-week-grid rota-week-grid--operating club-rota-week-grid">
           {operatingDays.map((day) => {
             const key = dateKey(day);
@@ -541,6 +544,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
                           {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
                         </span>
                         <strong>{shift.participant?.fullName ?? 'Selected cover'}</strong>
+                        <AdultNameBadges userId={shift.participantUserId} />
                         <span
                           className={`rota-role-chip${
                             shift.participant?.role === 'Parent' ? ' is-parent' : ' is-staff'

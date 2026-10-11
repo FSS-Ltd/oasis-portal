@@ -39,6 +39,7 @@ import { academicInventoryRouter } from './routers/academicInventory.js';
 import { personalTaskRouter } from './routers/personalTask.js';
 import { timetableRouter } from './routers/timetable.js';
 import { libraryRouter } from './routers/library.js';
+import { complianceRouter } from './routers/compliance.js';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -77,6 +78,7 @@ export const appRouter = router({
   personalTask: personalTaskRouter,
   timetable: timetableRouter,
   library: libraryRouter,
+  compliance: complianceRouter,
 });
 
 export type AppRouter = typeof appRouter;

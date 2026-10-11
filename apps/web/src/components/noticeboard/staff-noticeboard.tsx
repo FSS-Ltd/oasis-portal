@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check, CheckCircle2, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import {
@@ -121,6 +122,7 @@ function ReadSummaryBadge({ summary }: { summary: NonNullable<Notice['readSummar
             </span>
             <span>
               <strong>{recipient.fullName}</strong>
+              <AdultNameBadges userId={recipient.userId} />
               <small>{recipient.read ? 'Read' : 'Unread'}</small>
             </span>
           </span>

@@ -7,6 +7,7 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
@@ -283,6 +284,7 @@ export function LeadAssignmentPanel({ club }: { club: ManagedClub }) {
                 <Avatar className="club-lead-candidate-card__avatar" name={candidate.fullName} />
                 <span>
                   <strong>{candidate.fullName}</strong>
+                  <AdultNameBadges userId={candidate.id} />
                   <small>{candidate.email}</small>
                 </span>
                 <Badge tone={selected ? 'green' : 'amber'}>
