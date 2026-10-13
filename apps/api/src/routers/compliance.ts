@@ -25,7 +25,7 @@ const registerInput = z.object({
 const badgeInput = z.object({ userIds: z.array(z.string().min(1)).max(250) });
 const personInput = z.object({ userId: z.string().min(1) });
 const PAGE_SIZE = 25;
-const EMPTY_MEDICAL_DETAIL = /^(?:n\/a|none|not recorded)$/i;
+const EMPTY_MEDICAL_DETAIL = /^(?:n\/a|none|not recorded|healthy)$/i;
 
 type ComplianceRecord = Prisma.AdultComplianceGetPayload<Record<string, never>>;
 
