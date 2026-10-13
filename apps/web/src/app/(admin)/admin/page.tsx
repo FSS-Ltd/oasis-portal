@@ -7,6 +7,7 @@ import { prisma } from '@oasis/db';
 import { canViewSensitiveBehaviour, currentOasisAcademicPeriod } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
+import { AgreementHomeAlert } from '@/components/agreements/my-agreements';
 
 function todayBounds(): { start: Date; end: Date } {
   const key = new Date().toISOString().slice(0, 10);
@@ -137,6 +138,8 @@ export default async function AdminIndexPage() {
         <h1>Good morning, {headName}</h1>
         <span>Head of Centre · Oasis Learning Centre</span>
       </div>
+
+      <AgreementHomeAlert href="/admin/compliance/user-agreements" />
 
       <section className="dashboard-grid dashboard-grid--hero" aria-label="Head dashboard summary">
         <StatCard

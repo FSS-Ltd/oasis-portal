@@ -15,6 +15,7 @@ import { StaffPaceScreen } from './staff-pace-screen';
 import { StaffRotaScreen } from './staff-rota-screen';
 import { StaffShopCounterScreen } from './staff-shop-counter-screen';
 import { MobileHeadTimetableScreen } from '../timetable/mobile-head-timetable-screen';
+import { MobileAgreementsScreen } from '../agreements/mobile-agreements';
 import { StaffLibraryScreen } from './staff-library-screen';
 import { StaffScoreKeyReportScreen } from '../reports/staff-score-key-report-screen';
 
@@ -34,7 +35,8 @@ type StaffPortalRoute =
   | 'rota'
   | 'shop'
   | 'timetables'
-  | 'user-access';
+  | 'user-access'
+  | 'agreements';
 
 export function StaffPortalScreen({
   onSwitchToParent,
@@ -52,6 +54,16 @@ export function StaffPortalScreen({
           setRoute('home');
         }}
         user={user}
+      />
+    );
+  }
+
+  if (route === 'agreements') {
+    return (
+      <MobileAgreementsScreen
+        onBack={() => {
+          setRoute('home');
+        }}
       />
     );
   }
@@ -218,6 +230,9 @@ export function StaffPortalScreen({
 
   return (
     <StaffHomeScreen
+      onOpenAgreements={() => {
+        setRoute('agreements');
+      }}
       onOpenAcademicInventory={() => {
         setRoute('academic-inventory');
       }}

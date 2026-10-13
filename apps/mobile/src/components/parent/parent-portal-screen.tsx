@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { AppState, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { canUseParentVolunteerNavigation, type ParentVolunteerAccess } from '@oasis/domain';
@@ -29,6 +29,7 @@ import { ParentShopReservationsScreen } from './parent-shop-reservations-screen'
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
 import { ParentVolunteerScreen } from './parent-volunteer-screen';
 import { MobilePublishedTimetableScreen } from '../timetable/mobile-published-timetable-screen';
+import { MobileAgreementsContent } from '../agreements/mobile-agreements';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type MessagePage = RouterOutputs['message']['listConversations'];
@@ -50,7 +51,8 @@ type ParentPortalRoute =
   | 'slips'
   | 'profile'
   | 'settings'
-  | 'library';
+  | 'library'
+  | 'agreements';
 const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
@@ -60,6 +62,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'timetable', icon: 'pace', label: 'Timetable' },
   { id: 'volunteer', icon: 'calendar', label: 'Volunteer' },
   { id: 'slips', icon: 'slips', label: 'Slips' },
+  { id: 'agreements', icon: 'slips', label: 'Agreements' },
   { id: 'fees', icon: 'fees', label: 'Fees' },
   { id: 'messages', icon: 'messages', label: 'Messages' },
   { id: 'child', icon: 'students', label: 'Child' },
@@ -137,6 +140,15 @@ export function ParentPortalScreen({
     enabled: route === 'slips',
     retry: false,
   });
+  const agreementPending = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void agreementPending.refetch();
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [agreementPending.refetch]);
   const parentInvoices = api.invoice.listParent.useQuery(
     { status: 'All' },
     {
@@ -238,6 +250,7 @@ export function ParentPortalScreen({
         ? parentVolunteerSlots.refetch()
         : Promise.resolve(),
       route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
+      agreementPending.refetch(),
       route === 'library' ? librarySummary.refetch() : Promise.resolve(),
     ]);
   }
@@ -296,7 +309,9 @@ export function ParentPortalScreen({
             ? unreadNoticeCount
             : tab.id === 'messages'
               ? unreadMessageCount
-              : undefined,
+              : tab.id === 'agreements'
+                ? (agreementPending.data ?? 0)
+                : undefined,
       }))}
       onSelect={setRoute}
       primaryItemLimit={6}
@@ -366,6 +381,10 @@ export function ParentPortalScreen({
 
       {route === 'home' ? (
         <ParentHomeScreen
+          agreementPendingCount={agreementPending.data ?? 0}
+          onOpenAgreements={() => {
+            setRoute('agreements');
+          }}
           children={children}
           dashboard={dashboard.data}
           dashboardError={dashboard.error?.message ?? profile.error?.message ?? null}
@@ -482,6 +501,7 @@ export function ParentPortalScreen({
               slips={permissionSlips.data?.slips ?? []}
             />
           ) : null}
+          {route === 'agreements' ? <MobileAgreementsContent /> : null}
           {route === 'fees' ? (
             <ParentFeesInvoicesScreen
               data={parentInvoices.data}

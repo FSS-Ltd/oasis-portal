@@ -1,12 +1,28 @@
 import { CLUBS_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
-import { useMemo } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import {
+  AppState,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { roleLabel } from '../access/user-access-model';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MobileButton, MutedText } from '../core/mobile-ui';
+import {
+  Badge,
+  Card,
+  ErrorText,
+  InlineSpinner,
+  MobileButton,
+  MutedText,
+  SectionTitle,
+} from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import { canOpenAcademicInventory } from './staff-academic-inventory-utils';
@@ -83,6 +99,7 @@ function toViewModelInput(summary: StaffHomeSummaryOutput): StaffHomeSummary {
 }
 
 export function StaffHomeScreen({
+  onOpenAgreements,
   onOpenAcademicInventory,
   onOpenAttendance,
   onOpenBehaviour,
@@ -100,6 +117,7 @@ export function StaffHomeScreen({
   onSwitchToParent,
   user,
 }: {
+  onOpenAgreements: () => void;
   onOpenAcademicInventory?: () => void;
   onOpenAttendance?: () => void;
   onOpenBehaviour?: () => void;
@@ -119,6 +137,15 @@ export function StaffHomeScreen({
 }) {
   const { signOut } = useClerk();
   const summary = api.staffHome.summary.useQuery({ date: todayDate() }, { retry: false });
+  const pendingAgreements = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void pendingAgreements.refetch();
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [pendingAgreements.refetch]);
   const data = summary.data;
   const canUseAcademicInventory = canOpenAcademicInventory(user);
   const view = useMemo(
@@ -169,6 +196,13 @@ export function StaffHomeScreen({
         }
         style={styles.scroller}
       >
+        <Card style={styles.compactCard}>
+          <SectionTitle>
+            User Agreements
+            {pendingAgreements.data ? ` · ${String(pendingAgreements.data)} need signing` : ''}
+          </SectionTitle>
+          <MobileButton label="Open User Agreements" onPress={onOpenAgreements} variant="blue" />
+        </Card>
         {summary.isLoading ? <InlineSpinner label="Loading staff home" /> : null}
         {summary.error ? <ErrorText>{summary.error.message}</ErrorText> : null}
         {onSwitchToParent ? (

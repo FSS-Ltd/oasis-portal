@@ -75,6 +75,7 @@ export interface EmailConfig {
 
 interface SendEmailBaseInput {
   from?: string;
+  idempotencyKey?: string;
   to: string | string[];
   subject: string;
   text?: string;
@@ -179,7 +180,10 @@ export function createResendEmailClient(config: EmailConfig = readEmailConfig())
 
   return {
     async send(input) {
-      const { data, error } = await resend.emails.send(toResendPayload(input, config.defaultFrom));
+      const { data, error } = await resend.emails.send(
+        toResendPayload(input, config.defaultFrom),
+        input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
+      );
       if (error) {
         throw new Error(error.message || 'Resend email send failed');
       }

@@ -40,8 +40,42 @@
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
   scrollbar-width: none;
+}
+
+.parent-top-nav__group {
+  position: relative;
+}
+.parent-top-nav__item {
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.parent-top-nav__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  min-width: 210px;
+  padding: 8px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+.parent-top-nav__dropdown .parent-top-nav__item {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+}
+.parent-top-nav__dropdown .parent-top-nav__item.is-active {
+  background: var(--oasis-bg);
 }
 
 .parent-top-nav::-webkit-scrollbar {

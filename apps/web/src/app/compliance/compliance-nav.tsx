@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { HeartPulse, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { FileText, HeartPulse, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { SidebarNavGroup } from '@/components/navigation/sidebar-nav-group';
 
 const items = [
   { href: '/compliance/incidents', label: 'Safeguarding', icon: ShieldAlert },
   { href: '/compliance/dbs-training', label: 'DBS & Training', icon: ShieldCheck },
   { href: '/compliance/medtab', label: 'MedTab', icon: HeartPulse },
+  { href: '/compliance/user-agreements', label: 'User Agreements', icon: FileText },
 ] as const;
 
 export function ComplianceNav() {

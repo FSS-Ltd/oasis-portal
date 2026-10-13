@@ -7,6 +7,7 @@ import { StaffPortalScreen } from '../staff/staff-portal-screen';
 import { StudentPortalScreen } from '../student/student-portal-screen';
 import { TechnicalSupportPortalScreen } from '../support/technical-support-portal-screen';
 import { MobileAccessRevokedScreen } from './mobile-access-revoked-screen';
+import { MobileAgreementsScreen } from '../agreements/mobile-agreements';
 
 type MobilePortalView = 'default' | 'parent';
 
@@ -173,6 +174,10 @@ export function SignedInRouter() {
         onRefreshEntitlement={health.refetch}
       />,
     );
+  }
+
+  if (user) {
+    return renderCachedSession(<MobileAgreementsScreen />);
   }
 
   return (

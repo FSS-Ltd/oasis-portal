@@ -162,6 +162,9 @@ model User {
   updatedAt                         DateTime                      @updatedAt
 
   adultCompliance                   AdultCompliance?
+  agreementsCreated                 UserAgreement[]                @relation("UserAgreementsCreated")
+  agreementRequests                 UserAgreementRequest[]
+  agreementSignatures                UserAgreementSignature[]       @relation("UserAgreementSigners")
 
   guardianOf                       Guardian[]
   studentProfile                   Student?                         @relation("StudentLogin")
@@ -2325,6 +2328,116 @@ model CalendarEventRequiredPerson {
   @@id([eventId, userId])
   @@index([userId, eventId])
   @@index([taggedById, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// User agreements
+// ---------------------------------------------------------------------------
+
+enum UserAgreementKind {
+  UserAgreement
+  SafeguardingDataAnnex
+}
+
+enum UserAgreementStatus {
+  NeedsSigning
+  Signed
+  Superseded
+}
+
+enum UserAgreementSignatureMethod {
+  Portal
+  HeadRecorded
+}
+
+enum UserAgreementEmailStatus {
+  Queued
+  Sent
+  Failed
+  MissingEmail
+  NeedsReview
+}
+
+model UserAgreement {
+  id          String            @id @default(cuid())
+  titleEnc    String
+  kind        UserAgreementKind
+  createdById String
+  createdAt   DateTime          @default(now())
+
+  createdBy User                   @relation("UserAgreementsCreated", fields: [createdById], references: [id])
+  versions  UserAgreementVersion[]
+
+  @@index([kind, createdAt])
+}
+
+model UserAgreementVersion {
+  id               String   @id @default(cuid())
+  agreementId      String
+  version          Int
+  originalFileNameEnc String
+  storagePath      String   @unique
+  sha256           String
+  createdAt        DateTime @default(now())
+
+  agreement UserAgreement          @relation(fields: [agreementId], references: [id])
+  requests  UserAgreementRequest[]
+
+  @@unique([agreementId, version])
+}
+
+model UserAgreementRequest {
+  id           String              @id @default(cuid())
+  versionId    String
+  recipientId  String
+  status       UserAgreementStatus @default(NeedsSigning)
+  openedAt     DateTime?
+  supersededAt DateTime?
+  createdAt    DateTime            @default(now())
+
+  version   UserAgreementVersion    @relation(fields: [versionId], references: [id])
+  recipient User                    @relation(fields: [recipientId], references: [id])
+  signature UserAgreementSignature?
+  delivery  UserAgreementDelivery?
+
+  @@index([recipientId, status, createdAt])
+  @@index([versionId, recipientId])
+}
+
+model UserAgreementSignature {
+  id                   String                       @id @db.Uuid
+  requestId            String                       @unique
+  method               UserAgreementSignatureMethod
+  signedById           String
+  signedAt             DateTime                     @default(now())
+  declaredSignedOn     DateTime?                    @db.Date
+  manualSourcePath     String?                      @unique
+  completedStoragePath String                       @unique
+  completedSha256      String
+  evidenceEnc          String
+  seal                 String
+  signingKeyId         String
+
+  request  UserAgreementRequest @relation(fields: [requestId], references: [id])
+  signedBy User                 @relation("UserAgreementSigners", fields: [signedById], references: [id])
+
+  @@index([signedById, signedAt])
+}
+
+model UserAgreementDelivery {
+  requestId      String                   @id
+  status         UserAgreementEmailStatus @default(Queued)
+  attempts       Int                      @default(0)
+  nextAttemptAt  DateTime                 @default(now())
+  claimUntil     DateTime?
+  emailMessageId String?
+  sentAt         DateTime?
+  lastError      String?
+  createdAt      DateTime                 @default(now())
+
+  request UserAgreementRequest @relation(fields: [requestId], references: [id])
+
+  @@index([status, nextAttemptAt])
 }
 
 // ---------------------------------------------------------------------------

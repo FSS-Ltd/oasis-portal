@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { type RouterOutputs, api } from '../../lib/trpc';
@@ -19,10 +19,12 @@ import { StaffCommunicationsScreen } from '../staff/staff-communications-screen'
 import { StaffIncidentScreen } from '../staff/staff-incident-screen';
 import { StaffPaceScreen } from '../staff/staff-pace-screen';
 import { StaffShopCounterScreen } from '../staff/staff-shop-counter-screen';
+import { MobileAgreementsScreen } from '../agreements/mobile-agreements';
 import { StaffScoreKeyReportScreen } from '../reports/staff-score-key-report-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type SupportPortalRoute =
+  | 'agreements'
   | 'access'
   | 'attendance'
   | 'behaviour'
@@ -35,6 +37,7 @@ type SupportPortalRoute =
   | 'shop';
 
 const supportTabs: Array<PortalMobileNavItem<SupportPortalRoute>> = [
+  { id: 'agreements', icon: 'slips', label: 'Agreements' },
   { id: 'access', icon: 'profile', label: 'Access' },
   { id: 'attendance', icon: 'attendance', label: 'Attendance' },
   { id: 'behaviour', icon: 'behaviour', label: 'Behaviour' },
@@ -56,6 +59,15 @@ export function TechnicalSupportPortalScreen({
 }) {
   const { signOut } = useClerk();
   const [route, setRoute] = useState<SupportPortalRoute>('access');
+  const agreementPending = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void agreementPending.refetch();
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [agreementPending.refetch]);
   const calendarQuery = api.calendar.listVisible.useQuery(undefined, {
     enabled: route === 'calendar',
     retry: false,
@@ -63,7 +75,10 @@ export function TechnicalSupportPortalScreen({
   const bottomNav = (
     <PortalMobileBottomNav
       activeId={route}
-      items={supportTabs}
+      items={supportTabs.map((tab) => ({
+        ...tab,
+        badge: tab.id === 'agreements' ? (agreementPending.data ?? 0) : undefined,
+      }))}
       onSelect={setRoute}
       primaryItemLimit={5}
       variant="dark"
@@ -99,6 +114,7 @@ export function TechnicalSupportPortalScreen({
   }
 
   if (route === 'attendance') return <StaffAttendanceScreen onBack={openAccessRoute} user={user} />;
+  if (route === 'agreements') return <MobileAgreementsScreen onBack={openAccessRoute} />;
   if (route === 'behaviour') return <StaffBehaviourScreen onBack={openAccessRoute} user={user} />;
   if (route === 'clubs') return <StaffClubManagerScreen onBack={openAccessRoute} user={user} />;
   if (route === 'communications')
@@ -129,6 +145,18 @@ export function TechnicalSupportPortalScreen({
             </Card>
           ) : null}
           <Badge variant="blue">Technical Support</Badge>
+          {agreementPending.data ? (
+            <Card>
+              <SectionTitle>{String(agreementPending.data)} agreements need signing</SectionTitle>
+              <MobileButton
+                label="Open User Agreements"
+                onPress={() => {
+                  setRoute('agreements');
+                }}
+                variant="blue"
+              />
+            </Card>
+          ) : null}
           <SectionTitle>User Access</SectionTitle>
           <MutedText>
             Manage account invitations, profiles, roles, permissions, and sign-in status.
