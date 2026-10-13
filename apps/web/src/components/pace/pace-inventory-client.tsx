@@ -15,6 +15,7 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
 import { PaceDiagnosticForm, type PaceDiagnosticSelection } from './pace-diagnostic-form';
 import { PaceGapPlanPanel } from './pace-gap-plan-panel';
+import { PaceInventoryOrderList } from './pace-inventory-order-list';
 import {
   PaceInventoryOrderModal,
   type PaceInventoryOrderSubjectChoice,
@@ -23,7 +24,6 @@ import {
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
 type InventoryAssignment = InventoryStudent['subjects'][number];
-type InventoryOrder = InventorySummary['orders'][number];
 type InventoryDiagnostic = InventorySummary['diagnostics'][number];
 type InventoryAlert = InventorySummary['alerts'][number];
 
@@ -48,11 +48,6 @@ function selectedAssignment(
   return student.subjects.find((assignment) => assignment.subjectId === subjectId) ?? null;
 }
 
-function nextOrderStatus(status: InventoryOrder['status']): 'Delivered' | 'InTransit' | null {
-  if (status === 'Ordered') return 'InTransit';
-  return status === 'InTransit' ? 'Delivered' : null;
-}
-
 function formatAssignment(assignment: InventoryAssignment | null): string {
   if (!assignment) return 'No assigned subject';
   return `${assignment.subject.code} · ${assignment.subject.name}`;
@@ -60,11 +55,6 @@ function formatAssignment(assignment: InventoryAssignment | null): string {
 
 function formatDate(value: Date | string): string {
   return dateFormatter.format(new Date(value));
-}
-
-function orderStatusTone(status: InventoryOrder['status']): 'blue' | 'green' | 'grey' {
-  if (status === 'Delivered') return 'green';
-  return status === 'InTransit' ? 'blue' : 'grey';
 }
 
 function paceLabel(paceNumber: number): string {
@@ -117,11 +107,16 @@ export function PaceInventoryClient() {
     paceNumbers: [],
   });
   const [pendingDiagnosticId, setPendingDiagnosticId] = useState<string | null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
   const [quickOrderTarget, setQuickOrderTarget] = useState<{ studentId: string } | null>(null);
   const quickOrderTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const summary = summaryQuery.data;
+  const eligibleOrderIds = new Set(
+    summary?.orders.filter((order) => order.status === 'Ordered').map((order) => order.id) ?? [],
+  );
+  const selectedEligibleOrderIds = selectedOrderIds.filter((id) => eligibleOrderIds.has(id));
   const students = summary?.students ?? [];
   const student = selectedStudent(students, studentId);
   const assignment = selectedAssignment(student, subjectId);
@@ -190,6 +185,14 @@ export function PaceInventoryClient() {
     );
   }, [selectionContextKey]);
 
+  useEffect(() => {
+    if (!summary) return;
+    const eligibleIds = new Set(
+      summary.orders.filter((order) => order.status === 'Ordered').map((order) => order.id),
+    );
+    setSelectedOrderIds((current) => current.filter((id) => eligibleIds.has(id)));
+  }, [summary]);
+
   async function invalidateInventory(): Promise<void> {
     await Promise.all([
       utils.academicInventory.summary.invalidate(),
@@ -229,6 +232,17 @@ export function PaceInventoryClient() {
     },
     onError(error) {
       showErrorToast(error, 'PACE order status could not be updated.');
+    },
+  });
+  const markOrdersInTransit = api.academicInventory.markOrdersInTransit.useMutation({
+    async onSuccess(result) {
+      setSelectedOrderIds([]);
+      showSuccessToast(`${String(result.count)} orders marked in transit.`);
+      await invalidateInventory();
+    },
+    onError(error) {
+      showErrorToast(error, 'PACE orders could not be marked in transit.');
+      void summaryQuery.refetch();
     },
   });
   const recordDiagnostic = api.academicInventory.recordDiagnostic.useMutation({
@@ -328,58 +342,6 @@ export function PaceInventoryClient() {
       ...selection,
     });
   }
-
-  const orderColumns: readonly DataTableColumn<InventoryOrder>[] = [
-    {
-      id: 'student',
-      header: 'Student',
-      render: (order) =>
-        students.find((row) => row.id === order.studentId)?.fullName ?? 'Unknown student',
-    },
-    {
-      id: 'subject',
-      header: 'Subject',
-      render: (order) => {
-        const orderStudent = students.find((row) => row.id === order.studentId);
-        return formatAssignment(
-          orderStudent?.subjects.find((row) => row.subjectId === order.subjectId) ?? null,
-        );
-      },
-    },
-    { id: 'pace', header: 'PACE', render: (order) => paceLabel(order.paceNumber) },
-    {
-      id: 'status',
-      header: 'Status',
-      render: (order) => <Badge tone={orderStatusTone(order.status)}>{order.status}</Badge>,
-    },
-    { id: 'ordered', header: 'Ordered', render: (order) => formatDate(order.orderedAt) },
-    {
-      id: 'action',
-      header: 'Next action',
-      render: (order) => {
-        const nextStatus = nextOrderStatus(order.status);
-        if (!nextStatus) return 'Complete';
-        if (nextStatus === 'Delivered' && !PACE_CATALOGUE.includes(order.paceNumber)) {
-          return 'PACE order is outside the supported range and cannot be delivered.';
-        }
-
-        return (
-          <Button
-            onClick={() => {
-              updateOrderStatus.mutate({ orderId: order.id, status: nextStatus });
-            }}
-            pending={updateOrderStatus.isPending}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            <Truck aria-hidden="true" size={14} />
-            Mark {nextStatus}
-          </Button>
-        );
-      },
-    },
-  ];
 
   const diagnosticColumns: readonly DataTableColumn<InventoryDiagnostic>[] = [
     {
@@ -653,11 +615,25 @@ export function PaceInventoryClient() {
               Refresh
             </Button>
           </div>
-          <DataTable
-            columns={orderColumns}
-            empty="No PACE orders have been created yet."
-            getRowKey={(order) => order.id}
-            rows={summary?.orders ?? []}
+          <PaceInventoryOrderList
+            bulkPending={markOrdersInTransit.isPending}
+            onAdvance={(order, status) => {
+              updateOrderStatus.mutate({ orderId: order.id, status });
+            }}
+            onMarkSelected={() => {
+              if (
+                selectedEligibleOrderIds.length === 0 ||
+                markOrdersInTransit.isPending ||
+                updateOrderStatus.isPending
+              )
+                return;
+              markOrdersInTransit.mutate({ orderIds: selectedEligibleOrderIds });
+            }}
+            onSelectionChange={setSelectedOrderIds}
+            orders={summary?.orders ?? []}
+            pending={markOrdersInTransit.isPending || updateOrderStatus.isPending}
+            selectedOrderIds={selectedEligibleOrderIds}
+            students={students}
           />
         </div>
       </section>

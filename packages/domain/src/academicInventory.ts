@@ -23,6 +23,17 @@ export const paceInventoryStatusInput = z.object({
   status: paceInventoryOrderStatus,
 });
 
+export const markPaceOrdersInTransitInput = z.object({
+  orderIds: z
+    .array(z.string().trim().min(1))
+    .min(1)
+    .superRefine((orderIds, ctx) => {
+      if (new Set(orderIds).size !== orderIds.length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'orderIds must be unique' });
+      }
+    }),
+});
+
 export const diagnosticOutcome = z.enum(['Pass', 'Fail']);
 
 export const diagnosticResultInput = z.object({

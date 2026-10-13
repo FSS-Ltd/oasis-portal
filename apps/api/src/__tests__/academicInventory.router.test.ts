@@ -86,7 +86,7 @@ type OrderCreateData = Pick<OrderRow, 'studentId' | 'subjectId' | 'paceNumber' |
 };
 
 interface OrderUpdateArgs {
-  where: { id: string; status?: OrderRow['status'] };
+  where: { id: string | { in: string[] }; status?: OrderRow['status'] };
   data: Partial<OrderRow>;
 }
 
@@ -127,7 +127,7 @@ interface FakeDb {
   $enc: { decrypt: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
   $executeRaw: ReturnType<typeof vi.fn>;
-  auditLog: { create: ReturnType<typeof vi.fn> };
+  auditLog: { create: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn> };
   diagnosticResult: {
     create: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
@@ -258,6 +258,10 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         auditInsideRls.push(rlsState.depth > 0);
         return Promise.resolve({ id: 'audit_1', ...data });
       }),
+      createMany: vi.fn(({ data }: { data: Record<string, unknown>[] }) => {
+        auditInsideRls.push(rlsState.depth > 0);
+        return Promise.resolve({ count: data.length });
+      }),
     },
     diagnosticResult: {
       create: vi.fn(({ data }: { data: DiagnosticCreateData }) => {
@@ -367,6 +371,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
           orderBy?: OrderOrderBy | OrderOrderBy[];
           take?: number;
           where?: {
+            id?: { in: string[] };
             studentId?: string | { in: string[] };
             subjectId?: string;
             paceNumber?: { in: number[] };
@@ -377,6 +382,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
           const rows = sortOrderRows(
             [...orders]
               .filter((order) => {
+                if (where?.id && !where.id.in.includes(order.id)) return false;
                 if (
                   where?.studentId &&
                   (typeof where.studentId === 'string'
@@ -419,12 +425,14 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         return Promise.resolve(order);
       }),
       updateMany: vi.fn(({ where, data }: OrderUpdateArgs) => {
-        const order = orders.find(
-          (candidate) => candidate.id === where.id && candidate.status === where.status,
+        const matching = orders.filter(
+          (candidate) =>
+            (typeof where.id === 'string'
+              ? candidate.id === where.id
+              : where.id.in.includes(candidate.id)) && candidate.status === where.status,
         );
-        if (!order) return Promise.resolve({ count: 0 });
-        Object.assign(order, data, { updatedAt: new Date() });
-        return Promise.resolve({ count: 1 });
+        for (const order of matching) Object.assign(order, data, { updatedAt: new Date() });
+        return Promise.resolve({ count: matching.length });
       }),
     },
     studentPaceSupply: {
@@ -568,8 +576,12 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
   };
   transaction.mockImplementation(async (callback) => {
     rlsState.depth += 1;
+    const orderSnapshot = orders.map((order) => ({ ...order }));
     try {
       return await callback(db);
+    } catch (error) {
+      orders.splice(0, orders.length, ...orderSnapshot);
+      throw error;
     } finally {
       rlsState.depth -= 1;
     }
@@ -802,6 +814,10 @@ describe('academic inventory router', () => {
       'FORBIDDEN',
     );
     await expectCode(
+      caller.academicInventory.markOrdersInTransit({ orderIds: ['order_1'] }),
+      'FORBIDDEN',
+    );
+    await expectCode(
       caller.academicInventory.recordDiagnostic({
         studentId: STUDENT_ID,
         subjectId: SUBJECT_ID,
@@ -857,6 +873,105 @@ describe('academic inventory router', () => {
     );
 
     expect(diagnostics).toHaveLength(0);
+  });
+
+  it('marks selected orders across students and subjects in transit with one timestamp and per-order audits', async () => {
+    const students = cloneStudents(defaultStudents);
+    const firstStudent = students[0];
+    if (!firstStudent) throw new Error('expected first student fixture');
+    firstStudent.subjects.push({
+      id: 'assignment_2',
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_2_ID,
+      currentPaceNumber: 1011,
+      subject: { id: SUBJECT_2_ID, code: 'MATH', name: 'Maths', active: true },
+    });
+    students.push({
+      id: STUDENT_2_ID,
+      active: true,
+      fullNameEnc: 'enc:Second Learner',
+      yearGroup: 'Year 7',
+      subjects: [
+        {
+          id: 'assignment_3',
+          studentId: STUDENT_2_ID,
+          subjectId: SUBJECT_ID,
+          currentPaceNumber: 1011,
+          subject: { id: SUBJECT_ID, code: 'ENG', name: 'English', active: true },
+        },
+      ],
+    });
+    const { caller, db, orders, supply, auditInsideRls } = makeCaller(HEAD, students);
+    const first = await createOrder(caller, { paceNumber: 1013 });
+    const second = await createOrder(caller, { subjectId: SUBJECT_2_ID, paceNumber: 1014 });
+    const third = await createOrder(caller, { studentId: STUDENT_2_ID, paceNumber: 1025 });
+    db.auditLog.create.mockClear();
+
+    await expect(
+      caller.academicInventory.markOrdersInTransit({ orderIds: [first.id, second.id, third.id] }),
+    ).resolves.toEqual({ count: 3 });
+    expect(orders.map((order) => order.status)).toEqual(['InTransit', 'InTransit', 'InTransit']);
+    const [firstUpdated, secondUpdated, thirdUpdated] = orders;
+    if (!firstUpdated || !secondUpdated || !thirdUpdated) throw new Error('expected three orders');
+    expect(firstUpdated.inTransitAt).toBeInstanceOf(Date);
+    expect(secondUpdated.inTransitAt).toEqual(firstUpdated.inTransitAt);
+    expect(thirdUpdated.inTransitAt).toEqual(firstUpdated.inTransitAt);
+    expect(supply).toEqual([]);
+    expect(db.paceInventoryOrder.updateMany).toHaveBeenLastCalledWith({
+      where: { id: { in: [first.id, second.id, third.id] }, status: 'Ordered' },
+      data: { status: 'InTransit', inTransitAt: firstUpdated.inTransitAt },
+    });
+    expect(callArgs(db.auditLog.createMany)).toEqual({
+      data: [first.id, second.id, third.id].map((entityId) => ({
+        userId: HEAD.id,
+        action: 'Update',
+        entity: 'PaceInventoryOrder',
+        entityId,
+        meta: { fromStatus: 'Ordered', toStatus: 'InTransit' },
+      })),
+    });
+    expect(auditInsideRls.at(-1)).toBe(true);
+  });
+
+  it('rejects missing or changed bulk orders before writing', async () => {
+    const { caller, db, orders } = makeCaller(HEAD);
+    const first = await createOrder(caller, { paceNumber: 1013 });
+    const second = await createOrder(caller, { paceNumber: 1014 });
+    await expectCode(
+      caller.academicInventory.markOrdersInTransit({ orderIds: [first.id, 'missing'] }),
+      'NOT_FOUND',
+    );
+    await caller.academicInventory.updateOrderStatus({ orderId: second.id, status: 'InTransit' });
+    db.paceInventoryOrder.updateMany.mockClear();
+    db.auditLog.createMany.mockClear();
+    await expectCode(
+      caller.academicInventory.markOrdersInTransit({ orderIds: [first.id, second.id] }),
+      'CONFLICT',
+    );
+    expect(orders.find((order) => order.id === first.id)?.status).toBe('Ordered');
+    expect(db.paceInventoryOrder.updateMany).not.toHaveBeenCalled();
+    expect(db.auditLog.createMany).not.toHaveBeenCalled();
+  });
+
+  it('rolls back bulk changes when a conditional update races or audit logging fails', async () => {
+    const { caller, db, orders } = makeCaller(HEAD);
+    const first = await createOrder(caller, { paceNumber: 1013 });
+    const second = await createOrder(caller, { paceNumber: 1014 });
+    db.paceInventoryOrder.updateMany.mockResolvedValueOnce({ count: 1 });
+    await expectCode(
+      caller.academicInventory.markOrdersInTransit({ orderIds: [first.id, second.id] }),
+      'CONFLICT',
+    );
+    expect(orders.every((order) => order.status === 'Ordered')).toBe(true);
+    expect(db.auditLog.createMany).not.toHaveBeenCalled();
+
+    db.auditLog.createMany.mockRejectedValueOnce(new Error('audit failed'));
+    await expect(
+      caller.academicInventory.markOrdersInTransit({ orderIds: [first.id, second.id] }),
+    ).rejects.toThrow('audit failed');
+    expect(orders.every((order) => order.status === 'Ordered' && order.inTransitAt === null)).toBe(
+      true,
+    );
   });
 
   it('moves orders through Ordered, InTransit, then Delivered', async () => {

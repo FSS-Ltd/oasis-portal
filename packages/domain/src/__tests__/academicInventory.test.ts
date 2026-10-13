@@ -5,6 +5,7 @@ import {
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
   diagnosticResultInput,
+  markPaceOrdersInTransitInput,
   PACE_CATALOGUE,
   paceInventoryOrderInput,
   paceInventoryStatusInput,
@@ -77,5 +78,14 @@ describe('academic inventory', () => {
     expect(
       paceInventoryStatusInput.safeParse({ orderId: 'order_1', status: 'Cancelled' }).success,
     ).toBe(false);
+  });
+
+  it('requires unique, nonblank order IDs for bulk transit', () => {
+    expect(markPaceOrdersInTransitInput.parse({ orderIds: [' order_1 ', 'order_2'] })).toEqual({
+      orderIds: ['order_1', 'order_2'],
+    });
+    for (const orderIds of [[], [' '], ['order_1', 'order_1'], ['order_1', ' order_1 ']]) {
+      expect(markPaceOrdersInTransitInput.safeParse({ orderIds }).success).toBe(false);
+    }
   });
 });

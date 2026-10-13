@@ -60,6 +60,7 @@ test('the dashboard provides a Head-only PACE Inventory route backed by the inve
 test('the PACE Inventory client supports bulk supply, tracked orders, status changes, and diagnostic corrections', () => {
   const clientPath = path.join(webRoot, 'src/components/pace/pace-inventory-client.tsx');
   const diagnosticFormPath = path.join(webRoot, 'src/components/pace/pace-diagnostic-form.tsx');
+  const orderListPath = path.join(webRoot, 'src/components/pace/pace-inventory-order-list.tsx');
   const pickerPath = path.join(webRoot, 'src/components/pace/pace-catalogue-picker.tsx');
 
   assert.equal(existsSync(clientPath), true);
@@ -68,6 +69,7 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   const diagnosticFormSource = readFileSync(diagnosticFormPath, 'utf8');
   assert.equal(existsSync(pickerPath), true);
   const pickerSource = readFileSync(pickerPath, 'utf8');
+  const orderListSource = readFileSync(orderListPath, 'utf8');
 
   assert.match(clientSource, /PaceCataloguePicker/);
   assert.match(clientSource, /api\.academicInventory\.addCurrentSupply\.useMutation/);
@@ -91,9 +93,17 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
     /disabled=\{!assignment \|\| !hasSelection \|\| isBulkMutationPending\}/,
   );
   assert.match(clientSource, /PACE orders created\./);
-  assert.match(clientSource, /function nextOrderStatus/);
-  assert.match(clientSource, /Mark \{nextStatus\}/);
-  assert.match(clientSource, /PACE order is outside the supported range and cannot be delivered\./);
+  assert.match(clientSource, /PaceInventoryOrderList/);
+  assert.match(clientSource, /api\.academicInventory\.markOrdersInTransit\.useMutation/);
+  assert.match(orderListSource, /Mark \{nextStatus\}/);
+  assert.match(
+    orderListSource,
+    /PACE order is outside the supported range and cannot be delivered\./,
+  );
+  assert.match(orderListSource, /order\.status === 'Ordered'/);
+  assert.match(orderListSource, /Select all/);
+  assert.match(orderListSource, /indeterminate = mixed/);
+  assert.match(orderListSource, /Mark selected in transit/);
   assert.match(pickerSource, /type="checkbox"/);
   assert.match(pickerSource, /availablePacesAhead\(currentPaceNumber, PACE_CATALOGUE\)/);
   assert.match(pickerSource, /slice\(0, visibleCount\)/);

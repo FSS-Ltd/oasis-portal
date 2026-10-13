@@ -5,6 +5,7 @@ import {
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
   diagnosticResultInput,
+  markPaceOrdersInTransitInput,
   PACE_CATALOGUE,
   createPaceGapPlanInput,
   paceInventoryOrderInput,
@@ -539,6 +540,51 @@ export const academicInventoryRouter = router({
           },
         });
         return { ...order, ...data, updatedAt: reachedAt };
+      });
+    }),
+
+  markOrdersInTransit: roleProcedure('Head')
+    .input(markPaceOrdersInTransitInput)
+    .mutation(async ({ ctx, input }) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
+        const orders = await tx.paceInventoryOrder.findMany({
+          where: { id: { in: input.orderIds } },
+          select: { id: true, status: true },
+        });
+        if (orders.length !== input.orderIds.length) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'One or more inventory orders were not found.',
+          });
+        }
+        if (orders.some((order) => order.status !== 'Ordered')) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'One or more inventory orders changed. Refresh and try again.',
+          });
+        }
+
+        const reachedAt = new Date();
+        const result = await tx.paceInventoryOrder.updateMany({
+          where: { id: { in: input.orderIds }, status: 'Ordered' },
+          data: { status: 'InTransit', inTransitAt: reachedAt },
+        });
+        if (result.count !== input.orderIds.length) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'One or more inventory orders changed. Refresh and try again.',
+          });
+        }
+        await tx.auditLog.createMany({
+          data: input.orderIds.map((orderId) => ({
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'PaceInventoryOrder',
+            entityId: orderId,
+            meta: { fromStatus: 'Ordered', toStatus: 'InTransit' },
+          })),
+        });
+        return { count: result.count };
       });
     }),
 
