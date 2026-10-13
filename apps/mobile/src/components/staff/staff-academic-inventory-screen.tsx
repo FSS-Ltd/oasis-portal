@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
@@ -11,7 +11,6 @@ import {
   InventoryAlerts,
   InventoryDiagnosticCard,
   InventoryOrderForm,
-  InventoryOrderList,
   InventoryQuickOrderModal,
   InventoryStatusNotice,
   InventoryStudentPicker,
@@ -19,6 +18,7 @@ import {
   type DiagnosticLevel,
   type InventoryStatusMessage,
 } from './staff-academic-inventory-components';
+import { InventoryOrderList } from './staff-academic-inventory-order-list';
 import {
   canOpenAcademicInventory,
   diagnosticPlacementLabel,
@@ -83,6 +83,7 @@ export function StaffAcademicInventoryScreen({
   const [diagnosticOutcome, setDiagnosticOutcome] = useState<DiagnosticOutcome>('Pass');
   const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<InventoryStatusMessage | null>(null);
 
   const summary = api.academicInventory.summary.useQuery(undefined, {
@@ -90,6 +91,11 @@ export function StaffAcademicInventoryScreen({
     retry: false,
   });
   const students = summary.data?.students ?? [];
+  const eligibleOrderIds = new Set(
+    summary.data?.orders.filter((order) => order.status === 'Ordered').map((order) => order.id) ??
+      [],
+  );
+  const selectedEligibleOrderIds = selectedOrderIds.filter((id) => eligibleOrderIds.has(id));
   const selectedStudent = findStudent(students, selectedStudentId);
   const selectedAssignment = findAssignment(selectedStudent, selectedSubjectId);
   const quickOrderStudent = quickOrderTarget
@@ -100,6 +106,14 @@ export function StaffAcademicInventoryScreen({
         (assignment) => assignment.subjectId === quickOrderTarget.subjectId,
       ) ?? null)
     : null;
+
+  useEffect(() => {
+    if (!summary.data) return;
+    const eligibleIds = new Set(
+      summary.data.orders.filter((order) => order.status === 'Ordered').map((order) => order.id),
+    );
+    setSelectedOrderIds((current) => current.filter((id) => eligibleIds.has(id)));
+  }, [summary.data]);
 
   async function invalidateAcademicInventory() {
     await Promise.all([
@@ -138,6 +152,23 @@ export function StaffAcademicInventoryScreen({
     },
     onSettled: () => {
       setUpdatingOrderId(null);
+    },
+  });
+  const markOrdersInTransit = api.academicInventory.markOrdersInTransit.useMutation({
+    onError: (error) => {
+      setStatusMessage({
+        message: `Orders could not be marked in transit: ${friendlyError(error)}`,
+        tone: 'error',
+      });
+      void summary.refetch();
+    },
+    onSuccess: async (result) => {
+      setSelectedOrderIds([]);
+      setStatusMessage({
+        message: `${String(result.count)} orders marked in transit.`,
+        tone: 'success',
+      });
+      await invalidateAcademicInventory();
     },
   });
   const recordDiagnostic = api.academicInventory.recordDiagnostic.useMutation({
@@ -267,6 +298,7 @@ export function StaffAcademicInventoryScreen({
   }
 
   function advanceOrder(order: InventoryOrder) {
+    if (markOrdersInTransit.isPending || updateOrderStatus.isPending) return;
     const status = nextOrderStatus(order.status);
     if (!status) return;
     setStatusMessage(null);
@@ -274,10 +306,22 @@ export function StaffAcademicInventoryScreen({
     updateOrderStatus.mutate({ orderId: order.id, status });
   }
 
+  function markSelectedOrdersInTransit() {
+    if (
+      selectedEligibleOrderIds.length === 0 ||
+      markOrdersInTransit.isPending ||
+      updateOrderStatus.isPending
+    )
+      return;
+    setStatusMessage(null);
+    markOrdersInTransit.mutate({ orderIds: selectedEligibleOrderIds });
+  }
+
   const refreshing =
     summary.isFetching ||
     createOrder.isPending ||
     updateOrderStatus.isPending ||
+    markOrdersInTransit.isPending ||
     recordDiagnostic.isPending;
 
   return (
@@ -356,8 +400,13 @@ export function StaffAcademicInventoryScreen({
                   submitted={orderSubmitted}
                 />
                 <InventoryOrderList
+                  bulkPending={markOrdersInTransit.isPending}
                   orders={summary.data.orders}
                   onAdvance={advanceOrder}
+                  onMarkSelected={markSelectedOrdersInTransit}
+                  onSelectionChange={setSelectedOrderIds}
+                  pending={markOrdersInTransit.isPending || updateOrderStatus.isPending}
+                  selectedOrderIds={selectedEligibleOrderIds}
                   students={students}
                   updatingOrderId={updatingOrderId}
                 />

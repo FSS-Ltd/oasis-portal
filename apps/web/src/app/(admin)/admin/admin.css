@@ -13677,6 +13677,34 @@ button.library-book-card:focus-visible {
   margin: 0;
 }
 
+.pace-order-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.pace-order-selection__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pace-order-selection input[type='checkbox'],
+.pace-inventory__secondary .data-table input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--oasis-blue);
+}
+
+.pace-order-selection input[type='checkbox']:focus-visible,
+.pace-inventory__secondary .data-table input[type='checkbox']:focus-visible {
+  outline: 3px solid var(--oasis-blue);
+  outline-offset: 2px;
+}
+
 @media (max-width: 720px) {
   .pace-inventory-alert-row {
     grid-template-columns: 1fr;

@@ -62,6 +62,7 @@ describe('staff academic inventory mobile wiring', () => {
     expect(screen).toMatch(/api\.academicInventory\.summary\.useQuery/);
     expect(screen).toMatch(/api\.academicInventory\.createOrder\.useMutation/);
     expect(screen).toMatch(/api\.academicInventory\.updateOrderStatus\.useMutation/);
+    expect(screen).toMatch(/api\.academicInventory\.markOrdersInTransit\.useMutation/);
     expect(screen).toMatch(/api\.academicInventory\.recordDiagnostic\.useMutation/);
   });
 

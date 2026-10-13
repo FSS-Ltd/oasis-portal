@@ -12,16 +12,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, Field, MobileButton, MutedText } from '../core/mobile-ui';
-import {
-  diagnosticPlacementLabel,
-  nextOrderStatus,
-  paceNumberValue,
-} from './staff-academic-inventory-utils';
+import { diagnosticPlacementLabel, paceNumberValue } from './staff-academic-inventory-utils';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
 type InventoryAssignment = InventoryStudent['subjects'][number];
-type InventoryOrder = InventorySummary['orders'][number];
 type InventoryAlert = InventorySummary['alerts'][number];
 type DiagnosticOutcome = 'Fail' | 'Pass';
 export type InventoryStatusMessage = { message: string; tone: 'error' | 'success' };
@@ -29,10 +24,6 @@ export type InventoryStatusMessage = { message: string; tone: 'error' | 'success
 export const diagnosticLevels = [1, 2, 3, 4, 5] as const;
 export type DiagnosticLevel = (typeof diagnosticLevels)[number];
 const diagnosticOutcomes: DiagnosticOutcome[] = ['Pass', 'Fail'];
-
-function displayDate(value: string | Date): string {
-  return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value));
-}
 
 function assignmentLabel(assignment: InventoryAssignment): string {
   return `${assignment.subject.code} · ${assignment.subject.name}`;
@@ -315,63 +306,6 @@ export function InventoryQuickOrderModal({
   );
 }
 
-export function InventoryOrderList({
-  onAdvance,
-  orders,
-  students,
-  updatingOrderId,
-}: {
-  onAdvance: (order: InventoryOrder) => void;
-  orders: InventoryOrder[];
-  students: InventoryStudent[];
-  updatingOrderId: string | null;
-}) {
-  return (
-    <Card style={styles.compactCard}>
-      <View style={styles.rowBetween}>
-        <Text style={styles.cardTitle}>Existing orders</Text>
-        <Badge>{String(orders.length)} recent</Badge>
-      </View>
-      {orders.length === 0 ? <MutedText>No PACE orders have been created yet.</MutedText> : null}
-      {orders.map((order) => {
-        const student = students.find((row) => row.id === order.studentId);
-        const assignment = student?.subjects.find((row) => row.subjectId === order.subjectId);
-        const nextStatus = nextOrderStatus(order.status);
-        const pending = updatingOrderId === order.id;
-        return (
-          <View key={order.id} style={styles.orderRow}>
-            <View style={styles.rowBetween}>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>
-                  PACE #{String(order.paceNumber)} · {student?.fullName ?? 'Student'}
-                </Text>
-                <MutedText>
-                  {assignment ? assignmentLabel(assignment) : 'Assigned subject'} ·{' '}
-                  {displayDate(order.createdAt)}
-                </MutedText>
-              </View>
-              <Badge variant={order.status === 'Delivered' ? 'success' : 'blue'}>
-                {order.status}
-              </Badge>
-            </View>
-            {nextStatus ? (
-              <MobileButton
-                compact
-                disabled={updatingOrderId !== null}
-                label={pending ? 'Updating...' : `Mark ${nextStatus}`}
-                onPress={() => {
-                  onAdvance(order);
-                }}
-                variant="blue"
-              />
-            ) : null}
-          </View>
-        );
-      })}
-    </Card>
-  );
-}
-
 export function InventoryDiagnosticCard({
   assignment,
   level,
@@ -556,14 +490,6 @@ const styles = StyleSheet.create({
   },
   modalHeading: { flex: 1, gap: 4 },
   keyboardAvoidingView: { flex: 1, justifyContent: 'flex-end' },
-  orderRow: {
-    backgroundColor: C.bg,
-    borderColor: C.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 10,
-    padding: 12,
-  },
   rowBetween: {
     alignItems: 'center',
     flexDirection: 'row',
