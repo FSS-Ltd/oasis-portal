@@ -5,7 +5,7 @@ import { useId } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 
 type SidebarNavGroupProps = {
-  badge?: string | null;
+  badge?: ReactNode;
   children: ReactNode;
   icon: LucideIcon;
   label: string;
@@ -38,7 +38,7 @@ export function SidebarNavGroup({
       >
         <GroupIcon aria-hidden="true" size={navIconSize} />
         <span className="admin-shell__nav-group-label">{label}</span>
-        {badge ? <b className="admin-shell__nav-group-badge">{badge}</b> : null}
+        {badge ? <span className="admin-shell__nav-group-badge">{badge}</span> : null}
         <ChevronDown aria-hidden="true" className="admin-shell__nav-group-chevron" size={13} />
       </button>
       {open ? (

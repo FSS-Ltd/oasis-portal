@@ -1,7 +1,7 @@
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
+import { Card, ErrorText, InlineSpinner, MobileButton, MutedText } from '../core/mobile-ui';
 import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import { ParentChildHero } from './parent-child-hero';
 import { ParentChildSwitcher } from './parent-child-switcher';
@@ -21,22 +21,26 @@ type ParentProfile = RouterOutputs['profile']['me'];
 type RegistrationStatus = RouterOutputs['registration']['status'];
 
 export function ParentHomeScreen({
+  agreementPendingCount,
   children,
   dashboard,
   dashboardError,
   loadingDashboard,
   onRefresh,
+  onOpenAgreements,
   onSelectChild,
   profile,
   refreshing,
   registrationStatus,
   selectedChild,
 }: {
+  agreementPendingCount: number;
   children: readonly ParentDashboardChild[];
   dashboard: ParentDashboard | undefined;
   dashboardError: string | null;
   loadingDashboard: boolean;
   onRefresh: () => Promise<void>;
+  onOpenAgreements: () => void;
   onSelectChild: (studentId: string) => void;
   profile: ParentProfile | undefined;
   refreshing: boolean;
@@ -119,6 +123,16 @@ export function ParentHomeScreen({
 
       {loadingDashboard && !dashboard ? <InlineSpinner label="Loading parent dashboard" /> : null}
       {dashboardError ? <ErrorText>{dashboardError}</ErrorText> : null}
+
+      {agreementPendingCount > 0 ? (
+        <Card>
+          <Text style={styles.title}>
+            {agreementPendingCount}{' '}
+            {agreementPendingCount === 1 ? 'agreement needs' : 'agreements need'} your signature
+          </Text>
+          <MobileButton label="Open User Agreements" onPress={onOpenAgreements} />
+        </Card>
+      ) : null}
 
       {!hasLinkedChildren && !loadingDashboard ? (
         <ParentEmptyState registrationStatus={registrationStatus} />

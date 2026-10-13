@@ -103,6 +103,7 @@ export {
   type SavingsInterestRunResultDto,
 } from './services/savings-interest.js';
 export { sendLibraryReminders, type LibraryReminderSummary } from './services/library-reminders.js';
+export { deliverUserAgreementRequests } from './services/user-agreement-delivery.js';
 export {
   readCachedInvestmentMarketData,
   readInvestmentInstrumentDetail,

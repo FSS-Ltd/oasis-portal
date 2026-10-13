@@ -1,0 +1,140 @@
+.agreement-page {
+  display: grid;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.agreement-page h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.agreement-detail,
+.agreement-manager__form,
+.agreement-register {
+  padding: 20px;
+}
+.agreement-detail {
+  display: grid;
+  gap: 14px;
+}
+.agreement-detail__heading {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.agreement-detail__heading p,
+.agreement-detail__signed p {
+  margin: 4px 0;
+}
+.agreement-detail__pdf {
+  width: 100%;
+  height: min(70vh, 680px);
+  border: 1px solid var(--oasis-border);
+}
+.agreement-detail label,
+.agreement-manager__form label,
+.agreement-register label {
+  display: grid;
+  gap: 5px;
+  font-weight: 600;
+}
+.agreement-detail__check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.agreement-detail input:not([type='checkbox']),
+.agreement-manager__form input,
+.agreement-manager__form select,
+.agreement-register input,
+.agreement-register select {
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 6px;
+}
+.agreement-detail button,
+.agreement-manager button,
+.agreement-register button {
+  width: fit-content;
+  padding: 8px 12px;
+  border: 1px solid var(--oasis-crimson);
+  border-radius: 6px;
+  background: var(--oasis-crimson);
+  color: white;
+  cursor: pointer;
+}
+.agreement-detail button:disabled,
+.agreement-manager button:disabled,
+.agreement-register button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.agreement-detail :focus-visible,
+.agreement-manager :focus-visible {
+  outline: 3px solid var(--oasis-crimson);
+  outline-offset: 2px;
+}
+.agreement-manager__form {
+  display: grid;
+  gap: 14px;
+  max-width: 650px;
+}
+.agreement-manager__form select[multiple] {
+  min-height: 130px;
+}
+.agreement-register__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 14px 0;
+}
+.agreement-register__filters label {
+  flex: 1 1 160px;
+}
+.agreement-register__scroll {
+  overflow-x: auto;
+}
+.agreement-register table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+}
+.agreement-register th,
+.agreement-register td {
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--oasis-border);
+}
+.agreement-register td small {
+  display: block;
+}
+.agreement-register td button {
+  margin: 2px;
+}
+.agreement-register__paging,
+.agreement-register__record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+.agreement-home-alert {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  margin-bottom: 16px;
+  color: var(--oasis-text);
+  text-decoration: none;
+}
+@media (max-width: 700px) {
+  .agreement-detail__heading {
+    display: grid;
+  }
+  .agreement-detail__pdf {
+    height: 55vh;
+  }
+}

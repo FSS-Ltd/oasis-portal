@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('react-native', () => ({
+  AppState: { addEventListener: () => ({ remove: () => undefined }) },
   RefreshControl: 'RefreshControl',
   ScrollView: 'ScrollView',
   StyleSheet: { create: <T>(styles: T) => styles },
@@ -83,6 +84,7 @@ vi.mock('../../lib/trpc', () => ({
       publishedForParent: { useQuery: () => mocks.queryResult },
       terms: { useQuery: () => mocks.queryResult },
     },
+    userAgreement: { pendingCount: { useQuery: () => mocks.queryResult } },
     useUtils: () => ({ message: { listConversations: { invalidate: mocks.queryRefetch } } }),
   },
 }));
@@ -117,6 +119,7 @@ vi.mock('./parent-student-settings-screen', () => ({ ParentStudentSettingsScreen
 vi.mock('../timetable/mobile-published-timetable-screen', () => ({
   MobilePublishedTimetableScreen: () => null,
 }));
+vi.mock('../agreements/mobile-agreements', () => ({ MobileAgreementsContent: () => null }));
 
 const user = { id: 'parent_1', requires2fa: false, role: 'Parent' as const, tags: [] };
 
@@ -170,7 +173,7 @@ describe('parent volunteer entitlement behavior', () => {
     });
 
     expect(mocks.entitlementRefetch).toHaveBeenCalledTimes(1);
-    expect(mocks.queryRefetch).toHaveBeenCalledTimes(3);
+    expect(mocks.queryRefetch).toHaveBeenCalledTimes(4);
   });
 
   it('removes and exits Volunteer when refreshed entitlement is lost', () => {

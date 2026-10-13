@@ -101,6 +101,7 @@ const navGroups: NavGroup[] = [
       { href: '/supervisor/incidents', label: 'Safeguarding', icon: ShieldAlert },
       { href: '/supervisor/compliance/dbs-training', label: 'DBS & Training', icon: ShieldAlert },
       { href: '/supervisor/compliance/medtab', label: 'MedTab', icon: ClipboardList },
+      { href: '/supervisor/compliance/user-agreements', label: 'User Agreements', icon: FileText },
     ],
   },
   {

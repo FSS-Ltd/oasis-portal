@@ -46,6 +46,7 @@ const t = initTRPC.context<AppContext>().create({
 });
 
 export const router = t.router;
+export const mergeRouters = t.mergeRouters;
 export const publicProcedure = t.procedure;
 
 const requireAuth = t.middleware(({ ctx, next }) => {
@@ -62,6 +63,13 @@ const requireAuth = t.middleware(({ ctx, next }) => {
 });
 
 const authenticatedProcedure = publicProcedure.use(requireAuth);
+
+export const agreementRecipientProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role === 'Student') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Adult account required.' });
+  }
+  return next();
+});
 
 export const authedProcedure = authenticatedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role === 'SafeguardingLead') {

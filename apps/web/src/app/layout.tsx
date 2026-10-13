@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 import './landing.css';
 import './landing-motion.css';
+import '@/components/agreements/agreements.css';
 
 export const metadata = {
   title: 'Oasis Learning Centre',

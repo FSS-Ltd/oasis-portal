@@ -8,6 +8,85 @@
 --   SET app.user_role = 'Head' | 'Principal' | ...;
 --   SET app.full_admin = 'true' | 'false';
 
+ALTER TABLE "UserAgreement" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreement" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementVersion" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementVersion" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementRequest" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementRequest" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementSignature" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementSignature" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementDelivery" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "UserAgreementDelivery" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS agreement_read ON "UserAgreement";
+DROP POLICY IF EXISTS agreement_head_write ON "UserAgreement";
+CREATE POLICY agreement_read ON "UserAgreement" FOR SELECT USING (
+  current_setting('app.user_role', true) = 'Head'
+  OR EXISTS (SELECT 1 FROM "UserAgreementVersion" v JOIN "UserAgreementRequest" r ON r."versionId" = v.id
+    WHERE v."agreementId" = "UserAgreement"."id" AND r."recipientId" = current_setting('app.user_id', true))
+);
+CREATE POLICY agreement_head_write ON "UserAgreement" FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+DROP POLICY IF EXISTS agreement_version_read ON "UserAgreementVersion";
+DROP POLICY IF EXISTS agreement_version_head_write ON "UserAgreementVersion";
+CREATE POLICY agreement_version_read ON "UserAgreementVersion" FOR SELECT USING (
+  current_setting('app.user_role', true) = 'Head'
+  OR EXISTS (SELECT 1 FROM "UserAgreementRequest" r
+    WHERE r."versionId" = "UserAgreementVersion"."id" AND r."recipientId" = current_setting('app.user_id', true))
+);
+CREATE POLICY agreement_version_head_write ON "UserAgreementVersion" FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
+DROP POLICY IF EXISTS agreement_request_read ON "UserAgreementRequest";
+DROP POLICY IF EXISTS agreement_request_insert ON "UserAgreementRequest";
+DROP POLICY IF EXISTS agreement_request_update ON "UserAgreementRequest";
+CREATE POLICY agreement_request_read ON "UserAgreementRequest" FOR SELECT USING (
+  current_setting('app.user_role', true) = 'Head'
+  OR "recipientId" = current_setting('app.user_id', true)
+  OR current_setting('app.agreement_delivery_worker', true) = 'true'
+);
+CREATE POLICY agreement_request_insert ON "UserAgreementRequest" FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+CREATE POLICY agreement_request_update ON "UserAgreementRequest" FOR UPDATE USING (
+  current_setting('app.user_role', true) = 'Head' OR "recipientId" = current_setting('app.user_id', true)
+) WITH CHECK (
+  current_setting('app.user_role', true) = 'Head' OR "recipientId" = current_setting('app.user_id', true)
+);
+
+DROP POLICY IF EXISTS agreement_signature_read ON "UserAgreementSignature";
+DROP POLICY IF EXISTS agreement_signature_insert ON "UserAgreementSignature";
+CREATE POLICY agreement_signature_read ON "UserAgreementSignature" FOR SELECT USING (
+  current_setting('app.user_role', true) = 'Head'
+  OR EXISTS (SELECT 1 FROM "UserAgreementRequest" r
+    WHERE r.id = "requestId" AND r."recipientId" = current_setting('app.user_id', true))
+);
+CREATE POLICY agreement_signature_insert ON "UserAgreementSignature" FOR INSERT WITH CHECK (
+  (current_setting('app.user_role', true) = 'Head' AND "method" = 'HeadRecorded')
+  OR ("method" = 'Portal' AND "signedById" = current_setting('app.user_id', true)
+    AND EXISTS (SELECT 1 FROM "UserAgreementRequest" r
+      WHERE r.id = "requestId" AND r."recipientId" = current_setting('app.user_id', true)))
+);
+
+DROP POLICY IF EXISTS agreement_delivery_head_worker ON "UserAgreementDelivery";
+DROP POLICY IF EXISTS agreement_delivery_insert ON "UserAgreementDelivery";
+DROP POLICY IF EXISTS agreement_delivery_read ON "UserAgreementDelivery";
+DROP POLICY IF EXISTS agreement_delivery_update ON "UserAgreementDelivery";
+CREATE POLICY agreement_delivery_insert ON "UserAgreementDelivery" FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+CREATE POLICY agreement_delivery_read ON "UserAgreementDelivery" FOR SELECT USING (
+  current_setting('app.user_role', true) = 'Head'
+  OR current_setting('app.agreement_delivery_worker', true) = 'true'
+);
+CREATE POLICY agreement_delivery_update ON "UserAgreementDelivery" FOR UPDATE USING (
+  current_setting('app.user_role', true) = 'Head'
+  OR current_setting('app.agreement_delivery_worker', true) = 'true'
+) WITH CHECK (
+  current_setting('app.user_role', true) = 'Head'
+  OR current_setting('app.agreement_delivery_worker', true) = 'true'
+);
+
 ALTER TABLE "AdultCompliance" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "AdultCompliance" FORCE ROW LEVEL SECURITY;
 
