@@ -52,6 +52,10 @@ export function canCreateIncidentReport(user: Pick<SessionUser, 'role'>): boolea
   return canUseAdminOperations(user) || user.role === 'Supervisor';
 }
 
+export function canViewIncidentReports(user: Pick<SessionUser, 'role'>): boolean {
+  return canCreateIncidentReport(user) || user.role === 'SafeguardingLead';
+}
+
 export function canSignOffIncidentReport(user: Pick<SessionUser, 'role'>): boolean {
   return user.role === 'Head' || user.role === 'HeadOfDiscipline';
 }

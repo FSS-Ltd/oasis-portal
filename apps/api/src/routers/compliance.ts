@@ -25,6 +25,7 @@ const registerInput = z.object({
 const badgeInput = z.object({ userIds: z.array(z.string().min(1)).max(250) });
 const personInput = z.object({ userId: z.string().min(1) });
 const PAGE_SIZE = 25;
+const EMPTY_MEDICAL_DETAIL = /^(?:n\/a|none|not recorded)$/i;
 
 type ComplianceRecord = Prisma.AdultComplianceGetPayload<Record<string, never>>;
 
@@ -34,6 +35,11 @@ function dateOnly(value: Date | null): string | null {
 
 function dbDate(value: string | null): Date | null {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
+}
+
+function medicalDetail(value: string | null): string | null {
+  const detail = value?.trim() ?? '';
+  return detail && !EMPTY_MEDICAL_DETAIL.test(detail) ? detail : null;
 }
 
 function encryptedText(ctx: AppContext, value: string | null): string | null {
@@ -111,7 +117,10 @@ export const complianceRouter = router({
 
   register: complianceProcedure.input(registerInput).query(async ({ ctx, input }) => {
     const users = await ctx.db.user.findMany({
-      where: { role: { in: [...COMPLIANCE_ACCOUNT_ROLES] } },
+      where: {
+        role: { in: [...COMPLIANCE_ACCOUNT_ROLES] },
+        OR: [{ role: { not: 'Supervisor' } }, { active: true }],
+      },
       select: {
         id: true,
         role: true,
@@ -280,9 +289,9 @@ export const complianceRouter = router({
         studentId: profile.studentId,
         fullName: ctx.db.$enc.decrypt(profile.student.fullNameEnc),
         yearGroup: profile.student.yearGroup,
-        allergies: ctx.db.$enc.decrypt(profile.allergiesEnc)?.trim() || null,
-        medicalConditions: ctx.db.$enc.decrypt(profile.medicalConditionsEnc)?.trim() || null,
-        medicationAtCentre: ctx.db.$enc.decrypt(profile.medicationAtCentreEnc)?.trim() || null,
+        allergies: medicalDetail(ctx.db.$enc.decrypt(profile.allergiesEnc)),
+        medicalConditions: medicalDetail(ctx.db.$enc.decrypt(profile.medicalConditionsEnc)),
+        medicationAtCentre: medicalDetail(ctx.db.$enc.decrypt(profile.medicationAtCentreEnc)),
       }))
       .filter((row) => row.allergies || row.medicalConditions || row.medicationAtCentre)
       .sort((a, b) => a.fullName.localeCompare(b.fullName));

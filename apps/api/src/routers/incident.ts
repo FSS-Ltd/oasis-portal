@@ -27,7 +27,8 @@ import {
   decryptRequiredText,
   encryptOptionalText,
 } from '../lib/encrypted-text.js';
-import { authedProcedure, router } from '../trpc.js';
+import { authedProcedure, incidentReadProcedure, router } from '../trpc.js';
+import { incidentSafeguardingNotesRouter } from './incident-safeguarding-notes.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 type IncidentRlsReadClient = Pick<
@@ -682,6 +683,7 @@ const parentRecipientInclude = {
 } as const;
 
 export const incidentRouter = router({
+  safeguardingNotes: incidentSafeguardingNotesRouter,
   listStaffOptions: authedProcedure.query(async ({ ctx }) => {
     requireIncidentCreator(ctx.user);
     const rows = await ctx.db.user.findMany({
@@ -706,8 +708,7 @@ export const incidentRouter = router({
     }));
   }),
 
-  listStaff: authedProcedure.query(async ({ ctx }) => {
-    requireIncidentCreator(ctx.user);
+  listStaff: incidentReadProcedure.query(async ({ ctx }) => {
     const rows = await ctx.withRls(
       async (tx) =>
         (await tx.incidentReport.findMany({
@@ -718,8 +719,7 @@ export const incidentRouter = router({
     return rows.map((row) => mapIncident(ctx, row));
   }),
 
-  getStaff: authedProcedure.input(reportIdInput).query(async ({ ctx, input }) => {
-    requireIncidentCreator(ctx.user);
+  getStaff: incidentReadProcedure.input(reportIdInput).query(async ({ ctx, input }) => {
     const report = await ctx.withRls((tx) => loadIncident(tx, input.reportId));
     return mapIncident(ctx, report);
   }),

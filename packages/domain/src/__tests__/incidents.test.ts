@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertIncidentTransition,
   canCreateIncidentReport,
+  canViewIncidentReports,
   canEscalateIncidentReport,
   canOverrideIncidentParentVisibility,
   canShareIncidentParentCopy,
@@ -29,6 +30,8 @@ describe('incident role gates', () => {
     expect(canCreateIncidentReport(user('HeadOfDiscipline'))).toBe(true);
     expect(canCreateIncidentReport(user('ClubsAdmin'))).toBe(false);
     expect(canCreateIncidentReport(user('Parent'))).toBe(false);
+    expect(canViewIncidentReports(user('SafeguardingLead'))).toBe(true);
+    expect(canCreateIncidentReport(user('SafeguardingLead'))).toBe(false);
   });
 
   it('limits sign-off to Head and HeadOfDiscipline', () => {
@@ -96,15 +99,14 @@ describe('incident status transitions', () => {
     ['HeadReview', 'escalate', 'Escalated'],
     ['Escalated', 'signOff', 'SignedOff'],
     ['SignedOff', 'archive', 'Archived'],
-  ] satisfies Array<[IncidentReportStatus, Parameters<typeof nextIncidentStatus>[1], IncidentReportStatus]>)(
-    'allows %s -> %s',
-    (from, action, expected) => {
-      expect(nextIncidentStatus(from, action)).toBe(expected);
-      expect(() => {
-        assertIncidentTransition(from, action);
-      }).not.toThrow();
-    },
-  );
+  ] satisfies Array<
+    [IncidentReportStatus, Parameters<typeof nextIncidentStatus>[1], IncidentReportStatus]
+  >)('allows %s -> %s', (from, action, expected) => {
+    expect(nextIncidentStatus(from, action)).toBe(expected);
+    expect(() => {
+      assertIncidentTransition(from, action);
+    }).not.toThrow();
+  });
 
   it.each([
     ['Draft', 'signOff'],

@@ -760,6 +760,48 @@
   gap: 12px;
 }
 
+.incident-lead-notes__list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.incident-lead-notes__list li {
+  background: #f8fbff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.incident-lead-notes__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 0.78rem;
+}
+
+.incident-lead-notes__meta time {
+  color: var(--text-muted);
+}
+
+.incident-lead-notes__list p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.incident-lead-notes__form {
+  display: grid;
+  gap: 12px;
+}
+
+.incident-lead-notes__form button {
+  justify-self: start;
+}
+
 .incident-report-detail {
   display: grid;
   gap: 14px;

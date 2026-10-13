@@ -207,6 +207,7 @@ model User {
   incidentParentCopiesShared       IncidentReportParentCopy[]       @relation("IncidentParentCopiesShared")
   incidentParentRecipients         IncidentReportParentRecipient[]  @relation("IncidentParentRecipients")
   incidentEvents                   IncidentReportEvent[]            @relation("IncidentReportEvents")
+  safeguardingNotesAuthored        IncidentSafeguardingNote[]       @relation("SafeguardingNotesAuthored")
   messagesSent                     Message[]                        @relation("MessagesSent")
   messageReads                     MessageRead[]
   messageThreadParticipants        MessageThreadParticipant[]
@@ -2581,12 +2582,26 @@ model IncidentReport {
   attachments  IncidentReportAttachment[]
   parentCopies IncidentReportParentCopy[]
   events       IncidentReportEvent[]
+  safeguardingNotes IncidentSafeguardingNote[]
 
   @@index([status, updatedAt])
   @@index([type, severity, occurredAt])
   @@index([recordedById, createdAt])
   @@index([signedOffById, signedOffAt])
   @@index([escalatedById, escalatedAt])
+}
+
+model IncidentSafeguardingNote {
+  id        String   @id @default(cuid())
+  reportId  String
+  authorId  String
+  bodyEnc   String
+  createdAt DateTime @default(now())
+
+  report IncidentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author User @relation("SafeguardingNotesAuthored", fields: [authorId], references: [id])
+
+  @@index([reportId, createdAt])
 }
 
 model IncidentReportStudent {

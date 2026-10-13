@@ -58,7 +58,6 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck },
       { href: '/admin/behaviour', label: 'Behaviour', icon: Star },
-      { href: '/admin/incidents', label: 'Incidents', icon: ShieldAlert },
       { href: '/admin/rota', label: 'Rota', icon: CalendarDays },
       { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
       { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
@@ -110,11 +109,18 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: 'Compliance',
+    icon: ShieldAlert,
+    items: [
+      { href: '/admin/incidents', label: 'Safeguarding', icon: ShieldAlert },
+      { href: '/admin/compliance/dbs-training', label: 'DBS & Training', icon: ShieldAlert },
+      { href: '/admin/compliance/medtab', label: 'MedTab', icon: ClipboardList },
+    ],
+  },
+  {
     label: 'Governance',
     icon: FileText,
     items: [
-      { href: '/compliance/dbs-training', label: 'DBS & Training', icon: ShieldAlert },
-      { href: '/compliance/medtab', label: 'MedTab', icon: ClipboardList },
       { href: '/admin/reports', label: 'Reports', icon: FileText },
       { href: '/admin/audit', label: 'Audit', icon: ClipboardList },
       { href: '/admin/sensitive-review', label: 'Sensitive Review', icon: ClipboardList },

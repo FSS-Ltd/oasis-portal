@@ -1241,6 +1241,8 @@ ALTER TABLE "IncidentReportParentRecipient" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "IncidentReportParentRecipient" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "IncidentReportEvent" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "IncidentReportEvent" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentSafeguardingNote" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentSafeguardingNote" FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS incident_staff_select ON "IncidentReport";
 DROP POLICY IF EXISTS incident_staff_insert ON "IncidentReport";
@@ -1261,12 +1263,15 @@ DROP POLICY IF EXISTS incident_parent_recipient_staff_write ON "IncidentReportPa
 DROP POLICY IF EXISTS incident_parent_recipient_parent_ack_update ON "IncidentReportParentRecipient";
 DROP POLICY IF EXISTS incident_event_staff_select ON "IncidentReportEvent";
 DROP POLICY IF EXISTS incident_event_staff_insert ON "IncidentReportEvent";
+DROP POLICY IF EXISTS incident_safeguarding_note_select ON "IncidentSafeguardingNote";
+DROP POLICY IF EXISTS incident_safeguarding_note_insert ON "IncidentSafeguardingNote";
 
 CREATE POLICY incident_staff_select ON "IncidentReport"
   FOR SELECT
   USING (
     current_setting('app.full_admin', true) = 'true'
     OR current_setting('app.user_role', true) = 'Supervisor'
+    OR current_setting('app.user_role', true) = 'SafeguardingLead'
     OR (
       current_setting('app.user_role', true) IN (
         'Parent',
@@ -1346,6 +1351,7 @@ CREATE POLICY incident_report_student_staff_select ON "IncidentReportStudent"
   USING (
     current_setting('app.full_admin', true) = 'true'
     OR current_setting('app.user_role', true) = 'Supervisor'
+    OR current_setting('app.user_role', true) = 'SafeguardingLead'
   );
 
 CREATE POLICY incident_report_student_staff_write ON "IncidentReportStudent"
@@ -1372,6 +1378,7 @@ CREATE POLICY incident_report_staff_staff_select ON "IncidentReportStaff"
   USING (
     current_setting('app.full_admin', true) = 'true'
     OR current_setting('app.user_role', true) = 'Supervisor'
+    OR current_setting('app.user_role', true) = 'SafeguardingLead'
   );
 
 CREATE POLICY incident_report_staff_staff_write ON "IncidentReportStaff"
@@ -1398,6 +1405,7 @@ CREATE POLICY incident_attachment_staff_select ON "IncidentReportAttachment"
   USING (
     current_setting('app.full_admin', true) = 'true'
     OR current_setting('app.user_role', true) = 'Supervisor'
+    OR current_setting('app.user_role', true) = 'SafeguardingLead'
   );
 
 CREATE POLICY incident_attachment_staff_write ON "IncidentReportAttachment"
@@ -1425,6 +1433,7 @@ CREATE POLICY incident_parent_copy_staff_select ON "IncidentReportParentCopy"
   USING (
     current_setting('app.full_admin', true) = 'true'
     OR current_setting('app.user_role', true) = 'Supervisor'
+    OR current_setting('app.user_role', true) = 'SafeguardingLead'
   );
 
 CREATE POLICY incident_parent_copy_parent_select ON "IncidentReportParentCopy"
@@ -1459,6 +1468,7 @@ CREATE POLICY incident_parent_recipient_staff_select ON "IncidentReportParentRec
   USING (
     current_setting('app.full_admin', true) = 'true'
     OR current_setting('app.user_role', true) = 'Supervisor'
+    OR current_setting('app.user_role', true) = 'SafeguardingLead'
   );
 
 CREATE POLICY incident_parent_recipient_parent_select ON "IncidentReportParentRecipient"
@@ -1548,6 +1558,17 @@ CREATE POLICY incident_event_staff_insert ON "IncidentReportEvent"
     "actorId" IS NULL
     OR "actorId" = current_setting('app.user_id', true)
     OR current_setting('app.full_admin', true) = 'true'
+  );
+
+CREATE POLICY incident_safeguarding_note_select ON "IncidentSafeguardingNote"
+  FOR SELECT
+  USING (current_setting('app.user_role', true) IN ('Head', 'SafeguardingLead'));
+
+CREATE POLICY incident_safeguarding_note_insert ON "IncidentSafeguardingNote"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'SafeguardingLead'
+    AND "authorId" = current_setting('app.user_id', true)
   );
 
 ALTER TABLE "HomeworkAssignment" ENABLE ROW LEVEL SECURITY;

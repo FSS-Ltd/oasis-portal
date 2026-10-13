@@ -3,28 +3,6 @@
   display: none;
 }
 
-.compliance-nav {
-  display: grid;
-  gap: 6px;
-  padding: 18px 10px;
-}
-.compliance-nav a {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 13px;
-  border-radius: 8px;
-  color: #e8eefc;
-  font-size: 0.86rem;
-  font-weight: 750;
-  text-decoration: none;
-}
-.compliance-nav a:hover,
-.compliance-nav a:focus-visible,
-.compliance-nav a[aria-current='page'] {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-}
 .compliance-shell .admin-shell__foot a {
   color: #e8eefc;
   font-size: 0.8rem;
@@ -260,8 +238,6 @@
     background: var(--oasis-navy);
   }
   .compliance-shell__mobile-nav .compliance-nav {
-    display: flex;
-    overflow-x: auto;
     padding: 0 12px 10px;
   }
   .compliance-shell .admin-shell__main {
