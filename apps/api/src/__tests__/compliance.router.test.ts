@@ -200,8 +200,30 @@ describe('compliance access and records', () => {
         medicalConditionsEnc: 'enc:Asthma',
         medicationAtCentreEnc: 'enc:n/a',
       },
+      {
+        studentId: 'four',
+        student: { fullNameEnc: 'enc:Four', yearGroup: 'Year 5' },
+        allergiesEnc: 'enc: HEALTHY ',
+        medicalConditionsEnc: 'enc:Not Recorded',
+        medicationAtCentreEnc: null,
+      },
+      {
+        studentId: 'five',
+        student: { fullNameEnc: 'enc:Five', yearGroup: 'Year 6' },
+        allergiesEnc: 'enc:Healthy',
+        medicalConditionsEnc: 'enc:Asthma',
+        medicationAtCentreEnc: null,
+      },
     ]);
     await expect(makeCaller(lead, db).compliance.medTab()).resolves.toEqual([
+      {
+        studentId: 'five',
+        fullName: 'Five',
+        yearGroup: 'Year 6',
+        allergies: null,
+        medicalConditions: 'Asthma',
+        medicationAtCentre: null,
+      },
       {
         studentId: 'one',
         fullName: 'One',
