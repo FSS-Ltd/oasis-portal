@@ -190,8 +190,15 @@ describe('compliance access and records', () => {
         studentId: 'two',
         student: { fullNameEnc: 'enc:Two', yearGroup: 'Year 5' },
         allergiesEnc: 'enc:  ',
-        medicalConditionsEnc: null,
-        medicationAtCentreEnc: null,
+        medicalConditionsEnc: 'enc: N/A ',
+        medicationAtCentreEnc: 'enc:none',
+      },
+      {
+        studentId: 'three',
+        student: { fullNameEnc: 'enc:Three', yearGroup: 'Year 6' },
+        allergiesEnc: 'enc:Not Recorded',
+        medicalConditionsEnc: 'enc:Asthma',
+        medicationAtCentreEnc: 'enc:n/a',
       },
     ]);
     await expect(makeCaller(lead, db).compliance.medTab()).resolves.toEqual([
@@ -203,11 +210,37 @@ describe('compliance access and records', () => {
         medicalConditions: null,
         medicationAtCentre: null,
       },
+      {
+        studentId: 'three',
+        fullName: 'Three',
+        yearGroup: 'Year 6',
+        allergies: null,
+        medicalConditions: 'Asthma',
+        medicationAtCentre: null,
+      },
     ]);
     expect(db.studentRegistrationProfile.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { student: { active: true } } }),
     );
     expect(db.auditLog.create.mock.calls[0]?.[0]).toHaveProperty('data.action', 'ReadSensitive');
+  });
+
+  it('excludes inactive supervisors from the DBS register', async () => {
+    const db = makeDb();
+    db.user.findMany.mockResolvedValue([
+      { id: 'active', role: 'Supervisor', active: true, fullNameEnc: 'enc:Active' },
+    ]);
+
+    await expect(
+      makeCaller(lead, db).compliance.register({ page: 1, search: '' }),
+    ).resolves.toMatchObject({
+      total: 1,
+      rows: [{ id: 'active' }],
+    });
+    expect(db.user.findMany.mock.calls[0]?.[0]).toHaveProperty('where.OR', [
+      { role: { not: 'Supervisor' } },
+      { active: true },
+    ]);
   });
 
   it('returns a not recorded DBS summary for an adult without a compliance record', async () => {

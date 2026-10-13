@@ -17,6 +17,12 @@ const otherSupervisorUser: SessionUser = {
   requires2fa: false,
 };
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const safeguardingLeadUser: SessionUser = {
+  id: 'u_safeguarding_lead',
+  role: 'SafeguardingLead',
+  tags: [],
+  requires2fa: false,
+};
 const pastorUser: SessionUser = { id: 'u_pastor', role: 'Pastor', tags: [], requires2fa: false };
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
 const otherParentUser: SessionUser = {
@@ -662,6 +668,25 @@ const draftInput = {
 };
 
 describe('incident router', () => {
+  it('lets the safeguarding lead read reports without changing them', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+    const draft = await caller.incident.createDraft(draftInput);
+    const leadCaller = createIncidentCaller(db, safeguardingLeadUser);
+
+    await expect(leadCaller.incident.listStaff()).resolves.toEqual([
+      expect.objectContaining({ id: draft.id }),
+    ]);
+    await expect(leadCaller.incident.getStaff({ reportId: draft.id })).resolves.toMatchObject({
+      id: draft.id,
+    });
+    await expect(leadCaller.incident.createDraft(draftInput)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(leadCaller.incident.signOff({ reportId: draft.id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
   it('allows a supervisor to create and submit an incident for head review', async () => {
     const { caller } = makeCaller(supervisorUser);
 

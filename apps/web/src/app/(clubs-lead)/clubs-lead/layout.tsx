@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Bell, ClipboardList, Home, ShieldAlert, Smartphone, Star } from 'lucide-react';
 import { prisma } from '@oasis/db';
 import { getClubsLeadUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -17,35 +16,11 @@ import {
   staffPortalViewForUser,
 } from '@/lib/portal-view-routing';
 import { roleLabel } from '@/lib/profile-display';
+import { ClubsLeadNav } from './clubs-lead-nav';
 import '../../(admin)/admin/admin.css';
+import '../../compliance/compliance.css';
 
 export const dynamic = 'force-dynamic';
-
-const navItems = [
-  { href: '/clubs-lead', label: 'Overview', icon: Home },
-  { href: '/clubs-lead?tab=behaviour', label: 'Behaviour', icon: Star },
-  { href: '/clubs-lead?tab=attendance', label: 'Attendance', icon: ClipboardList },
-  { href: '/clubs-lead?tab=noticeboard', label: 'Noticeboard', icon: Bell },
-  { href: '/compliance/dbs-training', label: 'DBS & Training', icon: ShieldAlert },
-  { href: '/compliance/medtab', label: 'MedTab', icon: ClipboardList },
-  { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
-] as const;
-
-function ClubsLeadNav() {
-  return (
-    <nav className="admin-shell__nav clubs-lead-shell__nav">
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <Link className="admin-shell__nav-item" href={item.href} key={item.label}>
-            <Icon aria-hidden="true" size={15} />
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
 
 export default async function ClubsLeadLayout({ children }: { children: ReactNode }) {
   const user = await getClubsLeadUser();

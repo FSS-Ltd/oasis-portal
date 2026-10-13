@@ -40,6 +40,7 @@ import {
 } from '@/lib/portal-view-routing';
 import { roleLabel } from '@/lib/profile-display';
 import './admin.css';
+import '../../compliance/compliance.css';
 
 export const dynamic = 'force-dynamic';
 

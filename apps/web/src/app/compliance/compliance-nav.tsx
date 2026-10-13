@@ -2,23 +2,34 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HeartPulse, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { HeartPulse, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { SidebarNavGroup } from '@/components/navigation/sidebar-nav-group';
 
 const items = [
+  { href: '/compliance/incidents', label: 'Safeguarding', icon: ShieldAlert },
   { href: '/compliance/dbs-training', label: 'DBS & Training', icon: ShieldCheck },
   { href: '/compliance/medtab', label: 'MedTab', icon: HeartPulse },
 ] as const;
 
 export function ComplianceNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
+  const [open, setOpen] = useState(true);
   return (
-    <nav aria-label="Compliance pages" className="compliance-nav">
-      {items.map(({ href, label, icon: Icon }) => (
-        <Link aria-current={pathname === href ? 'page' : undefined} href={href} key={href}>
-          <Icon aria-hidden="true" size={18} />
-          {label}
-        </Link>
-      ))}
+    <nav aria-label="Compliance pages" className="admin-shell__nav compliance-nav">
+      <SidebarNavGroup icon={ShieldAlert} label="Compliance" onOpenChange={setOpen} open={open}>
+        {items.map(({ href, label, icon: Icon }) => (
+          <Link
+            aria-current={pathname === href ? 'page' : undefined}
+            className={`admin-shell__nav-item${pathname === href ? ' is-active' : ''}`}
+            href={{ pathname: href }}
+            key={href}
+          >
+            <Icon aria-hidden="true" size={15} />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </SidebarNavGroup>
     </nav>
   );
 }

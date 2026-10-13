@@ -9,6 +9,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import {
   AccessDeniedError,
+  canViewIncidentReports,
   canUseCompliance,
   canViewCompliance,
   canUseClubsLeadPortal,
@@ -75,6 +76,13 @@ export const authedProcedure = authenticatedProcedure.use(({ ctx, next }) => {
 export const complianceProcedure = authenticatedProcedure.use(({ ctx, next }) => {
   if (!canViewCompliance(ctx.user)) {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Compliance access required.' });
+  }
+  return next();
+});
+
+export const incidentReadProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (!canViewIncidentReports(ctx.user)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Incident report access required.' });
   }
   return next();
 });

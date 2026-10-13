@@ -27,6 +27,7 @@ test('admin sidebar groups the large menu into meaningful accordion categories',
   assert.match(adminNavSource, /label: 'Communication & Consent'[\s\S]*label: 'Messages'/);
   assert.match(adminNavSource, /label: 'People & Access'[\s\S]*label: 'User Access'/);
   assert.match(adminNavSource, /label: 'Finance & Shop'[\s\S]*label: 'Invoices'/);
+  assert.match(adminNavSource, /label: 'Compliance'[\s\S]*label: 'Safeguarding'[\s\S]*label: 'DBS & Training'[\s\S]*label: 'MedTab'/);
   assert.match(adminNavSource, /label: 'Governance'[\s\S]*label: 'Audit'/);
 });
 
@@ -42,6 +43,7 @@ test('sidebar accordion opens and closes on click only, not hover', () => {
 test('admin and supervisor sidebars share the same accordion behaviour', () => {
   assert.match(adminNavSource, /SidebarNavGroup/);
   assert.match(supervisorNavSource, /SidebarNavGroup/);
+  assert.match(supervisorNavSource, /label: 'Compliance'[\s\S]*label: 'Safeguarding'[\s\S]*label: 'DBS & Training'[\s\S]*label: 'MedTab'/);
 });
 
 test('the Rota page accepts every role that the admin navigation can send there', () => {

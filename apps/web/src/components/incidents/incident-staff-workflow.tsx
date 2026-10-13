@@ -43,6 +43,7 @@ import {
   statusTone,
 } from './incident-format';
 import { IncidentReportDetail } from './incident-report-detail';
+import { IncidentSafeguardingNotes } from './incident-safeguarding-notes';
 import {
   defaultIncidentForm,
   emptyCopyForm,
@@ -62,7 +63,7 @@ import {
 } from './incident-staff-workflow-state';
 
 interface StaffIncidentWorkflowProps {
-  portal: 'admin' | 'supervisor';
+  portal: 'admin' | 'supervisor' | 'compliance';
 }
 
 function IncidentStatusBadge({ status }: { status: StaffIncident['status'] }) {
@@ -734,6 +735,7 @@ function ParentCopyPanel({
 function IncidentDetail({
   canManageDraft,
   canOverrideParentVisibility,
+  showLeadNotes,
   onClose,
   onDeleteDraft,
   onEditDraft,
@@ -742,6 +744,7 @@ function IncidentDetail({
 }: {
   canManageDraft: boolean;
   canOverrideParentVisibility: boolean;
+  showLeadNotes: boolean;
   onClose: () => void;
   onDeleteDraft: (report: StaffIncident) => void;
   onEditDraft: (report: StaffIncident) => void;
@@ -844,71 +847,81 @@ function IncidentDetail({
             </div>
           </div>
         </div>
-        <div className="incident-detail__actions">
-          {canManageDraft ? (
-            <>
-              <Button
-                onClick={() => {
-                  onEditDraft(report);
-                }}
-                type="button"
-                variant="secondary"
-              >
-                <Pencil aria-hidden="true" size={15} />
-                Edit draft
-              </Button>
-              <Button
-                onClick={() => {
-                  onDeleteDraft(report);
-                }}
-                type="button"
-                variant="danger"
-              >
-                <Trash2 aria-hidden="true" size={15} />
-                Delete draft
-              </Button>
-            </>
-          ) : null}
-          <Button
-            disabled={report.status !== 'Draft' || !canManageDraft}
-            onClick={() => {
-              submit.mutate({ reportId: report.id });
-            }}
-            pending={submit.isPending}
-            type="button"
-            variant="secondary"
-          >
-            Submit for Head review
-          </Button>
-          {portal === 'admin' ? (
-            <>
-              <Button
-                disabled={report.status !== 'HeadReview' && report.status !== 'Escalated'}
-                onClick={() => {
-                  signOff.mutate({ reportId: report.id });
-                }}
-                pending={signOff.isPending}
-                type="button"
-              >
-                <ShieldCheck aria-hidden="true" size={15} />
-                Sign off
-              </Button>
-              <Button
-                disabled={report.status !== 'HeadReview'}
-                onClick={() => {
-                  escalate.mutate({ reportId: report.id });
-                }}
-                pending={escalate.isPending}
-                type="button"
-                variant="secondary"
-              >
-                <AlertTriangle aria-hidden="true" size={15} />
-                Escalate
-              </Button>
-            </>
-          ) : null}
-        </div>
+        {portal !== 'compliance' ? (
+          <div className="incident-detail__actions">
+            {canManageDraft ? (
+              <>
+                <Button
+                  onClick={() => {
+                    onEditDraft(report);
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  <Pencil aria-hidden="true" size={15} />
+                  Edit draft
+                </Button>
+                <Button
+                  onClick={() => {
+                    onDeleteDraft(report);
+                  }}
+                  type="button"
+                  variant="danger"
+                >
+                  <Trash2 aria-hidden="true" size={15} />
+                  Delete draft
+                </Button>
+              </>
+            ) : null}
+            <Button
+              disabled={report.status !== 'Draft' || !canManageDraft}
+              onClick={() => {
+                submit.mutate({ reportId: report.id });
+              }}
+              pending={submit.isPending}
+              type="button"
+              variant="secondary"
+            >
+              Submit for Head review
+            </Button>
+            {portal === 'admin' ? (
+              <>
+                <Button
+                  disabled={report.status !== 'HeadReview' && report.status !== 'Escalated'}
+                  onClick={() => {
+                    signOff.mutate({ reportId: report.id });
+                  }}
+                  pending={signOff.isPending}
+                  type="button"
+                >
+                  <ShieldCheck aria-hidden="true" size={15} />
+                  Sign off
+                </Button>
+                <Button
+                  disabled={report.status !== 'HeadReview'}
+                  onClick={() => {
+                    escalate.mutate({ reportId: report.id });
+                  }}
+                  pending={escalate.isPending}
+                  type="button"
+                  variant="secondary"
+                >
+                  <AlertTriangle aria-hidden="true" size={15} />
+                  Escalate
+                </Button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
       </Panel>
+      {showLeadNotes ? (
+        <IncidentSafeguardingNotes
+          canWrite={portal === 'compliance' && report.status !== 'Draft'}
+          isDraft={portal === 'compliance' && report.status === 'Draft'}
+          key={report.id}
+          reportId={report.id}
+        />
+      ) : null}
       <Panel body className="incident-side-panel">
         <h3>Report details</h3>
         <IncidentReportDetail report={report} />
@@ -924,6 +937,7 @@ function IncidentDetail({
 }
 
 export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
+  const readOnly = portal === 'compliance';
   const [mode, setMode] = useState<'dashboard' | 'form'>('dashboard');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -931,9 +945,12 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
   const [deleteDraftReport, setDeleteDraftReport] = useState<StaffIncident | null>(null);
   const [form, setForm] = useState<IncidentFormState>(defaultIncidentForm);
   const incidents = api.incident.listStaff.useQuery();
-  const profile = api.profile.me.useQuery(undefined, { retry: false });
-  const students = api.student.list.useQuery(undefined, { retry: false });
-  const staff = api.incident.listStaffOptions.useQuery(undefined, { retry: false });
+  const profile = api.profile.me.useQuery(undefined, { enabled: !readOnly, retry: false });
+  const students = api.student.list.useQuery(undefined, { enabled: !readOnly, retry: false });
+  const staff = api.incident.listStaffOptions.useQuery(undefined, {
+    enabled: !readOnly,
+    retry: false,
+  });
   const utils = api.useUtils();
   const createDraft = api.incident.createDraft.useMutation({
     async onSuccess(data) {
@@ -1144,18 +1161,24 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
         <header className="incident-page__header">
           <div>
             <p>{formatIncidentDate(new Date())}</p>
-            <h1>Incident Reports</h1>
-            <span>Record, sign off, escalate, and share parent-viewable reports.</span>
+            <h1>Safeguarding</h1>
+            <span>
+              {readOnly
+                ? 'Review safeguarding reports and add lead notes.'
+                : 'Record, sign off, escalate, and share parent-viewable reports.'}
+            </span>
           </div>
-          <Button
-            onClick={() => {
-              startNewDraft();
-            }}
-            type="button"
-          >
-            <Plus aria-hidden="true" size={16} />
-            New Incident
-          </Button>
+          {!readOnly ? (
+            <Button
+              onClick={() => {
+                startNewDraft();
+              }}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={16} />
+              New Incident
+            </Button>
+          ) : null}
         </header>
 
         <div className="dashboard-grid incident-stat-grid">
@@ -1223,9 +1246,12 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
           {selected ? (
             <IncidentDetail
               canManageDraft={
-                selected.status === 'Draft' && selected.recordedById === profile.data?.id
+                !readOnly &&
+                selected.status === 'Draft' &&
+                selected.recordedById === profile.data?.id
               }
               canOverrideParentVisibility={parentVisibilityAllowed}
+              showLeadNotes={portal === 'compliance' || profile.data?.role === 'Head'}
               onClose={() => {
                 setSelectedId(null);
               }}
