@@ -3,7 +3,11 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 import { NextResponse } from 'next/server';
 
-const isRotaRoute = createRouteMatcher(['/admin/rota(.*)', '/supervisor/rota(.*)']);
+const isRotaRoute = createRouteMatcher([
+  '/admin/rota(.*)',
+  '/supervisor/rota(.*)',
+  '/parent/volunteer(.*)',
+]);
 
 const isClubsRoute = createRouteMatcher([
   '/admin/clubs(.*)',

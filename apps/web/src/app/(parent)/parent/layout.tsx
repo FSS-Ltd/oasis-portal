@@ -1,4 +1,4 @@
-import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
+import { CLUBS_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -68,7 +68,8 @@ export default async function ParentLayout({ children }: { children: ReactNode }
     [linkedChildren, assignedClubLeadCount, unreadNoticeCount, unreadMessageCount],
   ] = await Promise.all([getParentVolunteerAccess(user), loadParentShellCounts(user)]);
   const parentNavProps = {
-    canUseParentVolunteer: canUseParentVolunteerNavigation(parentVolunteerAccess),
+    canUseParentVolunteer:
+      ROTA_VISIBLE && canUseParentVolunteerNavigation(parentVolunteerAccess),
     unreadMessageCount,
     unreadNoticeCount,
   };

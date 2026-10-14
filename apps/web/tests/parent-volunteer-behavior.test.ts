@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { canUseParentVolunteerNavigation, resolveParentVolunteerAccess } from '@oasis/domain';
+import { ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
 import { assertParentVolunteerRouteAccess } from '../src/components/parent/parent-volunteer-route-access.ts';
 import {
   parentBottomNavigationItems,
@@ -15,7 +16,7 @@ const grantedStaffAccess = resolveParentVolunteerAccess({
   staffParentVolunteerAccess: true,
 });
 
-test('entitled staff and parents see Volunteer in side navigation without changing mobile bottom navigation', () => {
+test('Volunteer stays hidden from parent navigation while rota is hidden', () => {
   const parentAccess = resolveParentVolunteerAccess({
     active: true,
     activeGuardianCount: 1,
@@ -29,18 +30,14 @@ test('entitled staff and parents see Volunteer in side navigation without changi
     staffParentVolunteerAccess: false,
   });
 
-  for (const access of [parentAccess, grantedStaffAccess]) {
+  assert.equal(ROTA_VISIBLE, false);
+  for (const access of [parentAccess, grantedStaffAccess, deniedStaffAccess]) {
     assert.ok(
-      parentNavigationItems(canUseParentVolunteerNavigation(access)).some(
+      !parentNavigationItems(canUseParentVolunteerNavigation(access)).some(
         (item) => item.href === '/parent/volunteer',
       ),
     );
   }
-  assert.ok(
-    !parentNavigationItems(canUseParentVolunteerNavigation(deniedStaffAccess)).some(
-      (item) => item.href === '/parent/volunteer',
-    ),
-  );
   assert.deepEqual(
     parentBottomNavigationItems(canUseParentVolunteerNavigation(grantedStaffAccess)).map(
       (item) => item.href,
