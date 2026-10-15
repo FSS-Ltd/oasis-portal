@@ -919,6 +919,39 @@ function createCaller(
   return { caller: testRouter.createCaller(ctx), fakeDb };
 }
 
+function ensurePdfDomFallbacks(): void {
+  if ('DOMMatrix' in globalThis) return;
+
+  class TestDOMMatrix {
+    inverse(): this {
+      return this;
+    }
+    multiply(): this {
+      return this;
+    }
+    multiplySelf(): this {
+      return this;
+    }
+    preMultiplySelf(): this {
+      return this;
+    }
+    scale(): this {
+      return this;
+    }
+    scaleSelf(): this {
+      return this;
+    }
+    translate(): this {
+      return this;
+    }
+    translateSelf(): this {
+      return this;
+    }
+  }
+
+  Object.defineProperty(globalThis, 'DOMMatrix', { configurable: true, value: TestDOMMatrix });
+}
+
 describe('invoiceRouter', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -980,6 +1013,7 @@ describe('invoiceRouter', () => {
   });
 
   it('extracts prefill fields from the sample invoice PDF', async () => {
+    ensurePdfDomFallbacks();
     const { caller } = createCaller(financeUser, makeFakeDb(), true);
     const pdfBytes = readFileSync(
       resolve(process.cwd(), '../../test-fixtures/invoices/oasis-example-school-fee-invoice.pdf'),
@@ -3150,6 +3184,7 @@ function ensurePromiseWithResolvers(): void {
 }
 
 async function extractPdfPageTextItems(bytes: Uint8Array): Promise<PdfPageTextItem[][]> {
+  ensurePdfDomFallbacks();
   ensurePromiseWithResolvers();
   const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfJsModule;
   const pdf = await pdfjs.getDocument({

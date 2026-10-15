@@ -24,7 +24,7 @@ const registerInput = z.object({
 });
 const badgeInput = z.object({ userIds: z.array(z.string().min(1)).max(250) });
 const personInput = z.object({ userId: z.string().min(1) });
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 const EMPTY_MEDICAL_DETAIL = /^(?:n\/a|none|not recorded|healthy)$/i;
 
 type ComplianceRecord = Prisma.AdultComplianceGetPayload<Record<string, never>>;
@@ -86,7 +86,7 @@ function recordData(ctx: AppContext, input: UpdateAdultComplianceInput) {
 export const complianceRouter = router({
   peopleOptions: complianceEditorProcedure.query(async ({ ctx }) => {
     const users = await ctx.db.user.findMany({
-      where: { role: { in: [...COMPLIANCE_ACCOUNT_ROLES] } },
+      where: { role: { in: [...COMPLIANCE_ACCOUNT_ROLES] }, active: true },
       select: {
         id: true,
         role: true,
@@ -119,7 +119,7 @@ export const complianceRouter = router({
     const users = await ctx.db.user.findMany({
       where: {
         role: { in: [...COMPLIANCE_ACCOUNT_ROLES] },
-        OR: [{ role: { not: 'Supervisor' } }, { active: true }],
+        active: true,
       },
       select: {
         id: true,
@@ -192,7 +192,7 @@ export const complianceRouter = router({
         studentProfile: { select: { dobEnc: true } },
       },
     });
-    if (!user || !isComplianceAccount(user.role, personDob(ctx, user))) {
+    if (!user?.active || !isComplianceAccount(user.role, personDob(ctx, user))) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Person not found in the register.' });
     }
     const record = await ctx.withRls((tx) =>
@@ -227,11 +227,12 @@ export const complianceRouter = router({
           select: {
             id: true,
             role: true,
+            active: true,
             dobEnc: true,
             studentProfile: { select: { dobEnc: true } },
           },
         });
-        if (!user || !isComplianceAccount(user.role, personDob(ctx, user))) {
+        if (!user?.active || !isComplianceAccount(user.role, personDob(ctx, user))) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Person not found in the register.' });
         }
         if (!isComplianceAccount(user.role, input.dob)) {

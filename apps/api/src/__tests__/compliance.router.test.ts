@@ -43,11 +43,12 @@ const validUpdate = {
 
 function makeDb() {
   const user = {
-    findUnique: vi.fn().mockResolvedValue({ id: 'parent-1', role: 'Parent' }),
+    findUnique: vi.fn().mockResolvedValue({ id: 'parent-1', role: 'Parent', active: true }),
     findMany: vi.fn().mockResolvedValue([]),
     update: vi.fn().mockResolvedValue({ id: 'parent-1' }),
   };
   const adultCompliance = {
+    findUnique: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockResolvedValue({ userId: 'parent-1' }),
     findMany: vi.fn().mockResolvedValue([]),
   };
@@ -156,7 +157,7 @@ describe('compliance access and records', () => {
 
   it('rejects updates to activities leads without another role', async () => {
     const db = makeDb();
-    db.user.findUnique.mockResolvedValue({ id: 'parent-1', role: 'ClubsLead' });
+    db.user.findUnique.mockResolvedValue({ id: 'parent-1', role: 'ClubsLead', active: true });
     await expect(makeCaller(lead, db).compliance.update(validUpdate)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
@@ -176,6 +177,7 @@ describe('compliance access and records', () => {
     db.user.findUnique.mockResolvedValue({
       id: 'student-1',
       role: 'Student',
+      active: true,
       dobEnc: null,
       studentProfile: { dobEnc: 'enc:1987-01-02' },
     });
@@ -257,7 +259,7 @@ describe('compliance access and records', () => {
     expect(db.auditLog.create.mock.calls[0]?.[0]).toHaveProperty('data.action', 'ReadSensitive');
   });
 
-  it('excludes inactive supervisors from the DBS register', async () => {
+  it('limits the DBS register to active accounts', async () => {
     const db = makeDb();
     db.user.findMany.mockResolvedValue([
       { id: 'active', role: 'Supervisor', active: true, fullNameEnc: 'enc:Active' },
@@ -269,10 +271,48 @@ describe('compliance access and records', () => {
       total: 1,
       rows: [{ id: 'active' }],
     });
-    expect(db.user.findMany.mock.calls[0]?.[0]).toHaveProperty('where.OR', [
-      { role: { not: 'Supervisor' } },
-      { active: true },
+    expect(db.user.findMany.mock.calls[0]?.[0]).toHaveProperty('where.active', true);
+    expect(db.user.findMany.mock.calls[0]?.[0]).not.toHaveProperty('where.OR');
+  });
+
+  it('limits compliance editor options to active accounts', async () => {
+    const db = makeDb();
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'active-parent',
+        role: 'Parent',
+        active: true,
+        fullNameEnc: 'enc:Active Parent',
+        dobEnc: 'enc:1987-01-02',
+      },
     ]);
+
+    await expect(makeCaller(lead, db).compliance.peopleOptions()).resolves.toMatchObject([
+      { id: 'active-parent', active: true, fullName: 'Active Parent' },
+    ]);
+    expect(db.user.findMany.mock.calls[0]?.[0]).toHaveProperty('where.active', true);
+  });
+
+  it('hides inactive accounts from record lookup and updates', async () => {
+    const db = makeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'parent-1',
+      role: 'Parent',
+      active: false,
+      dobEnc: 'enc:1987-01-02',
+      studentProfile: null,
+    });
+    const caller = makeCaller(lead, db);
+
+    await expect(caller.compliance.person({ userId: 'parent-1' })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(caller.compliance.update(validUpdate)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(db.adultCompliance.findUnique).not.toHaveBeenCalled();
+    expect(db.adultCompliance.upsert).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 
   it('returns a not recorded DBS summary for an adult without a compliance record', async () => {
@@ -363,13 +403,13 @@ describe('compliance access and records', () => {
     expect(result.total).toBe(3);
   });
 
-  it('pages across every matching account, including inactive adults', async () => {
+  it('paginates active adults ten at a time', async () => {
     const db = makeDb();
     db.user.findMany.mockResolvedValue(
-      Array.from({ length: 26 }, (_, index) => ({
+      Array.from({ length: 21 }, (_, index) => ({
         id: `adult-${String(index + 1)}`,
         role: index % 2 === 0 ? 'Supervisor' : 'Parent',
-        active: index !== 25,
+        active: true,
         fullNameEnc: `enc:Person ${String(index + 1).padStart(2, '0')}`,
         dobEnc: null,
       })),
@@ -377,9 +417,13 @@ describe('compliance access and records', () => {
     const caller = makeCaller(lead, db);
     const first = await caller.compliance.register({ page: 1, search: '' });
     const second = await caller.compliance.register({ page: 2, search: '' });
-    expect(first.total).toBe(26);
-    expect(first.rows).toHaveLength(25);
-    expect(second.rows).toHaveLength(1);
-    expect(second.rows[0]).toHaveProperty('active', false);
+    const third = await caller.compliance.register({ page: 3, search: '' });
+    expect(first.total).toBe(21);
+    expect(first.pageSize).toBe(10);
+    expect(first.rows).toHaveLength(10);
+    expect(second.rows).toHaveLength(10);
+    expect(third.rows).toHaveLength(1);
+    expect([...first.rows, ...second.rows, ...third.rows].every((row) => row.active)).toBe(true);
+    expect(db.user.findMany.mock.calls[0]?.[0]).toHaveProperty('where.active', true);
   });
 });
