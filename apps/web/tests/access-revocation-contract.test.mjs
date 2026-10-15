@@ -42,7 +42,7 @@ test('account management exposes API-backed profile, role, tag, and status contr
   assert.match(accessPanelSource, /api\.admin\.updateUserRole\.useMutation/);
   assert.match(accessPanelSource, /api\.admin\.updateUserTags\.useMutation/);
   assert.match(accessPanelSource, /roleOptions\.map\(\(role\) =>/);
-  assert.match(accessPanelSource, /PERMISSION_TAGS\.map\(\(tag\) =>/);
+  assert.match(accessPanelSource, /PERMISSION_TAGS(?:\.filter\([\s\S]*?\))?\s*\.map\(\s*\(tag\) =>/);
   assert.match(accessPanelSource, /disabled=\{isSelf\}/);
   assert.match(accessPanelSource, /Reactivate account/);
 });
