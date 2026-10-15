@@ -53,7 +53,7 @@ describe('applySerializableRlsTx', () => {
 
     expect(result).toBe('complete');
     expect(client.$transaction).toHaveBeenCalledTimes(2);
-    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(4);
     expect(client.$transaction.mock.calls[0]?.[1]).toEqual({ isolationLevel: 'Serializable' });
   });
 
