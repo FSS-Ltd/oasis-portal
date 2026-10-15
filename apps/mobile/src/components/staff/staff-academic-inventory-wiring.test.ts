@@ -63,7 +63,13 @@ describe('staff academic inventory mobile wiring', () => {
     expect(screen).toMatch(/api\.academicInventory\.createOrder\.useMutation/);
     expect(screen).toMatch(/api\.academicInventory\.updateOrderStatus\.useMutation/);
     expect(screen).toMatch(/api\.academicInventory\.markOrdersInTransit\.useMutation/);
+    expect(screen).toMatch(/api\.academicInventory\.markOrdersDelivered\.useMutation/);
     expect(screen).toMatch(/api\.academicInventory\.recordDiagnostic\.useMutation/);
+    expect(screen).toMatch(/includeHistory: false/);
+    expect(screen).toMatch(/Needs attention/);
+    expect(screen).toMatch(/Planner/);
+    expect(screen).toMatch(/Orders/);
+    expect(screen).toMatch(/Diagnostics/);
   });
 
   it('opens a child and subject-specific quick order from each reorder alert', () => {
@@ -95,6 +101,16 @@ describe('staff academic inventory mobile wiring', () => {
 
     expect(components).toMatch(/accessibilityLiveRegion=/);
     expect(components).toMatch(/accessibilityRole="alert"/);
+  });
+
+  it('uses compact searchable selection sheets and a footer outside the scroll area', () => {
+    const screen = readStaffComponent('staff-academic-inventory-screen.tsx');
+    const pickers = readStaffComponent('staff-academic-inventory-pickers.tsx');
+    expect(pickers).toMatch(/label="Find child"/);
+    expect(pickers).toMatch(/<Modal/);
+    expect(screen).toMatch(/<InventoryStudentPicker/);
+    expect(screen).toMatch(/<InventorySubjectPicker/);
+    expect(screen).toMatch(/<\/ScrollView>[\s\S]*<View style={styles\.bulkFooter}>/);
   });
 
   it('clears stale feedback when diagnostic controls change', () => {

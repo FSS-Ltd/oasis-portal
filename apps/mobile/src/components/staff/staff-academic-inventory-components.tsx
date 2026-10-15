@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -9,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { availablePacesAhead } from '@oasis/domain';
 import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, Field, MobileButton, MutedText } from '../core/mobile-ui';
@@ -70,99 +72,119 @@ export function InventoryAlerts({
   onCreateOrder: (alert: InventoryAlert) => void;
   summary: InventorySummary;
 }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const grouped = new Map<string, InventoryAlert[]>();
+  for (const alert of summary.alerts) {
+    grouped.set(alert.studentId, [...(grouped.get(alert.studentId) ?? []), alert]);
+  }
+  const children = [...grouped].sort(([leftId, leftAlerts], [rightId, rightAlerts]) => {
+    const remaining =
+      Math.min(...leftAlerts.map((alert) => alert.remainingPaceCount)) -
+      Math.min(...rightAlerts.map((alert) => alert.remainingPaceCount));
+    const left = summary.students.find((row) => row.id === leftId)?.fullName ?? '';
+    const right = summary.students.find((row) => row.id === rightId)?.fullName ?? '';
+    return remaining || left.localeCompare(right) || leftId.localeCompare(rightId);
+  });
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(children.length / pageSize));
+    if (page > lastPage) setPage(lastPage);
+  }, [children.length, page, pageSize]);
   return (
     <Card style={styles.compactCard}>
       <View style={styles.rowBetween}>
         <Text style={styles.cardTitle}>Reorder alerts</Text>
         <Badge variant={summary.alerts.length > 0 ? 'warning' : 'success'}>
-          {String(summary.alerts.length)} open
+          {String(children.length)} children
         </Badge>
       </View>
       {summary.alerts.length === 0 ? (
-        <MutedText>No assignments are within two PACEs of delivered stock.</MutedText>
+        <MutedText>No recorded PACE supply is below the reorder threshold.</MutedText>
       ) : (
-        summary.alerts.map((alert) => {
-          const student = summary.students.find((row) => row.id === alert.studentId);
-          const assignment = student?.subjects.find((row) => row.subjectId === alert.subjectId);
+        children.slice((page - 1) * pageSize, page * pageSize).map(([studentId, alerts]) => {
+          const student = summary.students.find((row) => row.id === studentId);
           return (
-            <View key={`${alert.studentId}:${alert.subjectId}`} style={styles.alertRow}>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>{student?.fullName ?? 'Student'}</Text>
-                <MutedText>
-                  {assignment ? assignmentLabel(assignment) : 'Assigned subject'}
-                </MutedText>
-              </View>
-              <Text style={styles.alertPace}>
-                #{String(alert.currentPaceNumber)} · {String(alert.remainingPaceCount)} available
-              </Text>
-              <MobileButton
-                accessibilityLabel={`Create order for ${student?.fullName ?? 'student'}, ${assignment ? assignmentLabel(assignment) : 'assigned subject'}`}
-                label="Create order"
-                onPress={() => {
-                  onCreateOrder(alert);
-                }}
-                variant="navy"
-              />
+            <View key={studentId} style={styles.alertGroup}>
+              <Text style={styles.rowTitle}>{student?.fullName ?? 'Student'}</Text>
+              {alerts.map((alert) => {
+                const assignment = student?.subjects.find(
+                  (row) => row.subjectId === alert.subjectId,
+                );
+                return (
+                  <View key={alert.subjectId} style={styles.alertRow}>
+                    <View style={styles.rowBody}>
+                      <MutedText>
+                        {assignment ? assignmentLabel(assignment) : 'Assigned subject'}
+                      </MutedText>
+                      <Text style={styles.alertPace}>
+                        Current #{String(alert.currentPaceNumber)} ·{' '}
+                        {alert.remainingPaceCount === 0
+                          ? 'No future supply recorded'
+                          : `${String(alert.remainingPaceCount)} future PACEs supplied`}
+                      </Text>
+                      {alert.pendingOrders.length > 0 ? (
+                        <MutedText>
+                          Awaiting delivery:{' '}
+                          {alert.pendingOrders
+                            .map(
+                              (order) =>
+                                `#${String(order.paceNumber)} ${order.status === 'InTransit' ? 'in transit' : 'ordered'}`,
+                            )
+                            .join(' · ')}
+                        </MutedText>
+                      ) : null}
+                    </View>
+                    <MobileButton
+                      accessibilityLabel={`Create order for ${student?.fullName ?? 'student'}, ${assignment ? assignmentLabel(assignment) : 'assigned subject'}`}
+                      label="Create order"
+                      onPress={() => {
+                        onCreateOrder(alert);
+                      }}
+                      variant="navy"
+                    />
+                  </View>
+                );
+              })}
             </View>
           );
         })
       )}
-    </Card>
-  );
-}
-
-export function InventoryStudentPicker({
-  onSelect,
-  selectedStudentId,
-  students,
-}: {
-  onSelect: (studentId: string) => void;
-  selectedStudentId: string;
-  students: InventoryStudent[];
-}) {
-  return (
-    <Card style={styles.compactCard}>
-      <Text style={styles.cardTitle}>Student</Text>
-      <View style={styles.optionList}>
-        {students.map((student) => (
-          <OptionButton
-            active={student.id === selectedStudentId}
-            key={student.id}
-            label={`${student.fullName} · ${student.yearGroup}`}
-            onPress={() => {
-              onSelect(student.id);
-            }}
-          />
-        ))}
+      <View style={styles.alertPages}>
+        <Text accessibilityLiveRegion="polite" style={styles.fieldLabel}>
+          {String(children.length === 0 ? 0 : (page - 1) * pageSize + 1)}–
+          {String(Math.min(page * pageSize, children.length))} of {String(children.length)}
+        </Text>
+        <MobileButton
+          compact
+          disabled={page <= 1}
+          label="Previous"
+          onPress={() => {
+            setPage(page - 1);
+          }}
+          variant="secondary"
+        />
+        <MobileButton
+          compact
+          disabled={page >= Math.ceil(children.length / pageSize)}
+          label="Next"
+          onPress={() => {
+            setPage(page + 1);
+          }}
+          variant="secondary"
+        />
       </View>
-    </Card>
-  );
-}
-
-export function InventorySubjectPicker({
-  assignments,
-  onSelect,
-  selectedSubjectId,
-}: {
-  assignments: InventoryAssignment[];
-  onSelect: (subjectId: string) => void;
-  selectedSubjectId: string;
-}) {
-  return (
-    <Card style={styles.compactCard}>
-      <Text style={styles.cardTitle}>Assigned subject</Text>
-      {assignments.length === 0 ? (
-        <MutedText>This student has no active subjects.</MutedText>
-      ) : null}
-      <View style={styles.optionList}>
-        {assignments.map((assignment) => (
-          <OptionButton
-            active={assignment.subjectId === selectedSubjectId}
-            key={assignment.id}
-            label={`${assignmentLabel(assignment)} · Current #${String(assignment.currentPaceNumber)}`}
+      <View style={styles.alertPages}>
+        <Text style={styles.fieldLabel}>Children per page</Text>
+        {[5, 10, 20].map((size) => (
+          <MobileButton
+            compact
+            key={size}
+            label={String(size)}
             onPress={() => {
-              onSelect(assignment.subjectId);
+              setPageSize(size);
+              setPage(1);
             }}
+            variant={size === pageSize ? 'navy' : 'secondary'}
           />
         ))}
       </View>
@@ -215,6 +237,53 @@ export function InventoryOrderForm({
         onPress={onSubmit}
         variant="navy"
       />
+    </Card>
+  );
+}
+
+export function InventorySupplyStatus({
+  assignment,
+  student,
+  summary,
+}: {
+  assignment: InventoryAssignment | null;
+  student: InventoryStudent | null;
+  summary: InventorySummary;
+}) {
+  if (!assignment || !student) return null;
+  const supplied = availablePacesAhead(
+    assignment.currentPaceNumber,
+    summary.supply
+      .filter((row) => row.studentId === student.id && row.subjectId === assignment.subjectId)
+      .map((row) => row.paceNumber),
+  );
+  const pending = summary.orders.filter(
+    (row) =>
+      row.studentId === student.id &&
+      row.subjectId === assignment.subjectId &&
+      row.status !== 'Delivered' &&
+      row.paceNumber > assignment.currentPaceNumber,
+  );
+  return (
+    <Card style={styles.compactCard}>
+      <Text style={styles.cardTitle}>Current PACE #{String(assignment.currentPaceNumber)}</Text>
+      <Text style={styles.fieldLabel}>Available now</Text>
+      <MutedText>
+        {supplied.length > 0
+          ? supplied.map((paceNumber) => `#${String(paceNumber)}`).join(' · ')
+          : 'No future supply recorded'}
+      </MutedText>
+      <Text style={styles.fieldLabel}>Awaiting delivery</Text>
+      <MutedText>
+        {pending.length > 0
+          ? pending
+              .map(
+                (order) =>
+                  `#${String(order.paceNumber)} ${order.status === 'InTransit' ? 'in transit' : 'ordered'}`,
+              )
+              .join(' · ')
+          : 'No orders awaiting delivery'}
+      </MutedText>
     </Card>
   );
 }
@@ -379,27 +448,6 @@ export function InventoryDiagnosticCard({
   );
 }
 
-function OptionButton({
-  active,
-  label,
-  onPress,
-}: {
-  active: boolean;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={[styles.optionButton, active ? styles.optionButtonActive : null]}
-    >
-      <Text style={[styles.optionText, active ? styles.optionTextActive : null]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function SegmentButton({
   active,
   disabled,
@@ -429,6 +477,8 @@ function SegmentButton({
 }
 
 const styles = StyleSheet.create({
+  alertGroup: { borderColor: C.border, borderRadius: 8, borderWidth: 1, gap: 8, padding: 10 },
+  alertPages: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   alertPace: { color: C.warning, fontSize: 12, fontWeight: '900' },
   alertRow: {
     alignItems: 'flex-start',
@@ -455,19 +505,6 @@ const styles = StyleSheet.create({
   errorText: { color: C.danger },
   eyebrow: { color: C.blue, fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
   fieldLabel: { color: C.textSecondary, fontSize: 12, fontWeight: '800' },
-  optionButton: {
-    backgroundColor: C.bg,
-    borderColor: C.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  optionButtonActive: { backgroundColor: C.blueLight, borderColor: C.blue },
-  optionList: { gap: 8 },
-  optionText: { color: C.textSecondary, fontSize: 12, fontWeight: '800' },
-  optionTextActive: { color: C.navy },
   modalBackdrop: {
     backgroundColor: 'rgba(10, 18, 40, 0.6)',
     flex: 1,

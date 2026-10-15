@@ -6,6 +6,7 @@ import {
   deleteDiagnosticResultInput,
   diagnosticResultInput,
   markPaceOrdersInTransitInput,
+  markPaceOrdersDeliveredInput,
   PACE_CATALOGUE,
   paceInventoryOrderInput,
   paceInventoryStatusInput,
@@ -28,7 +29,8 @@ describe('academic inventory', () => {
     expect(availablePacesAhead(1010, [1009, 1010, 1011, 1012])).toEqual([1011, 1012]);
     expect(requiresPaceReorder(1010, [1011, 1012])).toBe(true);
     expect(requiresPaceReorder(1010, [1011, 1012, 1013])).toBe(false);
-    expect(requiresPaceReorder(1010, [])).toBe(false);
+    expect(requiresPaceReorder(1010, [])).toBe(true);
+    expect(requiresPaceReorder(1144, [])).toBe(false);
   });
 
   it('keeps diagnostics as validated Level 1–5 Pass/Fail reference records', () => {
@@ -86,6 +88,7 @@ describe('academic inventory', () => {
     });
     for (const orderIds of [[], [' '], ['order_1', 'order_1'], ['order_1', ' order_1 ']]) {
       expect(markPaceOrdersInTransitInput.safeParse({ orderIds }).success).toBe(false);
+      expect(markPaceOrdersDeliveredInput.safeParse({ orderIds }).success).toBe(false);
     }
   });
 });

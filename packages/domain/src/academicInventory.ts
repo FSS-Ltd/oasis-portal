@@ -9,6 +9,12 @@ export const ACE_SUBJECT_CODES = [
   'SCI',
   'ANSCI',
   'BIBLE',
+  'MA',
+  'EN',
+  'CWL',
+  'AS',
+  'BS',
+  'CUSTOM-WORD-BUILDING',
 ] as const;
 
 export const paceInventoryOrderStatus = z.enum(['Ordered', 'InTransit', 'Delivered']);
@@ -33,6 +39,8 @@ export const markPaceOrdersInTransitInput = z.object({
       }
     }),
 });
+
+export const markPaceOrdersDeliveredInput = markPaceOrdersInTransitInput;
 
 export const diagnosticOutcome = z.enum(['Pass', 'Fail']);
 
@@ -63,7 +71,7 @@ export function requiresPaceReorder(
   availablePaceNumbers: readonly number[],
 ): boolean {
   const remainingCount = availablePacesAhead(currentPaceNumber, availablePaceNumbers).length;
-  return remainingCount > 0 && remainingCount <= 2;
+  return currentPaceNumber < 1144 && remainingCount <= 2;
 }
 
 const studentPaceNumbersInput = z

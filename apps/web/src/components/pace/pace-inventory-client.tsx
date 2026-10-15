@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { PackagePlus, RefreshCw, Truck } from 'lucide-react';
+import { PackagePlus, Truck } from 'lucide-react';
 import { availablePacesAhead, PACE_CATALOGUE } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 import { api } from '@/lib/trpc';
@@ -15,7 +15,12 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
 import { PaceDiagnosticForm, type PaceDiagnosticSelection } from './pace-diagnostic-form';
 import { PaceGapPlanPanel } from './pace-gap-plan-panel';
-import { PaceInventoryOrderList } from './pace-inventory-order-list';
+import {
+  InventoryPagination,
+  PaceInventoryTabs,
+  type InventoryTab,
+} from './pace-inventory-navigation';
+import { PaceInventoryOrders } from './pace-inventory-orders';
 import {
   PaceInventoryOrderModal,
   type PaceInventoryOrderSubjectChoice,
@@ -99,7 +104,10 @@ function availableOrderPaces(
 
 export function PaceInventoryClient() {
   const utils = api.useUtils();
-  const summaryQuery = api.academicInventory.summary.useQuery(undefined, { retry: false });
+  const summaryQuery = api.academicInventory.summary.useQuery(
+    { includeHistory: false },
+    { retry: false },
+  );
   const [studentId, setStudentId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [paceSelection, setPaceSelection] = useState<PaceSelectionState>({
@@ -107,16 +115,20 @@ export function PaceInventoryClient() {
     paceNumbers: [],
   });
   const [pendingDiagnosticId, setPendingDiagnosticId] = useState<string | null>(null);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<InventoryTab>('attention');
+  const [alertPage, setAlertPage] = useState(1);
+  const [alertPageSize, setAlertPageSize] = useState(10);
+  const [diagnosticPage, setDiagnosticPage] = useState(1);
+  const [diagnosticPageSize, setDiagnosticPageSize] = useState(10);
   const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
   const [quickOrderTarget, setQuickOrderTarget] = useState<{ studentId: string } | null>(null);
   const quickOrderTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const diagnosticHistory = api.academicInventory.diagnosticsHistory.useQuery(
+    { page: diagnosticPage, pageSize: diagnosticPageSize },
+    { enabled: activeTab === 'diagnostics' && diagnosticTab === 'results', retry: false },
+  );
 
   const summary = summaryQuery.data;
-  const eligibleOrderIds = new Set(
-    summary?.orders.filter((order) => order.status === 'Ordered').map((order) => order.id) ?? [],
-  );
-  const selectedEligibleOrderIds = selectedOrderIds.filter((id) => eligibleOrderIds.has(id));
   const students = summary?.students ?? [];
   const student = selectedStudent(students, studentId);
   const assignment = selectedAssignment(student, subjectId);
@@ -143,7 +155,22 @@ export function PaceInventoryClient() {
         : [];
     },
   );
-  const groupedAlerts = groupAlertsByStudent(summary?.alerts ?? []);
+  const groupedAlerts = groupAlertsByStudent(summary?.alerts ?? []).sort((left, right) => {
+    const remainingDifference =
+      Math.min(...left.alerts.map((alert) => alert.remainingPaceCount)) -
+      Math.min(...right.alerts.map((alert) => alert.remainingPaceCount));
+    const leftName = students.find((row) => row.id === left.studentId)?.fullName ?? '';
+    const rightName = students.find((row) => row.id === right.studentId)?.fullName ?? '';
+    return (
+      remainingDifference ||
+      leftName.localeCompare(rightName) ||
+      left.studentId.localeCompare(right.studentId)
+    );
+  });
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(groupedAlerts.length / alertPageSize));
+    if (alertPage > lastPage) setAlertPage(lastPage);
+  }, [alertPage, alertPageSize, groupedAlerts.length]);
   const selectedStudentId = student?.id ?? '';
   const selectedSubjectId = assignment?.subjectId ?? '';
   const selectionContextKey = `${selectedStudentId}:${selectedSubjectId}:${String(
@@ -185,17 +212,11 @@ export function PaceInventoryClient() {
     );
   }, [selectionContextKey]);
 
-  useEffect(() => {
-    if (!summary) return;
-    const eligibleIds = new Set(
-      summary.orders.filter((order) => order.status === 'Ordered').map((order) => order.id),
-    );
-    setSelectedOrderIds((current) => current.filter((id) => eligibleIds.has(id)));
-  }, [summary]);
-
   async function invalidateInventory(): Promise<void> {
     await Promise.all([
       utils.academicInventory.summary.invalidate(),
+      utils.academicInventory.ordersForStudent.invalidate(),
+      utils.academicInventory.diagnosticsHistory.invalidate(),
       utils.pace.forStudent.invalidate(),
       utils.pace.roster.invalidate(),
       utils.student.dashboard.invalidate(),
@@ -225,26 +246,6 @@ export function PaceInventoryClient() {
       showErrorToast(error, 'PACE orders could not be created.');
     },
   });
-  const updateOrderStatus = api.academicInventory.updateOrderStatus.useMutation({
-    async onSuccess(_, input) {
-      showSuccessToast(`Order marked ${input.status}.`);
-      await invalidateInventory();
-    },
-    onError(error) {
-      showErrorToast(error, 'PACE order status could not be updated.');
-    },
-  });
-  const markOrdersInTransit = api.academicInventory.markOrdersInTransit.useMutation({
-    async onSuccess(result) {
-      setSelectedOrderIds([]);
-      showSuccessToast(`${String(result.count)} orders marked in transit.`);
-      await invalidateInventory();
-    },
-    onError(error) {
-      showErrorToast(error, 'PACE orders could not be marked in transit.');
-      void summaryQuery.refetch();
-    },
-  });
   const recordDiagnostic = api.academicInventory.recordDiagnostic.useMutation({
     async onSuccess() {
       showSuccessToast('Diagnostic result recorded.');
@@ -257,6 +258,7 @@ export function PaceInventoryClient() {
   const deleteDiagnostic = api.academicInventory.deleteDiagnostic.useMutation({
     async onSuccess() {
       setPendingDiagnosticId(null);
+      setDiagnosticPage(1);
       showSuccessToast('Diagnostic result deleted.');
       await invalidateInventory();
     },
@@ -407,99 +409,355 @@ export function PaceInventoryClient() {
 
   return (
     <div className="motion-page pace-inventory">
-      {summary && groupedAlerts.length > 0 ? (
-        <section
-          className="panel pace-inventory__alerts"
-          aria-labelledby="pace-inventory-alerts-title"
+      <PaceInventoryTabs
+        activeTab={activeTab}
+        attentionCount={groupedAlerts.length}
+        onChange={setActiveTab}
+      />
+      <div
+        aria-labelledby="pace-inventory-tab-attention"
+        hidden={activeTab !== 'attention'}
+        id="pace-inventory-panel-attention"
+        role="tabpanel"
+      >
+        {groupedAlerts.length > 0 ? (
+          <section
+            className="panel pace-inventory__alerts"
+            aria-labelledby="pace-inventory-alerts-title"
+          >
+            <div className="panel__body">
+              <div className="section-title">
+                <div>
+                  <h2 id="pace-inventory-alerts-title">Needs attention</h2>
+                  <p className="muted">
+                    Subjects with two or fewer future PACEs recorded in supply, including those
+                    awaiting delivery.
+                  </p>
+                </div>
+                <Badge tone="amber">
+                  {String(groupedAlerts.length)}{' '}
+                  {groupedAlerts.length === 1 ? 'student' : 'students'}
+                </Badge>
+              </div>
+              <div className="academic-list academic-list--compact">
+                {groupedAlerts
+                  .slice((alertPage - 1) * alertPageSize, alertPage * alertPageSize)
+                  .map((group) => {
+                    const alertStudent = students.find((row) => row.id === group.studentId);
+                    return (
+                      <div className="pace-inventory-alert-row" key={group.studentId}>
+                        <div className="pace-inventory-alert-row__details">
+                          <strong>{alertStudent?.fullName ?? 'Student'}</strong>
+                          <div
+                            aria-label="Subjects needing attention"
+                            className="pace-inventory-alert-row__subjects"
+                          >
+                            {group.alerts.map((alert) => {
+                              const alertAssignment = alertStudent?.subjects.find(
+                                (row) => row.subjectId === alert.subjectId,
+                              );
+                              return (
+                                <span
+                                  className="pace-inventory-alert-subject"
+                                  key={alert.subjectId}
+                                >
+                                  <span>{formatAssignment(alertAssignment ?? null)}</span>
+                                  <span>
+                                    {alert.remainingPaceCount === 0
+                                      ? 'No future supply recorded'
+                                      : `${formatPaceCount(alert.remainingPaceCount)} in supply`}
+                                  </span>
+                                  {alert.pendingOrders.length > 0 ? (
+                                    <span>
+                                      {alert.pendingOrders
+                                        .map(
+                                          (order) =>
+                                            `#${String(order.paceNumber)} ${order.status === 'InTransit' ? 'in transit' : 'ordered'}`,
+                                        )
+                                        .join(' · ')}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <Button
+                          aria-label={`Create order for ${alertStudent?.fullName ?? 'student'}`}
+                          onClick={(event) => {
+                            quickOrderTriggerRef.current = event.currentTarget;
+                            setQuickOrderTarget({
+                              studentId: group.studentId,
+                            });
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          <PackagePlus aria-hidden="true" size={14} />
+                          Create order
+                        </Button>
+                      </div>
+                    );
+                  })}
+              </div>
+              <InventoryPagination
+                label="Children needing PACEs"
+                onPageChange={setAlertPage}
+                onPageSizeChange={(size) => {
+                  setAlertPageSize(size);
+                  setAlertPage(1);
+                }}
+                page={alertPage}
+                pageSize={alertPageSize}
+                total={groupedAlerts.length}
+              />
+            </div>
+          </section>
+        ) : (
+          <EmptyState
+            title="No shortages"
+            detail="All recorded PACE supply is above the reorder threshold."
+          />
+        )}
+      </div>
+
+      <div
+        aria-labelledby="pace-inventory-tab-planner"
+        hidden={activeTab !== 'planner'}
+        id="pace-inventory-panel-planner"
+        role="tabpanel"
+      >
+        {students.length === 0 ? (
+          <EmptyState
+            detail="Create active students with assigned subjects before managing their PACE supply."
+            title="No students available"
+          />
+        ) : (
+          <>
+            <section
+              className="panel pace-inventory__planner"
+              aria-labelledby="pace-inventory-selection-title"
+            >
+              <div className="panel__body">
+                <div className="pace-inventory__planner-heading">
+                  <div>
+                    <p className="pace-inventory__eyebrow">Student PACE supply</p>
+                    <h2 id="pace-inventory-selection-title">Plan what this student needs next</h2>
+                    <p className="muted">
+                      Add PACEs already on hand, or create a tracking record for an order placed on
+                      the A.C.E. site.
+                    </p>
+                  </div>
+                </div>
+                <div className="form-grid form-grid--two">
+                  <Field label="Student">
+                    <SelectInput
+                      onChange={(event) => {
+                        chooseStudent(event.target.value);
+                      }}
+                      value={selectedStudentId}
+                    >
+                      {students.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.fullName} · {row.yearGroup}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                  <Field label="Assigned subject">
+                    <SelectInput
+                      disabled={!student || student.subjects.length === 0}
+                      onChange={(event) => {
+                        chooseSubject(event.target.value);
+                      }}
+                      value={selectedSubjectId}
+                    >
+                      {student?.subjects.map((row) => (
+                        <option key={row.subjectId} value={row.subjectId}>
+                          {formatAssignment(row)} · Current {paceLabel(row.currentPaceNumber)}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                {assignment ? (
+                  <div className="pace-inventory-summary" aria-live="polite">
+                    <div className="pace-inventory-summary__current">
+                      <span>Current PACE</span>
+                      <strong>{paceLabel(assignment.currentPaceNumber)}</strong>
+                    </div>
+                    <div>
+                      <span>Available now</span>
+                      {availableFutureSupply.length > 0 ? (
+                        <span className="pace-number-list">
+                          {availableFutureSupply.map((paceNumber) => (
+                            <span className="pace-number-list__chip" key={paceNumber}>
+                              {paceLabel(paceNumber)}
+                            </span>
+                          ))}
+                        </span>
+                      ) : (
+                        <strong>No future supply recorded</strong>
+                      )}
+                    </div>
+                    <div>
+                      <span>Awaiting delivery</span>
+                      {pendingOrderPaceNumbers.length > 0 ? (
+                        <span className="pace-number-list">
+                          {(summary?.orders ?? [])
+                            .filter(
+                              (order) =>
+                                order.studentId === selectedStudentId &&
+                                order.subjectId === selectedSubjectId &&
+                                order.status !== 'Delivered',
+                            )
+                            .map((order) => (
+                              <span className="pace-number-list__chip" key={order.id}>
+                                {paceLabel(order.paceNumber)} ·{' '}
+                                {order.status === 'InTransit' ? 'In transit' : 'Ordered'}
+                              </span>
+                            ))}
+                        </span>
+                      ) : (
+                        <strong>No orders awaiting delivery</strong>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="panel pace-inventory__planner pace-inventory__planner--selection">
+              <div className="panel__body">
+                {assignment ? (
+                  <PaceCataloguePicker
+                    availablePaceNumbers={availablePaceNumbers}
+                    currentPaceNumber={assignment.currentPaceNumber}
+                    disabled={isBulkMutationPending}
+                    onChange={(paceNumbers) => {
+                      setPaceSelection({ assignmentKey: selectionContextKey, paceNumbers });
+                    }}
+                    selectedPaceNumbers={selectedPaceNumbers}
+                    subjectLabel={`${student?.fullName ?? 'Selected student'} · ${formatAssignment(assignment)}`}
+                  />
+                ) : (
+                  <p className="field__hint">Choose an assigned subject to plan PACEs.</p>
+                )}
+                <div className="pace-inventory-actions">
+                  <Button
+                    disabled={!assignment || !hasSelection || isBulkMutationPending}
+                    onClick={addSelectedSupply}
+                    pending={addCurrentSupply.isPending}
+                    type="button"
+                  >
+                    <PackagePlus aria-hidden="true" size={16} />
+                    Add to current supply
+                  </Button>
+                  <Button
+                    disabled={!assignment || !hasSelection || isBulkMutationPending}
+                    onClick={createSelectedOrders}
+                    pending={createOrders.isPending}
+                    type="button"
+                    variant="secondary"
+                  >
+                    <Truck aria-hidden="true" size={16} />
+                    Create order
+                  </Button>
+                  <span className="field__hint">
+                    Current supply is ready to use now. Orders stay tracked until marked delivered.
+                  </span>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+      </div>
+
+      {activeTab === 'orders' ? (
+        <div
+          aria-labelledby="pace-inventory-tab-orders"
+          id="pace-inventory-panel-orders"
+          role="tabpanel"
         >
+          <PaceInventoryOrders
+            invalidateInventory={invalidateInventory}
+            refreshSummary={() => summaryQuery.refetch()}
+            summary={summary}
+          />
+        </div>
+      ) : null}
+
+      <div
+        aria-labelledby="pace-inventory-tab-diagnostics"
+        hidden={activeTab !== 'diagnostics'}
+        id="pace-inventory-panel-diagnostics"
+        role="tabpanel"
+      >
+        <section className="panel pace-inventory__secondary" aria-labelledby="diagnostics-title">
           <div className="panel__body">
             <div className="section-title">
               <div>
-                <h2 id="pace-inventory-alerts-title">Needs attention</h2>
+                <h2 id="diagnostics-title">Diagnostic Results</h2>
                 <p className="muted">
-                  Subjects with one or two future PACEs in supply and no open orders.
+                  For the Head&apos;s reference only; it never changes current PACE.
                 </p>
               </div>
-              <Badge tone="amber">
-                {String(groupedAlerts.length)} {groupedAlerts.length === 1 ? 'student' : 'students'}
-              </Badge>
             </div>
-            <div className="academic-list academic-list--compact">
-              {groupedAlerts.map((group) => {
-                const alertStudent = students.find((row) => row.id === group.studentId);
-                return (
-                  <div className="pace-inventory-alert-row" key={group.studentId}>
-                    <div className="pace-inventory-alert-row__details">
-                      <strong>{alertStudent?.fullName ?? 'Student'}</strong>
-                      <div
-                        aria-label="Subjects needing attention"
-                        className="pace-inventory-alert-row__subjects"
-                      >
-                        {group.alerts.map((alert) => {
-                          const alertAssignment = alertStudent?.subjects.find(
-                            (row) => row.subjectId === alert.subjectId,
-                          );
-                          return (
-                            <span className="pace-inventory-alert-subject" key={alert.subjectId}>
-                              <span>{formatAssignment(alertAssignment ?? null)}</span>
-                              <span>{formatPaceCount(alert.remainingPaceCount)} in supply</span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <Button
-                      aria-label={`Create order for ${alertStudent?.fullName ?? 'student'}`}
-                      onClick={(event) => {
-                        quickOrderTriggerRef.current = event.currentTarget;
-                        setQuickOrderTarget({
-                          studentId: group.studentId,
-                        });
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="secondary"
-                    >
-                      <PackagePlus aria-hidden="true" size={14} />
-                      Create order
-                    </Button>
-                  </div>
-                );
-              })}
+            <div
+              className="pace-gap-tabs"
+              role="tablist"
+              aria-label="Diagnostic results and gap PACE views"
+              onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const next = event.key === 'Home' || event.key === 'ArrowLeft' ? 'results' : 'gaps';
+                setDiagnosticTab(next);
+                document.getElementById(`diagnostic-tab-${next}`)?.focus();
+              }}
+            >
+              <button
+                id="diagnostic-tab-results"
+                type="button"
+                role="tab"
+                aria-selected={diagnosticTab === 'results'}
+                aria-controls="diagnostic-panel-results"
+                tabIndex={diagnosticTab === 'results' ? 0 : -1}
+                onClick={() => {
+                  setDiagnosticTab('results');
+                }}
+              >
+                Results
+              </button>
+              <button
+                id="diagnostic-tab-gaps"
+                type="button"
+                role="tab"
+                aria-selected={diagnosticTab === 'gaps'}
+                aria-controls="diagnostic-panel-gaps"
+                tabIndex={diagnosticTab === 'gaps' ? 0 : -1}
+                onClick={() => {
+                  setDiagnosticTab('gaps');
+                }}
+              >
+                Gap PACEs
+              </button>
             </div>
-          </div>
-        </section>
-      ) : null}
-
-      {students.length === 0 ? (
-        <EmptyState
-          detail="Create active students with assigned subjects before managing their PACE supply."
-          title="No students available"
-        />
-      ) : (
-        <>
-          <section
-            className="panel pace-inventory__planner"
-            aria-labelledby="pace-inventory-selection-title"
-          >
-            <div className="panel__body">
-              <div className="pace-inventory__planner-heading">
-                <div>
-                  <p className="pace-inventory__eyebrow">Student PACE supply</p>
-                  <h2 id="pace-inventory-selection-title">Plan what this student needs next</h2>
-                  <p className="muted">
-                    Add PACEs already on hand, or create a tracking record for an order placed on
-                    the A.C.E. site.
-                  </p>
-                </div>
-              </div>
+            <div
+              id="diagnostic-panel-results"
+              role="tabpanel"
+              aria-labelledby="diagnostic-tab-results"
+              tabIndex={0}
+              hidden={diagnosticTab !== 'results'}
+            >
               <div className="form-grid form-grid--two">
                 <Field label="Student">
                   <SelectInput
+                    value={selectedStudentId}
                     onChange={(event) => {
                       chooseStudent(event.target.value);
                     }}
-                    value={selectedStudentId}
                   >
                     {students.map((row) => (
                       <option key={row.id} value={row.id}>
@@ -510,11 +768,11 @@ export function PaceInventoryClient() {
                 </Field>
                 <Field label="Assigned subject">
                   <SelectInput
+                    value={selectedSubjectId}
                     disabled={!student || student.subjects.length === 0}
                     onChange={(event) => {
                       chooseSubject(event.target.value);
                     }}
-                    value={selectedSubjectId}
                   >
                     {student?.subjects.map((row) => (
                       <option key={row.subjectId} value={row.subjectId}>
@@ -524,262 +782,83 @@ export function PaceInventoryClient() {
                   </SelectInput>
                 </Field>
               </div>
-
-              {assignment ? (
-                <div className="pace-inventory-summary" aria-live="polite">
-                  <div className="pace-inventory-summary__current">
-                    <span>Current PACE</span>
-                    <strong>{paceLabel(assignment.currentPaceNumber)}</strong>
-                  </div>
-                  <div>
-                    <span>Available now</span>
-                    {availableFutureSupply.length > 0 ? (
-                      <span className="pace-number-list">
-                        {availableFutureSupply.map((paceNumber) => (
-                          <span className="pace-number-list__chip" key={paceNumber}>
-                            {paceLabel(paceNumber)}
-                          </span>
-                        ))}
-                      </span>
-                    ) : (
-                      <strong>No future PACEs currently supplied</strong>
-                    )}
-                  </div>
-                </div>
+              <PaceDiagnosticForm
+                disabled={!student || !assignment}
+                onSubmit={recordSelectedDiagnostic}
+                pending={recordDiagnostic.isPending}
+                selectionLabel={`${student?.fullName ?? 'Select a student'} · ${formatAssignment(assignment)}`}
+              />
+              <DataTable
+                columns={diagnosticColumns}
+                empty="No diagnostic results have been recorded yet."
+                getRowKey={(diagnostic) => diagnostic.id}
+                loading={diagnosticHistory.isLoading}
+                errorMessage={
+                  diagnosticHistory.error
+                    ? friendlyErrorMessage(diagnosticHistory.error)
+                    : undefined
+                }
+                rows={diagnosticHistory.data?.rows ?? []}
+              />
+              {diagnosticHistory.data ? (
+                <InventoryPagination
+                  label="Diagnostic results"
+                  onPageChange={setDiagnosticPage}
+                  onPageSizeChange={(size) => {
+                    setDiagnosticPageSize(size);
+                    setDiagnosticPage(1);
+                  }}
+                  page={diagnosticPage}
+                  pageSize={diagnosticPageSize}
+                  total={diagnosticHistory.data.totalRows}
+                />
               ) : null}
             </div>
-          </section>
-
-          <section className="panel pace-inventory__planner pace-inventory__planner--selection">
-            <div className="panel__body">
-              {assignment ? (
-                <PaceCataloguePicker
-                  availablePaceNumbers={availablePaceNumbers}
-                  currentPaceNumber={assignment.currentPaceNumber}
-                  disabled={isBulkMutationPending}
-                  onChange={(paceNumbers) => {
-                    setPaceSelection({ assignmentKey: selectionContextKey, paceNumbers });
-                  }}
-                  selectedPaceNumbers={selectedPaceNumbers}
-                  subjectLabel={`${student?.fullName ?? 'Selected student'} · ${formatAssignment(assignment)}`}
-                />
-              ) : (
-                <p className="field__hint">Choose an assigned subject to plan PACEs.</p>
-              )}
-              <div className="pace-inventory-actions">
-                <Button
-                  disabled={!assignment || !hasSelection || isBulkMutationPending}
-                  onClick={addSelectedSupply}
-                  pending={addCurrentSupply.isPending}
-                  type="button"
-                >
-                  <PackagePlus aria-hidden="true" size={16} />
-                  Add to current supply
-                </Button>
-                <Button
-                  disabled={!assignment || !hasSelection || isBulkMutationPending}
-                  onClick={createSelectedOrders}
-                  pending={createOrders.isPending}
-                  type="button"
-                  variant="secondary"
-                >
-                  <Truck aria-hidden="true" size={16} />
-                  Create order
-                </Button>
-                <span className="field__hint">
-                  Current supply is ready to use now. Orders stay tracked until marked delivered.
-                </span>
+            <div
+              id="diagnostic-panel-gaps"
+              role="tabpanel"
+              aria-labelledby="diagnostic-tab-gaps"
+              tabIndex={0}
+              hidden={diagnosticTab !== 'gaps'}
+            >
+              <div className="form-grid form-grid--two">
+                <Field label="Student">
+                  <SelectInput
+                    value={selectedStudentId}
+                    onChange={(event) => {
+                      chooseStudent(event.target.value);
+                    }}
+                  >
+                    {students.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.fullName} · {row.yearGroup}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </Field>
+                <Field label="Assigned subject">
+                  <SelectInput
+                    value={selectedSubjectId}
+                    disabled={!student || student.subjects.length === 0}
+                    onChange={(event) => {
+                      chooseSubject(event.target.value);
+                    }}
+                  >
+                    {student?.subjects.map((row) => (
+                      <option key={row.subjectId} value={row.subjectId}>
+                        {formatAssignment(row)} · Current {paceLabel(row.currentPaceNumber)}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </Field>
               </div>
-            </div>
-          </section>
-        </>
-      )}
-
-      <section className="panel pace-inventory__secondary" aria-labelledby="pace-orders-title">
-        <div className="panel__body">
-          <div className="section-title">
-            <div>
-              <h2 id="pace-orders-title">Tracked orders</h2>
-              <p className="muted">A record of PACEs ordered for each student and subject.</p>
-            </div>
-            <Button
-              onClick={() => {
-                void summaryQuery.refetch();
-              }}
-              pending={summaryQuery.isFetching}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              <RefreshCw aria-hidden="true" size={14} />
-              Refresh
-            </Button>
-          </div>
-          <PaceInventoryOrderList
-            bulkPending={markOrdersInTransit.isPending}
-            onAdvance={(order, status) => {
-              updateOrderStatus.mutate({ orderId: order.id, status });
-            }}
-            onMarkSelected={() => {
-              if (
-                selectedEligibleOrderIds.length === 0 ||
-                markOrdersInTransit.isPending ||
-                updateOrderStatus.isPending
-              )
-                return;
-              markOrdersInTransit.mutate({ orderIds: selectedEligibleOrderIds });
-            }}
-            onSelectionChange={setSelectedOrderIds}
-            orders={summary?.orders ?? []}
-            pending={markOrdersInTransit.isPending || updateOrderStatus.isPending}
-            selectedOrderIds={selectedEligibleOrderIds}
-            students={students}
-          />
-        </div>
-      </section>
-
-      <section className="panel pace-inventory__secondary" aria-labelledby="diagnostics-title">
-        <div className="panel__body">
-          <div className="section-title">
-            <div>
-              <h2 id="diagnostics-title">Diagnostic Results</h2>
-              <p className="muted">
-                For the Head&apos;s reference only; it never changes current PACE.
-              </p>
+              {activeTab === 'diagnostics' && diagnosticTab === 'gaps' ? (
+                <PaceGapPlanPanel studentId={selectedStudentId} subjectId={selectedSubjectId} />
+              ) : null}
             </div>
           </div>
-          <div
-            className="pace-gap-tabs"
-            role="tablist"
-            aria-label="Diagnostic results and gap PACE views"
-            onKeyDown={(event) => {
-              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-              event.preventDefault();
-              const next = event.key === 'Home' || event.key === 'ArrowLeft' ? 'results' : 'gaps';
-              setDiagnosticTab(next);
-              document.getElementById(`diagnostic-tab-${next}`)?.focus();
-            }}
-          >
-            <button
-              id="diagnostic-tab-results"
-              type="button"
-              role="tab"
-              aria-selected={diagnosticTab === 'results'}
-              aria-controls="diagnostic-panel-results"
-              tabIndex={diagnosticTab === 'results' ? 0 : -1}
-              onClick={() => {
-                setDiagnosticTab('results');
-              }}
-            >
-              Results
-            </button>
-            <button
-              id="diagnostic-tab-gaps"
-              type="button"
-              role="tab"
-              aria-selected={diagnosticTab === 'gaps'}
-              aria-controls="diagnostic-panel-gaps"
-              tabIndex={diagnosticTab === 'gaps' ? 0 : -1}
-              onClick={() => {
-                setDiagnosticTab('gaps');
-              }}
-            >
-              Gap PACEs
-            </button>
-          </div>
-          <div
-            id="diagnostic-panel-results"
-            role="tabpanel"
-            aria-labelledby="diagnostic-tab-results"
-            tabIndex={0}
-            hidden={diagnosticTab !== 'results'}
-          >
-            <div className="form-grid form-grid--two">
-              <Field label="Student">
-                <SelectInput
-                  value={selectedStudentId}
-                  onChange={(event) => {
-                    chooseStudent(event.target.value);
-                  }}
-                >
-                  {students.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.fullName} · {row.yearGroup}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-              <Field label="Assigned subject">
-                <SelectInput
-                  value={selectedSubjectId}
-                  disabled={!student || student.subjects.length === 0}
-                  onChange={(event) => {
-                    chooseSubject(event.target.value);
-                  }}
-                >
-                  {student?.subjects.map((row) => (
-                    <option key={row.subjectId} value={row.subjectId}>
-                      {formatAssignment(row)} · Current {paceLabel(row.currentPaceNumber)}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-            </div>
-            <PaceDiagnosticForm
-              disabled={!student || !assignment}
-              onSubmit={recordSelectedDiagnostic}
-              pending={recordDiagnostic.isPending}
-              selectionLabel={`${student?.fullName ?? 'Select a student'} · ${formatAssignment(assignment)}`}
-            />
-            <DataTable
-              columns={diagnosticColumns}
-              empty="No diagnostic results have been recorded yet."
-              getRowKey={(diagnostic) => diagnostic.id}
-              rows={summary?.diagnostics ?? []}
-            />
-          </div>
-          <div
-            id="diagnostic-panel-gaps"
-            role="tabpanel"
-            aria-labelledby="diagnostic-tab-gaps"
-            tabIndex={0}
-            hidden={diagnosticTab !== 'gaps'}
-          >
-            <div className="form-grid form-grid--two">
-              <Field label="Student">
-                <SelectInput
-                  value={selectedStudentId}
-                  onChange={(event) => {
-                    chooseStudent(event.target.value);
-                  }}
-                >
-                  {students.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.fullName} · {row.yearGroup}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-              <Field label="Assigned subject">
-                <SelectInput
-                  value={selectedSubjectId}
-                  disabled={!student || student.subjects.length === 0}
-                  onChange={(event) => {
-                    chooseSubject(event.target.value);
-                  }}
-                >
-                  {student?.subjects.map((row) => (
-                    <option key={row.subjectId} value={row.subjectId}>
-                      {formatAssignment(row)} · Current {paceLabel(row.currentPaceNumber)}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-            </div>
-            <PaceGapPlanPanel studentId={selectedStudentId} subjectId={selectedSubjectId} />
-          </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       {pendingDiagnosticId ? (
         <ConfirmationDialog
