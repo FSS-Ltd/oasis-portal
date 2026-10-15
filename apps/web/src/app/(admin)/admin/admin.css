@@ -13532,7 +13532,7 @@ button.library-book-card:focus-visible {
 .pace-inventory-orders__filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: flex-end;
   gap: 10px;
   margin-top: 16px;
 }

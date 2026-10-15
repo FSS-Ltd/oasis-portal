@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { PACE_CATALOGUE } from '@oasis/domain';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
+import { Card, ErrorText, InlineSpinner, MobileButton, MutedText } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import {
   AcademicInventoryHeading,
@@ -13,12 +14,13 @@ import {
   InventoryOrderForm,
   InventoryQuickOrderModal,
   InventoryStatusNotice,
-  InventoryStudentPicker,
-  InventorySubjectPicker,
+  InventorySupplyStatus,
   type DiagnosticLevel,
   type InventoryStatusMessage,
 } from './staff-academic-inventory-components';
+import { InventoryStudentPicker, InventorySubjectPicker } from './staff-academic-inventory-pickers';
 import { InventoryOrderList } from './staff-academic-inventory-order-list';
+import { InventoryDiagnosticHistory } from './staff-academic-inventory-history';
 import {
   canOpenAcademicInventory,
   diagnosticPlacementLabel,
@@ -33,6 +35,13 @@ type InventoryStudent = InventorySummary['students'][number];
 type InventoryAssignment = InventoryStudent['subjects'][number];
 type InventoryOrder = InventorySummary['orders'][number];
 type DiagnosticOutcome = 'Fail' | 'Pass';
+type InventoryTab = 'attention' | 'planner' | 'orders' | 'diagnostics';
+const inventoryTabs: Array<{ id: InventoryTab; label: string }> = [
+  { id: 'attention', label: 'Needs attention' },
+  { id: 'planner', label: 'Planner' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'diagnostics', label: 'Diagnostics' },
+];
 
 function friendlyError(error: unknown): string {
   return error instanceof Error ? error.message : 'Please try again.';
@@ -82,20 +91,30 @@ export function StaffAcademicInventoryScreen({
   const [diagnosticLevel, setDiagnosticLevel] = useState<DiagnosticLevel>(1);
   const [diagnosticOutcome, setDiagnosticOutcome] = useState<DiagnosticOutcome>('Pass');
   const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
-  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<InventoryTab>('attention');
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<InventoryStatusMessage | null>(null);
 
-  const summary = api.academicInventory.summary.useQuery(undefined, {
-    enabled: canAccess,
-    retry: false,
-  });
+  const summary = api.academicInventory.summary.useQuery(
+    { includeHistory: false },
+    {
+      enabled: canAccess,
+      retry: false,
+    },
+  );
   const students = summary.data?.students ?? [];
   const eligibleOrderIds = new Set(
-    summary.data?.orders.filter((order) => order.status === 'Ordered').map((order) => order.id) ??
-      [],
+    summary.data?.orders
+      .filter((order) => order.status !== 'Delivered' && PACE_CATALOGUE.includes(order.paceNumber))
+      .map((order) => order.id) ?? [],
   );
   const selectedEligibleOrderIds = selectedOrderIds.filter((id) => eligibleOrderIds.has(id));
+  const selectedTransitIds = selectedEligibleOrderIds.filter(
+    (id) => summary.data?.orders.find((order) => order.id === id)?.status === 'Ordered',
+  );
+  const selectedDeliveryIds = selectedEligibleOrderIds.filter(
+    (id) => summary.data?.orders.find((order) => order.id === id)?.status === 'InTransit',
+  );
   const selectedStudent = findStudent(students, selectedStudentId);
   const selectedAssignment = findAssignment(selectedStudent, selectedSubjectId);
   const quickOrderStudent = quickOrderTarget
@@ -110,7 +129,11 @@ export function StaffAcademicInventoryScreen({
   useEffect(() => {
     if (!summary.data) return;
     const eligibleIds = new Set(
-      summary.data.orders.filter((order) => order.status === 'Ordered').map((order) => order.id),
+      summary.data.orders
+        .filter(
+          (order) => order.status !== 'Delivered' && PACE_CATALOGUE.includes(order.paceNumber),
+        )
+        .map((order) => order.id),
     );
     setSelectedOrderIds((current) => current.filter((id) => eligibleIds.has(id)));
   }, [summary.data]);
@@ -118,6 +141,8 @@ export function StaffAcademicInventoryScreen({
   async function invalidateAcademicInventory() {
     await Promise.all([
       utils.academicInventory.summary.invalidate(),
+      utils.academicInventory.ordersForStudent.invalidate(),
+      utils.academicInventory.diagnosticsHistory.invalidate(),
       utils.student.dashboard.invalidate(),
       utils.pace.forStudent.invalidate(),
       utils.pace.roster.invalidate(),
@@ -150,9 +175,6 @@ export function StaffAcademicInventoryScreen({
       setStatusMessage({ message: `Order moved to ${variables.status}.`, tone: 'success' });
       await invalidateAcademicInventory();
     },
-    onSettled: () => {
-      setUpdatingOrderId(null);
-    },
   });
   const markOrdersInTransit = api.academicInventory.markOrdersInTransit.useMutation({
     onError: (error) => {
@@ -161,11 +183,30 @@ export function StaffAcademicInventoryScreen({
         tone: 'error',
       });
       void summary.refetch();
+      void utils.academicInventory.ordersForStudent.invalidate();
     },
-    onSuccess: async (result) => {
-      setSelectedOrderIds([]);
+    onSuccess: async (result, variables) => {
+      setSelectedOrderIds((current) => current.filter((id) => !variables.orderIds.includes(id)));
       setStatusMessage({
         message: `${String(result.count)} orders marked in transit.`,
+        tone: 'success',
+      });
+      await invalidateAcademicInventory();
+    },
+  });
+  const markOrdersDelivered = api.academicInventory.markOrdersDelivered.useMutation({
+    onError: (error) => {
+      setStatusMessage({
+        message: `Orders could not be marked delivered: ${friendlyError(error)}`,
+        tone: 'error',
+      });
+      void summary.refetch();
+      void utils.academicInventory.ordersForStudent.invalidate();
+    },
+    onSuccess: async (result, variables) => {
+      setSelectedOrderIds((current) => current.filter((id) => !variables.orderIds.includes(id)));
+      setStatusMessage({
+        message: `${String(result.count)} orders marked delivered.`,
         tone: 'success',
       });
       await invalidateAcademicInventory();
@@ -298,23 +339,40 @@ export function StaffAcademicInventoryScreen({
   }
 
   function advanceOrder(order: InventoryOrder) {
-    if (markOrdersInTransit.isPending || updateOrderStatus.isPending) return;
+    if (
+      markOrdersInTransit.isPending ||
+      markOrdersDelivered.isPending ||
+      updateOrderStatus.isPending
+    )
+      return;
     const status = nextOrderStatus(order.status);
     if (!status) return;
     setStatusMessage(null);
-    setUpdatingOrderId(order.id);
     updateOrderStatus.mutate({ orderId: order.id, status });
   }
 
   function markSelectedOrdersInTransit() {
     if (
-      selectedEligibleOrderIds.length === 0 ||
+      selectedTransitIds.length === 0 ||
       markOrdersInTransit.isPending ||
+      markOrdersDelivered.isPending ||
       updateOrderStatus.isPending
     )
       return;
     setStatusMessage(null);
-    markOrdersInTransit.mutate({ orderIds: selectedEligibleOrderIds });
+    markOrdersInTransit.mutate({ orderIds: selectedTransitIds });
+  }
+
+  function markSelectedOrdersDelivered() {
+    if (
+      selectedDeliveryIds.length === 0 ||
+      markOrdersInTransit.isPending ||
+      markOrdersDelivered.isPending ||
+      updateOrderStatus.isPending
+    )
+      return;
+    setStatusMessage(null);
+    markOrdersDelivered.mutate({ orderIds: selectedDeliveryIds });
   }
 
   const refreshing =
@@ -322,6 +380,7 @@ export function StaffAcademicInventoryScreen({
     createOrder.isPending ||
     updateOrderStatus.isPending ||
     markOrdersInTransit.isPending ||
+    markOrdersDelivered.isPending ||
     recordDiagnostic.isPending;
 
   return (
@@ -340,6 +399,35 @@ export function StaffAcademicInventoryScreen({
       />
       <View style={styles.content}>
         <AcademicInventoryHeading onBack={onBack} />
+        {canAccess ? (
+          <View
+            accessibilityLabel="PACE inventory sections"
+            accessibilityRole="tablist"
+            style={styles.mainTabs}
+          >
+            {inventoryTabs.map((tab) => (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: activeTab === tab.id }}
+                key={tab.id}
+                onPress={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id !== 'orders') setSelectedOrderIds([]);
+                }}
+                style={[styles.mainTab, activeTab === tab.id ? styles.mainTabSelected : null]}
+              >
+                <Text
+                  style={[
+                    styles.mainTabText,
+                    activeTab === tab.id ? styles.mainTabTextSelected : null,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         {!canAccess ? (
           <Card>
             <Text style={styles.cardTitle}>Access denied</Text>
@@ -361,7 +449,7 @@ export function StaffAcademicInventoryScreen({
             {summary.isLoading ? <InlineSpinner label="Loading PACE inventory" /> : null}
             {summary.error ? <ErrorText>{summary.error.message}</ErrorText> : null}
             {statusMessage ? <InventoryStatusNotice status={statusMessage} /> : null}
-            {summary.data ? (
+            {summary.data && activeTab === 'attention' ? (
               <InventoryAlerts onCreateOrder={openQuickOrder} summary={summary.data} />
             ) : null}
 
@@ -374,7 +462,7 @@ export function StaffAcademicInventoryScreen({
               </Card>
             ) : null}
 
-            {summary.data && students.length > 0 ? (
+            {summary.data && students.length > 0 && activeTab === 'planner' ? (
               <>
                 <InventoryStudentPicker
                   onSelect={chooseStudent}
@@ -385,6 +473,11 @@ export function StaffAcademicInventoryScreen({
                   assignments={selectedStudent?.subjects ?? []}
                   onSelect={chooseSubject}
                   selectedSubjectId={selectedAssignment?.subjectId ?? ''}
+                />
+                <InventorySupplyStatus
+                  assignment={selectedAssignment}
+                  student={selectedStudent}
+                  summary={summary.data}
                 />
                 <InventoryOrderForm
                   assignment={selectedAssignment}
@@ -399,16 +492,34 @@ export function StaffAcademicInventoryScreen({
                   student={selectedStudent}
                   submitted={orderSubmitted}
                 />
-                <InventoryOrderList
-                  bulkPending={markOrdersInTransit.isPending}
-                  orders={summary.data.orders}
-                  onAdvance={advanceOrder}
-                  onMarkSelected={markSelectedOrdersInTransit}
-                  onSelectionChange={setSelectedOrderIds}
-                  pending={markOrdersInTransit.isPending || updateOrderStatus.isPending}
-                  selectedOrderIds={selectedEligibleOrderIds}
+              </>
+            ) : null}
+            {summary.data && activeTab === 'orders' ? (
+              <InventoryOrderList
+                orders={summary.data.orders}
+                onAdvance={advanceOrder}
+                onSelectionChange={setSelectedOrderIds}
+                pending={
+                  markOrdersInTransit.isPending ||
+                  markOrdersDelivered.isPending ||
+                  updateOrderStatus.isPending
+                }
+                selectedOrderIds={selectedEligibleOrderIds}
+                students={students}
+                summary={summary.data}
+              />
+            ) : null}
+            {summary.data && students.length > 0 && activeTab === 'diagnostics' ? (
+              <>
+                <InventoryStudentPicker
+                  onSelect={chooseStudent}
+                  selectedStudentId={selectedStudent?.id ?? ''}
                   students={students}
-                  updatingOrderId={updatingOrderId}
+                />
+                <InventorySubjectPicker
+                  assignments={selectedStudent?.subjects ?? []}
+                  onSelect={chooseSubject}
+                  selectedSubjectId={selectedAssignment?.subjectId ?? ''}
                 />
                 <View
                   style={styles.diagnosticTabs}
@@ -451,6 +562,10 @@ export function StaffAcademicInventoryScreen({
                     student={selectedStudent}
                     submitted={diagnosticSubmitted}
                   />
+                  <InventoryDiagnosticHistory
+                    enabled={diagnosticTab === 'results'}
+                    students={students}
+                  />
                 </View>
                 <View style={diagnosticTab === 'gaps' ? undefined : styles.hidden}>
                   <StaffAcademicGapPlan
@@ -462,6 +577,41 @@ export function StaffAcademicInventoryScreen({
             ) : null}
           </ScrollView>
         )}
+        {canAccess &&
+        activeTab === 'orders' &&
+        (selectedEligibleOrderIds.length > 0 || statusMessage?.tone === 'error') ? (
+          <View style={styles.bulkFooter}>
+            <Text accessibilityLiveRegion="polite" style={styles.bulkCount}>
+              {String(selectedEligibleOrderIds.length)} orders selected
+            </Text>
+            <View style={styles.bulkActions}>
+              <MobileButton
+                label="Clear"
+                onPress={() => {
+                  setSelectedOrderIds([]);
+                }}
+                variant="secondary"
+              />
+              <MobileButton
+                disabled={selectedTransitIds.length === 0 || refreshing}
+                label={`Mark ${String(selectedTransitIds.length)} in transit`}
+                onPress={markSelectedOrdersInTransit}
+                variant="blue"
+              />
+              <MobileButton
+                disabled={selectedDeliveryIds.length === 0 || refreshing}
+                label={`Mark ${String(selectedDeliveryIds.length)} delivered`}
+                onPress={markSelectedOrdersDelivered}
+                variant="navy"
+              />
+            </View>
+            {statusMessage?.tone === 'error' ? (
+              <Text accessibilityRole="alert" style={styles.bulkError}>
+                {statusMessage.message}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
       <InventoryQuickOrderModal
         assignment={quickOrderAssignment}
@@ -484,8 +634,33 @@ export function StaffAcademicInventoryScreen({
 }
 
 const styles = StyleSheet.create({
+  bulkActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  bulkCount: { color: C.navy, fontSize: 13, fontWeight: '800' },
+  bulkError: { color: C.danger, fontSize: 12 },
+  bulkFooter: {
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12,
+  },
   cardTitle: { color: C.navy, fontSize: 14, fontWeight: '900' },
   content: { flex: 1, gap: 14, padding: 16 },
+  mainTab: {
+    alignItems: 'center',
+    borderColor: C.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    padding: 8,
+    width: '48%',
+  },
+  mainTabSelected: { backgroundColor: C.navy, borderColor: C.navy },
+  mainTabText: { color: C.navy, fontSize: 12, fontWeight: '700' },
+  mainTabTextSelected: { color: C.surface },
+  mainTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   diagnosticTabs: {
     flexDirection: 'row',
     gap: 4,

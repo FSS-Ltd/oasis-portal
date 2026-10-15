@@ -61,6 +61,8 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   const clientPath = path.join(webRoot, 'src/components/pace/pace-inventory-client.tsx');
   const diagnosticFormPath = path.join(webRoot, 'src/components/pace/pace-diagnostic-form.tsx');
   const orderListPath = path.join(webRoot, 'src/components/pace/pace-inventory-order-list.tsx');
+  const ordersPath = path.join(webRoot, 'src/components/pace/pace-inventory-orders.tsx');
+  const tabsPath = path.join(webRoot, 'src/components/pace/pace-inventory-navigation.tsx');
   const pickerPath = path.join(webRoot, 'src/components/pace/pace-catalogue-picker.tsx');
 
   assert.equal(existsSync(clientPath), true);
@@ -70,11 +72,13 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.equal(existsSync(pickerPath), true);
   const pickerSource = readFileSync(pickerPath, 'utf8');
   const orderListSource = readFileSync(orderListPath, 'utf8');
+  const ordersSource = readFileSync(ordersPath, 'utf8');
+  const tabsSource = readFileSync(tabsPath, 'utf8');
 
   assert.match(clientSource, /PaceCataloguePicker/);
   assert.match(clientSource, /api\.academicInventory\.addCurrentSupply\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.createOrders\.useMutation/);
-  assert.match(clientSource, /api\.academicInventory\.updateOrderStatus\.useMutation/);
+  assert.match(ordersSource, /api\.academicInventory\.updateOrderStatus\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.recordDiagnostic\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.deleteDiagnostic\.useMutation/);
   assert.match(clientSource, /PaceDiagnosticForm/);
@@ -93,17 +97,21 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
     /disabled=\{!assignment \|\| !hasSelection \|\| isBulkMutationPending\}/,
   );
   assert.match(clientSource, /PACE orders created\./);
-  assert.match(clientSource, /PaceInventoryOrderList/);
-  assert.match(clientSource, /api\.academicInventory\.markOrdersInTransit\.useMutation/);
-  assert.match(orderListSource, /Mark \{nextStatus\}/);
+  assert.match(clientSource, /PaceInventoryOrders/);
+  assert.match(ordersSource, /api\.academicInventory\.markOrdersInTransit\.useMutation/);
+  assert.match(ordersSource, /api\.academicInventory\.markOrdersDelivered\.useMutation/);
   assert.match(
-    orderListSource,
-    /PACE order is outside the supported range and cannot be delivered\./,
+    ordersSource,
+    /Select all \{String\(matchingEligibleIds\.length\)\} matching orders/,
   );
+  assert.match(ordersSource, /Mark \{String\(selectedDelivery\.length\)\} delivered/);
+  assert.match(tabsSource, /Needs attention/);
+  assert.match(tabsSource, /Planner/);
+  assert.match(tabsSource, /Orders/);
+  assert.match(tabsSource, /Diagnostics/);
+  assert.match(orderListSource, /nextStatus === 'InTransit'/);
   assert.match(orderListSource, /order\.status === 'Ordered'/);
-  assert.match(orderListSource, /Select all/);
-  assert.match(orderListSource, /indeterminate = mixed/);
-  assert.match(orderListSource, /Mark selected in transit/);
+  assert.match(orderListSource, /Select visible orders/);
   assert.match(pickerSource, /type="checkbox"/);
   assert.match(pickerSource, /availablePacesAhead\(currentPaceNumber, PACE_CATALOGUE\)/);
   assert.match(pickerSource, /slice\(0, visibleCount\)/);
@@ -166,7 +174,7 @@ test('Needs attention groups by child and lets the order modal select a subject'
   const modalSource = readWeb('src/components/pace/pace-inventory-order-modal.tsx');
   const pickerSource = readWeb('src/components/pace/pace-catalogue-picker.tsx');
 
-  assert.match(clientSource, /function groupAlertsByStudent\([\s\S]*groupedAlerts\.map\(/);
+  assert.match(clientSource, /function groupAlertsByStudent\([\s\S]*groupedAlerts\s*\.slice\(/);
   assert.match(clientSource, /setQuickOrderTarget\(\{[\s\S]*studentId: group\.studentId/);
   assert.match(modalSource, /onSubmit: \(subjectId: string, paceNumbers: number\[\]\)/);
   assert.match(modalSource, /<Field label="Subject">[\s\S]*<SelectInput/);
