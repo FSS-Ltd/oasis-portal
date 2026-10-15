@@ -9,6 +9,7 @@ import {
   INCIDENT_TYPES,
   assertIncidentTransition,
   canOverrideIncidentParentVisibility,
+  canUseComplianceAdminTag,
   canUseLinkedChildIncidentAccess,
   incidentParentCopyIsVisible,
   nextIncidentStatus,
@@ -27,7 +28,13 @@ import {
   decryptRequiredText,
   encryptOptionalText,
 } from '../lib/encrypted-text.js';
-import { authedProcedure, incidentReadProcedure, router } from '../trpc.js';
+import {
+  authedProcedure,
+  complianceAdminProcedure,
+  incidentReadProcedure,
+  incidentWriteProcedure as writeProcedure,
+  router,
+} from '../trpc.js';
 import { incidentSafeguardingNotesRouter } from './incident-safeguarding-notes.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -322,7 +329,7 @@ function assertOwnDraft(
       message: `only draft incidents can be ${action === 'submit' ? 'submitted' : `${action}d`}`,
     });
   }
-  if (report.recordedById !== user.id) {
+  if (report.recordedById !== user.id && !canUseComplianceAdminTag(user)) {
     throw toForbidden(new AccessDeniedError('only the report creator can manage draft incidents'));
   }
 }
@@ -684,7 +691,33 @@ const parentRecipientInclude = {
 
 export const incidentRouter = router({
   safeguardingNotes: incidentSafeguardingNotesRouter,
-  listStaffOptions: authedProcedure.query(async ({ ctx }) => {
+  actor: incidentReadProcedure.query(({ ctx }) => ({
+    id: ctx.user.id,
+    role: ctx.user.role,
+    tags: ctx.user.tags,
+  })),
+  listStudentOptions: complianceAdminProcedure.query(async ({ ctx }) => {
+    requireIncidentCreator(ctx.user);
+    const rows = await ctx.db.student.findMany({
+      where: { active: true },
+      select: { id: true, fullNameEnc: true, yearGroup: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: rows.length, source: 'incident.listStudentOptions' },
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      fullName: decryptRequired(ctx.db.$enc.decrypt, row.fullNameEnc, 'student PII'),
+      yearGroup: row.yearGroup,
+    }));
+  }),
+  listStaffOptions: writeProcedure.query(async ({ ctx }) => {
     requireIncidentCreator(ctx.user);
     const rows = await ctx.db.user.findMany({
       where: { active: true, role: { in: [...INCIDENT_STAFF_ROLES] } },
@@ -724,7 +757,7 @@ export const incidentRouter = router({
     return mapIncident(ctx, report);
   }),
 
-  createDraft: authedProcedure.input(incidentDraftInput).mutation(async ({ ctx, input }) => {
+  createDraft: writeProcedure.input(incidentDraftInput).mutation(async ({ ctx, input }) => {
     requireIncidentCreator(ctx.user);
     const draft = draftData(ctx, input);
     const created = await ctx.withRls(async (tx) => {
@@ -764,7 +797,7 @@ export const incidentRouter = router({
     return mapIncident(ctx, created);
   }),
 
-  updateDraft: authedProcedure.input(incidentUpdateInput).mutation(async ({ ctx, input }) => {
+  updateDraft: writeProcedure.input(incidentUpdateInput).mutation(async ({ ctx, input }) => {
     requireIncidentCreator(ctx.user);
     const draft = draftData(ctx, input);
     const updated = await ctx.withRls(async (tx) => {
@@ -803,7 +836,7 @@ export const incidentRouter = router({
     return mapIncident(ctx, updated);
   }),
 
-  submitForHeadReview: authedProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
+  submitForHeadReview: writeProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
     requireIncidentCreator(ctx.user);
     const updated = await ctx.withRls(async (tx) => {
       const report = await loadIncident(tx, input.reportId);
@@ -820,7 +853,7 @@ export const incidentRouter = router({
     return mapIncident(ctx, updated);
   }),
 
-  deleteDraft: authedProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
+  deleteDraft: writeProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
     requireIncidentCreator(ctx.user);
     const deleted = await ctx.withRls(async (tx) => {
       const report = await loadIncident(tx, input.reportId);
@@ -840,7 +873,7 @@ export const incidentRouter = router({
     return deleted;
   }),
 
-  signOff: authedProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
+  signOff: writeProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
     requireIncidentSignOff(ctx.user);
     const signedOffAt = new Date();
     const updated = await ctx.withRls(async (tx) => {
@@ -861,7 +894,7 @@ export const incidentRouter = router({
     return mapIncident(ctx, updated);
   }),
 
-  escalate: authedProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
+  escalate: writeProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
     requireIncidentEscalation(ctx.user);
     const escalatedAt = new Date();
     const updated = await ctx.withRls(async (tx) => {
@@ -882,7 +915,7 @@ export const incidentRouter = router({
     return mapIncident(ctx, updated);
   }),
 
-  generateParentCopy: authedProcedure.input(parentCopyInput).mutation(async ({ ctx, input }) => {
+  generateParentCopy: writeProcedure.input(parentCopyInput).mutation(async ({ ctx, input }) => {
     requireParentCopyShare(ctx.user);
     const report = await ctx.withRls((tx) => loadIncident(tx, input.reportId));
     assertParentVisibilityOverride(ctx.user, report, input.overrideVisibility);
@@ -968,7 +1001,7 @@ export const incidentRouter = router({
     return mapParentCopySummary(ctx, copy);
   }),
 
-  shareParentCopy: authedProcedure.input(shareParentCopyInput).mutation(async ({ ctx, input }) => {
+  shareParentCopy: writeProcedure.input(shareParentCopyInput).mutation(async ({ ctx, input }) => {
     requireParentCopyShare(ctx.user);
     const copy = await ctx.withRls(
       async (tx) =>
@@ -1079,7 +1112,7 @@ export const incidentRouter = router({
     };
   }),
 
-  prepareAttachments: authedProcedure.input(prepareAttachmentsInput).query(({ ctx, input }) => {
+  prepareAttachments: writeProcedure.input(prepareAttachmentsInput).query(({ ctx, input }) => {
     requireIncidentCreator(ctx.user);
     const bucket = process.env['SUPABASE_INCIDENT_ATTACHMENTS_BUCKET'] ?? 'incident-attachments';
     return {
@@ -1092,7 +1125,7 @@ export const incidentRouter = router({
     };
   }),
 
-  downloadAttachment: authedProcedure
+  downloadAttachment: writeProcedure
     .input(z.object({ attachmentId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       requireIncidentCreator(ctx.user);

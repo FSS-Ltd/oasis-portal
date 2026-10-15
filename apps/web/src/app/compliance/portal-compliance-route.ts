@@ -1,4 +1,4 @@
-import type { SessionUser } from '@oasis/domain';
+import { canUseComplianceAdminTag, type SessionUser } from '@oasis/domain';
 
 const portalRoutes = {
   admin: {
@@ -16,10 +16,11 @@ const portalRoutes = {
 } as const;
 
 export function portalComplianceRoute(
-  role: SessionUser['role'],
+  user: SessionUser,
   page: 'dbs-training' | 'medtab' | 'incidents',
 ) {
-  if (role === 'SafeguardingLead') return null;
+  if (canUseComplianceAdminTag(user) || user.role === 'SafeguardingLead') return null;
+  const role = user.role;
   if (page === 'incidents') {
     return role === 'Supervisor' ? '/supervisor/incidents' : '/admin/incidents';
   }

@@ -12,6 +12,7 @@ import {
   canViewIncidentReports,
   canUseCompliance,
   canViewCompliance,
+  canUseComplianceAdminTag,
   canUseClubsLeadPortal,
   canUseAdminOperations,
   isStaff,
@@ -77,6 +78,23 @@ export const authedProcedure = authenticatedProcedure.use(({ ctx, next }) => {
       code: 'FORBIDDEN',
       message: 'This role is limited to compliance pages.',
     });
+  }
+  return next();
+});
+
+export const complianceAdminProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== 'Head' && !canUseComplianceAdminTag(ctx.user)) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Compliance administration access required.',
+    });
+  }
+  return next();
+});
+
+export const incidentWriteProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role === 'SafeguardingLead' && !canUseComplianceAdminTag(ctx.user)) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Incident editing access required.' });
   }
   return next();
 });

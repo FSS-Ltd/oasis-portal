@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { splitSqlStatements } from '../../scripts/apply-rls.js';
 
 describe('splitSqlStatements', () => {
+  it('keeps the Compliance Admin migration and canonical policies in sync', () => {
+    const testDir = dirname(fileURLToPath(import.meta.url));
+    const migration = readFileSync(
+      resolve(testDir, '../../prisma/migrations/20261015100000_compliance_admin_tag/migration.sql'),
+      'utf8',
+    );
+    const canonical = readFileSync(resolve(testDir, '../../prisma/rls.sql'), 'utf8');
+    const statements = splitSqlStatements(migration);
+    expect(canonical.endsWith(migration)).toBe(true);
+    expect(statements.filter((statement) => statement.startsWith('CREATE POLICY'))).toHaveLength(
+      35,
+    );
+    expect(statements.filter((statement) => statement.startsWith('DROP POLICY'))).toHaveLength(35);
+  });
   it('ignores semicolons inside SQL comments', () => {
     const statements = splitSqlStatements(`
       -- Header comment with a semicolon; this must not split.

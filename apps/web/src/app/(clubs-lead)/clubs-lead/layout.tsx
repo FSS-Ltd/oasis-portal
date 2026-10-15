@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { canUseComplianceAdminTag } from '@oasis/domain';
 import { prisma } from '@oasis/db';
 import { getClubsLeadUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -79,6 +80,11 @@ export default async function ClubsLeadLayout({ children }: { children: ReactNod
         </div>
         <ClubsLeadNav />
         <div className="admin-shell__foot">
+          {canUseComplianceAdminTag(user) ? (
+            <Link className="admin-shell__nav-item" href="/compliance/dbs-training">
+              Compliance Admin
+            </Link>
+          ) : null}
           <span>Oasis Learning Centre</span>
           <LogoutButton />
         </div>
@@ -92,6 +98,11 @@ export default async function ClubsLeadLayout({ children }: { children: ReactNod
             title="Clubs Lead Portal"
           >
             <ClubsLeadNav />
+            {canUseComplianceAdminTag(user) ? (
+              <Link className="admin-shell__nav-item" href="/compliance/dbs-training">
+                Compliance Admin
+              </Link>
+            ) : null}
           </MobileSideMenu>
           <Link className="admin-shell__mobile-brand" href="/clubs-lead">
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />

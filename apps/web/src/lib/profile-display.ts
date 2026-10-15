@@ -38,6 +38,7 @@ const permissionTagLabels: Partial<Record<PermissionTag, string>> = {
   'parent-message-responder': 'Parent Message Responder',
   'club-lead': 'Activity Lead',
   librarian: 'Librarian',
+  'compliance-admin': 'Compliance Admin',
 };
 
 export function roleLabel(role: Role): string {

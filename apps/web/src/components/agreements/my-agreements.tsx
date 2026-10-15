@@ -190,7 +190,7 @@ function AgreementDetail({
           {feedback ? <p role="status">{feedback}</p> : null}
           <p>
             {row.signatureMethod === 'HeadRecorded'
-              ? 'Recorded as signed by Head'
+              ? 'Recorded as signed by administrator'
               : 'Signed electronically'}{' '}
             on{' '}
             {row.declaredSignedOn

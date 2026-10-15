@@ -195,10 +195,19 @@ function assertCanChangeUserTags(
   target: { active: boolean; id: string; role: Role; tags: readonly string[] },
   nextTags: readonly PermissionTag[],
 ) {
-  if (target.role === 'SafeguardingLead' && nextTags.length > 0) {
+  if (target.role === 'SafeguardingLead' && nextTags.some((tag) => tag !== 'compliance-admin')) {
     throw new TRPCError({
       code: 'BAD_REQUEST',
-      message: 'Safeguarding Lead cannot have permission tags',
+      message: 'Safeguarding Lead can only have the Compliance Admin tag',
+    });
+  }
+  if (
+    (target.role === 'Parent' || target.role === 'Student') &&
+    nextTags.includes('compliance-admin')
+  ) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Compliance Admin requires a staff account',
     });
   }
   if (isFullAdmin(actor)) {
@@ -229,10 +238,16 @@ function assertCanChangeUserTags(
 }
 
 function assertCanInviteUser(actor: SessionUser, role: Role, tags: readonly string[]) {
-  if (role === 'SafeguardingLead' && tags.length > 0) {
+  if (role === 'SafeguardingLead' && tags.some((tag) => tag !== 'compliance-admin')) {
     throw new TRPCError({
       code: 'BAD_REQUEST',
-      message: 'Safeguarding Lead cannot have permission tags',
+      message: 'Safeguarding Lead can only have the Compliance Admin tag',
+    });
+  }
+  if ((role === 'Parent' || role === 'Student') && tags.includes('compliance-admin')) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Compliance Admin requires a staff account',
     });
   }
   if (isFullAdmin(actor)) {
@@ -1313,9 +1328,13 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
         }
 
-        const clearTags = input.role === 'Parent' || input.role === 'SafeguardingLead';
-        const nextTags = clearTags ? [] : existingUser.tags;
-        const clearedTags = clearTags ? existingUser.tags : [];
+        const nextTags =
+          input.role === 'Parent'
+            ? []
+            : input.role === 'SafeguardingLead'
+              ? existingUser.tags.filter((tag) => tag === 'compliance-admin')
+              : existingUser.tags;
+        const clearedTags = existingUser.tags.filter((tag) => !nextTags.includes(tag));
 
         try {
           const user = await ctx.db.user.update({

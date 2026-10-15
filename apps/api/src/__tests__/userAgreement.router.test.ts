@@ -31,6 +31,20 @@ function recipientCaller(recipientId: string, openedAt: Date | null) {
 }
 
 describe('user agreement API boundary', () => {
+  it('allows tagged staff to use management procedures and rejects a tagged parent', async () => {
+    const db = { user: { findMany: () => Promise.resolve([]) } };
+    const tagged = (role: SessionUser['role']) =>
+      appRouter.createCaller(
+        makeTestContext({
+          db,
+          user: { id: 'user-1', role, tags: ['compliance-admin'], requires2fa: false },
+        }),
+      );
+    await expect(tagged('ClubsLead').userAgreement.people()).resolves.toEqual([]);
+    await expect(tagged('Parent').userAgreement.people()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
   it('restricts management to the Head', async () => {
     await expect(caller('Parent').userAgreement.people()).rejects.toMatchObject({
       code: 'FORBIDDEN',

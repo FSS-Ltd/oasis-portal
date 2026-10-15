@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { CheckCircle2, Send } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { PERMISSION_TAGS, ROLES } from '@oasis/domain';
+import { PERMISSION_TAGS, ROLES, canAssignPermissionTag } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { permissionTagLabel, roleLabel } from '@/lib/profile-display';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,8 @@ export function InviteUserForm() {
     handleSubmit,
     register,
     reset,
+    setValue,
+    watch,
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -46,6 +48,7 @@ export function InviteUserForm() {
       tag: '',
     },
   });
+  const selectedRole = watch('role');
 
   return (
     <form
@@ -73,7 +76,13 @@ export function InviteUserForm() {
             <TextInput autoComplete="email" type="email" {...register('email')} />
           </Field>
           <Field error={errors.role?.message} label="Role">
-            <SelectInput {...register('role')}>
+            <SelectInput
+              {...register('role', {
+                onChange: () => {
+                  setValue('tag', '');
+                },
+              })}
+            >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
                   {roleLabel(role)}
@@ -86,11 +95,13 @@ export function InviteUserForm() {
           <Field error={errors.tag?.message} label="Permission tag">
             <SelectInput {...register('tag')}>
               <option value="">No extra tag</option>
-              {PERMISSION_TAGS.map((tag) => (
-                <option key={tag} value={tag}>
-                  {permissionTagLabel(tag)}
-                </option>
-              ))}
+              {PERMISSION_TAGS.filter((tag) => canAssignPermissionTag(selectedRole, tag)).map(
+                (tag) => (
+                  <option key={tag} value={tag}>
+                    {permissionTagLabel(tag)}
+                  </option>
+                ),
+              )}
             </SelectInput>
           </Field>
         </div>

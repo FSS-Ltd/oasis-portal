@@ -668,6 +668,18 @@ const draftInput = {
 };
 
 describe('incident router', () => {
+  it('limits the expanded student selector to compliance administrators', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+    await expect(caller.incident.listStudentOptions()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    const tagged = createIncidentCaller(db, {
+      ...safeguardingLeadUser,
+      tags: ['compliance-admin'],
+    });
+    await expect(tagged.incident.listStudentOptions()).resolves.toEqual([
+      expect.objectContaining({ id: 's_child_1', fullName: 'Joshua Johnson' }),
+      expect.objectContaining({ id: 's_child_2', fullName: 'Amelia Carter' }),
+    ]);
+  });
   it('lets the safeguarding lead read reports without changing them', async () => {
     const { caller, db } = makeCaller(supervisorUser);
     const draft = await caller.incident.createDraft(draftInput);
@@ -756,6 +768,24 @@ describe('incident router', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(headCaller.incident.deleteDraft({ reportId: draft.id })).rejects.toMatchObject({
       code: 'FORBIDDEN',
+    });
+  });
+
+  it('lets a tagged lead manage another creator’s draft and sign it off', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+    const draft = await caller.incident.createDraft(draftInput);
+    const taggedLead = createIncidentCaller(db, {
+      ...safeguardingLeadUser,
+      tags: ['compliance-admin'],
+    });
+    await expect(
+      taggedLead.incident.updateDraft({ ...draftInput, reportId: draft.id, location: 'Office' }),
+    ).resolves.toMatchObject({ location: 'Office' });
+    await expect(
+      taggedLead.incident.submitForHeadReview({ reportId: draft.id }),
+    ).resolves.toMatchObject({ status: 'HeadReview' });
+    await expect(taggedLead.incident.signOff({ reportId: draft.id })).resolves.toMatchObject({
+      status: 'SignedOff',
     });
   });
 

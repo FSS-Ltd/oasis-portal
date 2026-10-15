@@ -24,6 +24,17 @@ const user = (role: SessionUser['role']): SessionUser => ({
 });
 
 describe('incident role gates', () => {
+  it('grants tagged staff every incident workflow capability, then revokes it', () => {
+    const actor = { ...user('ClubsLead'), tags: ['compliance-admin'] };
+    expect(canCreateIncidentReport(actor)).toBe(true);
+    expect(canViewIncidentReports(actor)).toBe(true);
+    expect(canSignOffIncidentReport(actor)).toBe(true);
+    expect(canEscalateIncidentReport(actor)).toBe(true);
+    expect(canShareIncidentParentCopy(actor)).toBe(true);
+    expect(canOverrideIncidentParentVisibility(actor)).toBe(true);
+    expect(canCreateIncidentReport({ ...actor, tags: [] })).toBe(false);
+    expect(canSignOffIncidentReport({ ...user('Parent'), tags: ['compliance-admin'] })).toBe(false);
+  });
   it('allows supervisors and full admins to record incident reports', () => {
     expect(canCreateIncidentReport(user('Supervisor'))).toBe(true);
     expect(canCreateIncidentReport(user('Head'))).toBe(true);

@@ -1,6 +1,7 @@
 import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import type { ReactNode } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
@@ -13,6 +14,7 @@ import {
   canManageLibrary,
   canUseAdminOperations,
   canViewCompliance,
+  canUseComplianceAdminTag,
   canUseClubLeadAccess,
   canUsePersonalTasks,
   canRespondToParentMessages,
@@ -165,6 +167,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         </div>
         <AdminSidebarNav {...adminNavProps} />
         <div className="admin-shell__foot">
+          {canUseComplianceAdminTag(user) ? (
+            <Link className="admin-shell__nav-item" href="/compliance/dbs-training">
+              Compliance Admin
+            </Link>
+          ) : null}
           <span>Oasis Learning Centre</span>
           <LogoutButton />
         </div>
@@ -178,6 +185,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             title="Supervisor Portal"
           >
             <AdminSidebarNav {...adminNavProps} />
+            {canUseComplianceAdminTag(user) ? (
+              <Link className="admin-shell__nav-item" href="/compliance/dbs-training">
+                Compliance Admin
+              </Link>
+            ) : null}
           </MobileSideMenu>
           <a className="admin-shell__mobile-brand" href={homeHref}>
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />

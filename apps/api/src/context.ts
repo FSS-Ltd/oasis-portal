@@ -3,12 +3,12 @@
  *
  * Resolves a Clerk session to a local `SessionUser`, and exposes `withRls` which
  * runs Prisma calls inside a transaction with `app.user_id` / `app.user_role` /
- * `app.full_admin` session vars set so the policies in `packages/db/prisma/rls.sql`
+ * `app.full_admin` / `app.compliance_admin` session vars set so the policies in `packages/db/prisma/rls.sql`
  * fire. When no session is present, RLS denies by default (vars cleared).
  */
 import { Prisma, prisma } from '@oasis/db';
 import type { PrismaClient } from '@oasis/db';
-import { isFullAdmin, type Role, type SessionUser } from '@oasis/domain';
+import { canUseComplianceAdminTag, isFullAdmin, type Role, type SessionUser } from '@oasis/domain';
 import { logOperationalEvent } from './lib/observability.js';
 import { reconcileClerkUser } from './routers/clerkWebhook.js';
 
@@ -132,11 +132,13 @@ export function applyRlsTx<T>(
   const userId = user?.id ?? '';
   const role: string = user?.role ?? '';
   const fullAdmin = user ? (isFullAdmin(user) ? 'true' : 'false') : '';
+  const complianceAdmin = user && canUseComplianceAdminTag(user) ? 'true' : 'false';
   return client.$transaction(
     async (tx: RlsTx) => {
       await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
       await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
       await tx.$executeRaw`SELECT set_config('app.full_admin', ${fullAdmin}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.compliance_admin', ${complianceAdmin}, true)`;
       return fn(tx);
     },
     { maxWait: RLS_TRANSACTION_MAX_WAIT_MS },
@@ -144,12 +146,7 @@ export function applyRlsTx<T>(
 }
 
 function isSerializationConflict(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === 'P2034'
-  );
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2034';
 }
 
 /**
@@ -164,6 +161,7 @@ export async function applySerializableRlsTx<T>(
   const userId = user?.id ?? '';
   const role: string = user?.role ?? '';
   const fullAdmin = user ? (isFullAdmin(user) ? 'true' : 'false') : '';
+  const complianceAdmin = user && canUseComplianceAdminTag(user) ? 'true' : 'false';
 
   for (let attempt = 1; attempt <= SERIALIZABLE_TRANSACTION_ATTEMPTS; attempt += 1) {
     try {
@@ -172,6 +170,7 @@ export async function applySerializableRlsTx<T>(
           await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
           await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
           await tx.$executeRaw`SELECT set_config('app.full_admin', ${fullAdmin}, true)`;
+          await tx.$executeRaw`SELECT set_config('app.compliance_admin', ${complianceAdmin}, true)`;
           return fn(tx);
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

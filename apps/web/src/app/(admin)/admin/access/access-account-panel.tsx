@@ -3,7 +3,12 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Mail, MapPin, Phone, Save, ShieldCheck, UserCheck, UserX } from 'lucide-react';
-import { ADULT_USER_ACCOUNT_ROLES, PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
+import {
+  ADULT_USER_ACCOUNT_ROLES,
+  PERMISSION_TAGS,
+  canAssignPermissionTag,
+  type PermissionTag,
+} from '@oasis/domain';
 import type { AdultComplianceBadgeSummary } from '@oasis/domain';
 import { ComplianceBadges } from '@/components/compliance/compliance-badges';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
@@ -328,35 +333,37 @@ export function AccessAccountPanel({
               </div>
             </div>
             <div className="tag-toggle-list">
-              {PERMISSION_TAGS.map((tag) => {
-                const checked = account.tags.includes(tag);
-                return (
-                  <label className={checked ? 'tag-toggle is-checked' : 'tag-toggle'} key={tag}>
-                    <input
-                      checked={checked}
-                      disabled={
-                        !account.active ||
-                        account.role === 'SafeguardingLead' ||
-                        updateTags.isPending
-                      }
-                      onChange={() => {
-                        updateTags.mutate({
-                          userId: account.id,
-                          tags: togglePermissionTag(account.tags, tag),
-                        });
-                      }}
-                      type="checkbox"
-                    />
-                    <ShieldCheck aria-hidden="true" size={14} />
-                    <span>{permissionTagLabel(tag)}</span>
-                  </label>
-                );
-              })}
+              {PERMISSION_TAGS.filter((tag) => canAssignPermissionTag(account.role, tag)).map(
+                (tag) => {
+                  const checked = account.tags.includes(tag);
+                  return (
+                    <label className={checked ? 'tag-toggle is-checked' : 'tag-toggle'} key={tag}>
+                      <input
+                        checked={checked}
+                        disabled={
+                          !account.active ||
+                          (account.role === 'SafeguardingLead' && tag !== 'compliance-admin') ||
+                          updateTags.isPending
+                        }
+                        onChange={() => {
+                          updateTags.mutate({
+                            userId: account.id,
+                            tags: togglePermissionTag(account.tags, tag),
+                          });
+                        }}
+                        type="checkbox"
+                      />
+                      <ShieldCheck aria-hidden="true" size={14} />
+                      <span>{permissionTagLabel(tag)}</span>
+                    </label>
+                  );
+                },
+              )}
             </div>
             {account.role === 'SafeguardingLead' ? (
               <p className="muted">
-                Safeguarding Lead access is limited to the compliance pages and has no permission
-                tags.
+                Safeguarding Lead access is limited to compliance pages; only the Compliance Admin
+                tag is available.
               </p>
             ) : null}
             {!account.active ? (

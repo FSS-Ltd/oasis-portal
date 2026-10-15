@@ -18,6 +18,7 @@ const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
 type CountRow = { count: bigint };
 type RuntimeSession = {
+  complianceAdmin?: boolean;
   fullAdmin: boolean;
   role: string;
   userId: string;
@@ -87,6 +88,7 @@ async function withRuntimeSession<T>(
     await tx.$executeRaw`SELECT set_config('app.user_id', ${session.userId}, true)`;
     await tx.$executeRaw`SELECT set_config('app.user_role', ${session.role}, true)`;
     await tx.$executeRaw`SELECT set_config('app.full_admin', ${String(session.fullAdmin)}, true)`;
+    await tx.$executeRaw`SELECT set_config('app.compliance_admin', ${String(session.complianceAdmin ?? false)}, true)`;
 
     return run(tx);
   });
@@ -205,6 +207,68 @@ async function assertPersonalTaskIsolation(client: PrismaClient): Promise<void> 
   }
 }
 
+async function assertComplianceAdminCapability(client: PrismaClient): Promise<void> {
+  const staff = { fullAdmin: false, role: 'Supervisor', userId: 'ci-sup-author' };
+  const tagged = { ...staff, complianceAdmin: true };
+  const updateCompliance = (session: RuntimeSession) =>
+    withRuntimeSession(
+      client,
+      session,
+      (tx) =>
+        tx.$executeRaw`UPDATE "AdultCompliance" SET "firstAidLevel" = 'Level 2' WHERE "userId" = 'ci-sup-other'`,
+    );
+  assertVisibleCount({
+    actual: await updateCompliance(staff),
+    expected: 0,
+    label: 'untagged compliance update',
+  });
+  assertVisibleCount({
+    actual: await updateCompliance(tagged),
+    expected: 1,
+    label: 'tagged compliance update',
+  });
+
+  const updateDraft = (session: RuntimeSession) =>
+    withRuntimeSession(
+      client,
+      session,
+      (tx) =>
+        tx.$executeRaw`UPDATE "IncidentReport" SET "locationEnc" = 'updated' WHERE "id" = 'ci-incident-other'`,
+    );
+  assertVisibleCount({
+    actual: await updateDraft(staff),
+    expected: 0,
+    label: 'untagged cross-author draft update',
+  });
+  assertVisibleCount({
+    actual: await updateDraft(tagged),
+    expected: 1,
+    label: 'tagged cross-author draft update',
+  });
+
+  const agreementCount = (session: RuntimeSession) =>
+    withRuntimeSession(client, session, (tx) =>
+      tx.userAgreement.count({ where: { id: 'ci-agreement' } }),
+    );
+  assertVisibleCount({
+    actual: await agreementCount(staff),
+    expected: 0,
+    label: 'untagged agreement read',
+  });
+  assertVisibleCount({
+    actual: await agreementCount(tagged),
+    expected: 1,
+    label: 'tagged agreement read',
+  });
+
+  const unrelatedTasks = await countVisiblePersonalTasks(client, tagged);
+  assertVisibleCount({
+    actual: unrelatedTasks,
+    expected: 1,
+    label: 'tagged personal task isolation',
+  });
+}
+
 async function main() {
   const runtimePrisma = new PrismaClient({
     datasources: {
@@ -255,6 +319,39 @@ async function main() {
       )
     `;
 
+    await withRuntimeSession(
+      prisma,
+      { fullAdmin: true, role: 'Head', userId: 'ci-head' },
+      async (tx) => {
+        await tx.adultCompliance.create({ data: { userId: 'ci-sup-other' } });
+        await tx.userAgreement.create({
+          data: {
+            id: 'ci-agreement',
+            titleEnc: encryptField('CI Agreement'),
+            kind: 'UserAgreement',
+            createdById: 'ci-head',
+          },
+        });
+      },
+    );
+    await withRuntimeSession(
+      prisma,
+      { fullAdmin: false, role: 'Supervisor', userId: 'ci-sup-other' },
+      (tx) =>
+        tx.incidentReport.create({
+          data: {
+            id: 'ci-incident-other',
+            reportNumber: 'CI-INCIDENT-1',
+            type: 'AccidentFirstAid',
+            severity: 'Low',
+            occurredAt: new Date(),
+            locationEnc: encryptField('Medical room'),
+            factualAccountEnc: encryptField('First aid given'),
+            recordedById: 'ci-sup-other',
+          },
+        }),
+    );
+
     await insertPersonalTask(
       runtimePrisma,
       { fullAdmin: true, role: 'Head', userId: 'ci-head' },
@@ -274,6 +371,7 @@ async function main() {
       'Other task',
     );
     await assertPersonalTaskIsolation(runtimePrisma);
+    await assertComplianceAdminCapability(runtimePrisma);
 
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.user_id', 'ci-head', true)`;
@@ -374,7 +472,7 @@ async function main() {
     assertVisibleCount({ actual: otherTasks, expected: 1, label: 'other personal tasks' });
 
     console.warn(
-      'RLS smoke passed: sensitive behaviour rules and owner-only personal task access are enforced.',
+      'RLS smoke passed: sensitive behaviour, personal tasks, and Compliance Admin access are enforced.',
     );
   } finally {
     await runtimePrisma.$disconnect();

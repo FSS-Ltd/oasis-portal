@@ -16,4 +16,12 @@ describe('personal task RLS smoke coverage', () => {
     expect(source).toContain('cross-owner personal task insert');
     expect(source).toContain('cross-owner personal task update');
   });
+
+  it('checks tagged compliance and incident writes without broadening unrelated task access', () => {
+    const source = readFileSync(smokePath, 'utf8');
+    expect(source).toContain('assertComplianceAdminCapability(runtimePrisma)');
+    expect(source).toContain('untagged cross-author draft update');
+    expect(source).toContain('tagged agreement read');
+    expect(source).toContain('tagged personal task isolation');
+  });
 });

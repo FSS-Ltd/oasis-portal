@@ -1075,6 +1075,26 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     });
   });
 
+  it('lets an account administrator grant Compliance Admin to staff but not family accounts', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'staff',
+      role: 'ClubsLead',
+      tags: [],
+      active: true,
+    });
+    db.user.update.mockResolvedValue({ id: 'staff', tags: ['compliance-admin'] });
+    const { caller } = makeCaller(technicalSupportUser, { db });
+    await expect(
+      caller.admin.updateUserTags({ userId: 'staff', tags: ['compliance-admin'] }),
+    ).resolves.toEqual({ id: 'staff', tags: ['compliance-admin'] });
+    db.user.findUnique.mockResolvedValue({ id: 'family', role: 'Parent', tags: [], active: true });
+    await expect(
+      caller.admin.updateUserTags({ userId: 'family', tags: ['compliance-admin'] }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.user.update).toHaveBeenCalledTimes(1);
+  });
+
   it('lets Head change another adult user role and preserves staff tags', async () => {
     const db = makeFakeDb();
     db.user.findUnique.mockResolvedValue({
@@ -1804,6 +1824,19 @@ describe('admin.listUserAccounts and account support updates', () => {
 });
 
 describe('admin.inviteUser', () => {
+  it('rejects Compliance Admin invitations for family accounts', async () => {
+    const { caller, createInvitation } = makeCaller(technicalSupportUser);
+    for (const role of ['Parent', 'Student'] as const) {
+      await expect(
+        caller.admin.inviteUser({
+          email: 'family@example.com',
+          role,
+          tags: ['compliance-admin'],
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    }
+    expect(createInvitation).not.toHaveBeenCalled();
+  });
   it('rejects non-account-admin callers as FORBIDDEN and writes nothing', async () => {
     const { caller, db, createInvitation, sendEmail } = makeCaller(supervisorUser);
     await expect(

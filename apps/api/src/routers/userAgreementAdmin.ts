@@ -22,10 +22,10 @@ import {
   requestFor,
   signedEvidence,
 } from '../services/user-agreement-records.js';
-import { roleProcedure, router } from '../trpc.js';
+import { complianceAdminProcedure, router } from '../trpc.js';
 
 export const userAgreementAdminRouter = router({
-  people: roleProcedure('Head').query(async ({ ctx }) => {
+  people: complianceAdminProcedure.query(async ({ ctx }) => {
     const users = await ctx.db.user.findMany({
       where: { active: true, role: { not: 'Student' } },
       select: { id: true, role: true, fullNameEnc: true },
@@ -39,7 +39,7 @@ export const userAgreementAdminRouter = router({
       .sort((a, b) => a.name.localeCompare(b.name));
   }),
 
-  documents: roleProcedure('Head').query(async ({ ctx }) => {
+  documents: complianceAdminProcedure.query(async ({ ctx }) => {
     const docs = await ctx.withRls((tx) =>
       tx.userAgreement.findMany({
         include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
@@ -55,120 +55,118 @@ export const userAgreementAdminRouter = router({
     }));
   }),
 
-  create: roleProcedure('Head')
-    .input(createInput)
-    .mutation(async ({ ctx, input }) => {
-      if (!input.fileName.toLowerCase().endsWith('.pdf')) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose a PDF file.' });
-      }
-      if (input.status === 'Signed' && (input.recipientIds.length !== 1 || !input.signedOn)) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'A signed upload needs one recipient and a signing date.',
-        });
-      }
-      const recipients = await recipientsFor(ctx, input.recipientIds);
-      const bytes = bytesFromBase64(input.pdfBase64);
-      await validateAgreementPdf(bytes);
-      const originalSha256 = sha256(bytes);
-      const storagePath = await storeAgreementPdf(bytes, 'originals');
-      const requestIds = input.recipientIds.map(() => randomUUID());
-      const recipient = recipients[0];
-      const firstRequestId = requestIds[0];
-      if (!firstRequestId) throw new Error('Agreement recipient is missing.');
-      const manualSignature =
-        input.status === 'Signed' && recipient
-          ? await signedEvidence(ctx, {
-              requestId: firstRequestId,
-              recipientId: recipient.id,
-              actorId: ctx.user.id,
-              typedName: ctx.db.$enc.decrypt(recipient.fullNameEnc),
-              method: 'HeadRecorded',
-              openedAt: null,
-              declaredSignedOn: input.signedOn ?? null,
-              originalSha256,
-              receiptSource: bytes,
-              manualSourcePath: null,
-            })
-          : null;
-      const result = await ctx.withRls(async (tx) => {
-        const agreement = input.agreementId
-          ? await tx.userAgreement.findUnique({ where: { id: input.agreementId } })
-          : await tx.userAgreement.create({
-              data: {
-                titleEnc: ctx.db.$enc.encrypt(input.title),
-                kind: input.kind,
-                createdById: ctx.user.id,
-              },
-            });
-        if (!agreement || agreement.kind !== input.kind) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'Selected agreement is unavailable.',
-          });
-        }
-        const latest = await tx.userAgreementVersion.findFirst({
-          where: { agreementId: agreement.id },
-          orderBy: { version: 'desc' },
-          select: { version: true },
-        });
-        const version = await tx.userAgreementVersion.create({
-          data: {
-            agreementId: agreement.id,
-            version: (latest?.version ?? 0) + 1,
-            originalFileNameEnc: ctx.db.$enc.encrypt(input.fileName),
-            storagePath,
-            sha256: originalSha256,
-          },
-        });
-        await tx.userAgreementRequest.updateMany({
-          where: {
-            status: 'NeedsSigning',
-            version: { agreementId: agreement.id },
-          },
-          data: { status: 'Superseded', supersededAt: new Date() },
-        });
-        for (const [index, userId] of input.recipientIds.entries()) {
-          const requestId = requestIds[index];
-          if (!requestId) throw new Error('Agreement recipient is missing.');
-          await tx.userAgreementRequest.create({
+  create: complianceAdminProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+    if (!input.fileName.toLowerCase().endsWith('.pdf')) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose a PDF file.' });
+    }
+    if (input.status === 'Signed' && (input.recipientIds.length !== 1 || !input.signedOn)) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'A signed upload needs one recipient and a signing date.',
+      });
+    }
+    const recipients = await recipientsFor(ctx, input.recipientIds);
+    const bytes = bytesFromBase64(input.pdfBase64);
+    await validateAgreementPdf(bytes);
+    const originalSha256 = sha256(bytes);
+    const storagePath = await storeAgreementPdf(bytes, 'originals');
+    const requestIds = input.recipientIds.map(() => randomUUID());
+    const recipient = recipients[0];
+    const firstRequestId = requestIds[0];
+    if (!firstRequestId) throw new Error('Agreement recipient is missing.');
+    const manualSignature =
+      input.status === 'Signed' && recipient
+        ? await signedEvidence(ctx, {
+            requestId: firstRequestId,
+            recipientId: recipient.id,
+            actorId: ctx.user.id,
+            typedName: ctx.db.$enc.decrypt(recipient.fullNameEnc),
+            method: 'HeadRecorded',
+            openedAt: null,
+            declaredSignedOn: input.signedOn ?? null,
+            originalSha256,
+            receiptSource: bytes,
+            manualSourcePath: null,
+          })
+        : null;
+    const result = await ctx.withRls(async (tx) => {
+      const agreement = input.agreementId
+        ? await tx.userAgreement.findUnique({ where: { id: input.agreementId } })
+        : await tx.userAgreement.create({
             data: {
-              id: requestId,
-              versionId: version.id,
-              recipientId: userId,
-              status: input.status,
-              ...(input.status === 'NeedsSigning' ? { delivery: { create: {} } } : {}),
-              ...(manualSignature ? { signature: { create: manualSignature } } : {}),
+              titleEnc: ctx.db.$enc.encrypt(input.title),
+              kind: input.kind,
+              createdById: ctx.user.id,
             },
           });
-        }
-        await tx.auditLog.create({
+      if (!agreement || agreement.kind !== input.kind) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Selected agreement is unavailable.',
+        });
+      }
+      const latest = await tx.userAgreementVersion.findFirst({
+        where: { agreementId: agreement.id },
+        orderBy: { version: 'desc' },
+        select: { version: true },
+      });
+      const version = await tx.userAgreementVersion.create({
+        data: {
+          agreementId: agreement.id,
+          version: (latest?.version ?? 0) + 1,
+          originalFileNameEnc: ctx.db.$enc.encrypt(input.fileName),
+          storagePath,
+          sha256: originalSha256,
+        },
+      });
+      await tx.userAgreementRequest.updateMany({
+        where: {
+          status: 'NeedsSigning',
+          version: { agreementId: agreement.id },
+        },
+        data: { status: 'Superseded', supersededAt: new Date() },
+      });
+      for (const [index, userId] of input.recipientIds.entries()) {
+        const requestId = requestIds[index];
+        if (!requestId) throw new Error('Agreement recipient is missing.');
+        await tx.userAgreementRequest.create({
           data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'UserAgreement',
-            entityId: agreement.id,
-            meta: { versionId: version.id, recipientCount: input.recipientIds.length },
+            id: requestId,
+            versionId: version.id,
+            recipientId: userId,
+            status: input.status,
+            ...(input.status === 'NeedsSigning' ? { delivery: { create: {} } } : {}),
+            ...(manualSignature ? { signature: { create: manualSignature } } : {}),
           },
         });
-        return { agreementId: agreement.id, versionId: version.id, requestIds };
-      });
-      if (input.status === 'NeedsSigning') {
-        try {
-          await deliverUserAgreementRequests(requestIds);
-        } catch (error) {
-          logOperationalEvent({
-            event: 'user_agreement.immediate_email_failed',
-            level: 'error',
-            message: 'Agreement emails queued for retry',
-            meta: { errorType: error instanceof Error ? error.name : 'unknown' },
-          });
-        }
       }
-      return result;
-    }),
+      await tx.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'UserAgreement',
+          entityId: agreement.id,
+          meta: { versionId: version.id, recipientCount: input.recipientIds.length },
+        },
+      });
+      return { agreementId: agreement.id, versionId: version.id, requestIds };
+    });
+    if (input.status === 'NeedsSigning') {
+      try {
+        await deliverUserAgreementRequests(requestIds);
+      } catch (error) {
+        logOperationalEvent({
+          event: 'user_agreement.immediate_email_failed',
+          level: 'error',
+          message: 'Agreement emails queued for retry',
+          meta: { errorType: error instanceof Error ? error.name : 'unknown' },
+        });
+      }
+    }
+    return result;
+  }),
 
-  assign: roleProcedure('Head')
+  assign: complianceAdminProcedure
     .input(
       z.object({
         versionId: z.string().min(1),
@@ -231,60 +229,58 @@ export const userAgreementAdminRouter = router({
       return { requestIds: ids };
     }),
 
-  register: roleProcedure('Head')
-    .input(filterInput)
-    .query(async ({ ctx, input }) => {
-      const userMatches = input.search
-        ? (await ctx.db.user.findMany({ select: { id: true, fullNameEnc: true } }))
-            .filter((user) =>
-              ctx.db.$enc
-                .decrypt(user.fullNameEnc)
-                .toLowerCase()
-                .includes(input.search.toLowerCase()),
-            )
-            .map((user) => user.id)
-        : null;
-      const where = {
-        ...(userMatches ? { recipientId: { in: userMatches } } : {}),
-        ...(input.role ? { recipient: { role: input.role } } : {}),
-        ...(input.status ? { status: input.status } : {}),
-        ...(input.kind ? { version: { agreement: { kind: input.kind } } } : {}),
-      };
-      const [total, rows] = await ctx.withRls(async (tx) =>
-        Promise.all([
-          tx.userAgreementRequest.count({ where }),
-          tx.userAgreementRequest.findMany({
-            where,
-            include: {
-              recipient: { select: { fullNameEnc: true, role: true } },
-              version: { include: { agreement: true } },
-              signature: { include: { signedBy: { select: { fullNameEnc: true } } } },
-              delivery: true,
-            },
-            orderBy: { createdAt: 'desc' },
-            skip: (input.page - 1) * pageSize,
-            take: pageSize,
-          }),
-        ]),
-      );
-      return {
-        total,
-        page: input.page,
-        pageSize,
-        rows: rows.map((row) => ({
-          ...mapRequest(ctx, row),
-          name: ctx.db.$enc.decrypt(row.recipient.fullNameEnc),
-          role: row.recipient.role,
-          emailAttempts: row.delivery?.attempts ?? 0,
-          recordedByName:
-            row.signature?.method === 'HeadRecorded'
-              ? ctx.db.$enc.decrypt(row.signature.signedBy.fullNameEnc)
-              : null,
-        })),
-      };
-    }),
+  register: complianceAdminProcedure.input(filterInput).query(async ({ ctx, input }) => {
+    const userMatches = input.search
+      ? (await ctx.db.user.findMany({ select: { id: true, fullNameEnc: true } }))
+          .filter((user) =>
+            ctx.db.$enc
+              .decrypt(user.fullNameEnc)
+              .toLowerCase()
+              .includes(input.search.toLowerCase()),
+          )
+          .map((user) => user.id)
+      : null;
+    const where = {
+      ...(userMatches ? { recipientId: { in: userMatches } } : {}),
+      ...(input.role ? { recipient: { role: input.role } } : {}),
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.kind ? { version: { agreement: { kind: input.kind } } } : {}),
+    };
+    const [total, rows] = await ctx.withRls(async (tx) =>
+      Promise.all([
+        tx.userAgreementRequest.count({ where }),
+        tx.userAgreementRequest.findMany({
+          where,
+          include: {
+            recipient: { select: { fullNameEnc: true, role: true } },
+            version: { include: { agreement: true } },
+            signature: { include: { signedBy: { select: { fullNameEnc: true } } } },
+            delivery: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (input.page - 1) * pageSize,
+          take: pageSize,
+        }),
+      ]),
+    );
+    return {
+      total,
+      page: input.page,
+      pageSize,
+      rows: rows.map((row) => ({
+        ...mapRequest(ctx, row),
+        name: ctx.db.$enc.decrypt(row.recipient.fullNameEnc),
+        role: row.recipient.role,
+        emailAttempts: row.delivery?.attempts ?? 0,
+        recordedByName:
+          row.signature?.method === 'HeadRecorded'
+            ? ctx.db.$enc.decrypt(row.signature.signedBy.fullNameEnc)
+            : null,
+      })),
+    };
+  }),
 
-  recordSigned: roleProcedure('Head')
+  recordSigned: complianceAdminProcedure
     .input(
       idInput.extend({
         fileName: z.string().trim().min(1),
@@ -344,7 +340,7 @@ export const userAgreementAdminRouter = router({
       return mapRequest(ctx, await requestFor(ctx, request.id));
     }),
 
-  retryEmail: roleProcedure('Head')
+  retryEmail: complianceAdminProcedure
     .input(idInput.extend({ reviewedAmbiguousOutcome: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }) => {
       const request = await requestFor(ctx, input.requestId);
