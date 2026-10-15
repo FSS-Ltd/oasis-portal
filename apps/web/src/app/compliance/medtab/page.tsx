@@ -5,7 +5,7 @@ import { portalComplianceRoute } from '../portal-compliance-route';
 
 export default async function MedTabPage() {
   const user = await getComplianceUser();
-  const portalRoute = portalComplianceRoute(user.role, 'medtab');
+  const portalRoute = portalComplianceRoute(user, 'medtab');
   if (portalRoute) redirect(portalRoute);
   return <MedTabClient />;
 }

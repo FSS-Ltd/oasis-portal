@@ -66,7 +66,7 @@ export function RegisterEntry({ row, onChange }: { row: RegisterRow; onChange: (
         <td>{row.status === 'NeedsSigning' ? 'Needs signing' : row.status}</td>
         <td>
           {row.signatureMethod === 'HeadRecorded'
-            ? 'Recorded as signed by Head'
+            ? 'Recorded as signed by administrator'
             : (row.signatureMethod ?? '—')}
           {row.recordedByName && row.signedAt ? (
             <small>

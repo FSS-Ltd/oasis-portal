@@ -6,8 +6,11 @@ import {
   updateAdultComplianceInput,
 } from '../compliance.js';
 import {
+  canAssignPermissionTag,
+  canUseAdminOperations,
   canManageCalendar,
   canUseCompliance,
+  canUseComplianceAdminTag,
   canViewCompliance,
   canUseLinkedChildGuardianAccess,
   isStaff,
@@ -38,6 +41,23 @@ const emptyRecord = {
 } as const;
 
 describe('safeguarding lead access', () => {
+  it('grants the tag to staff accounts and rejects family accounts', () => {
+    for (const role of ['Supervisor', 'ClubsLead', 'SafeguardingLead'] as const) {
+      const actor = { role, tags: ['compliance-admin'] };
+      expect(canUseComplianceAdminTag(actor)).toBe(true);
+      expect(canUseCompliance(actor)).toBe(true);
+      expect(canUseCompliance({ role, tags: [] })).toBe(role === 'SafeguardingLead');
+    }
+    for (const role of ['Parent', 'Student'] as const) {
+      expect(canAssignPermissionTag(role, 'compliance-admin')).toBe(false);
+      expect(canUseComplianceAdminTag({ role, tags: ['compliance-admin'] })).toBe(false);
+      expect(canUseCompliance({ role, tags: ['compliance-admin'] })).toBe(false);
+    }
+    expect(canAssignPermissionTag('SafeguardingLead', 'compliance-admin')).toBe(true);
+    expect(canAssignPermissionTag('SafeguardingLead', 'audit-viewer')).toBe(false);
+    const taggedLead = { role: 'ClubsLead' as const, tags: ['compliance-admin'] };
+    expect(canUseAdminOperations(taggedLead)).toBe(false);
+  });
   it('routes the role to compliance without inheriting staff or parent access', () => {
     expect(canUseCompliance(lead)).toBe(true);
     expect(canViewCompliance(lead)).toBe(true);

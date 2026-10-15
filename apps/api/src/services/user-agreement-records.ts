@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { ROLES, type Role } from '@oasis/domain';
+import { canUseComplianceAdminTag, ROLES, type Role } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
   AGREEMENT_ACKNOWLEDGEMENT,
@@ -77,7 +77,12 @@ export async function requestFor(
       include: { version: { include: { agreement: true } }, signature: true, delivery: true },
     }),
   );
-  if (!request || (ctx.user.role !== 'Head' && request.recipientId !== ctx.user.id)) {
+  if (
+    !request ||
+    (ctx.user.role !== 'Head' &&
+      !canUseComplianceAdminTag(ctx.user) &&
+      request.recipientId !== ctx.user.id)
+  ) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'Agreement not found.' });
   }
   return request;
@@ -167,7 +172,7 @@ export async function signedEvidence(
     signatureId,
     signerName: input.typedName,
     signedAt,
-    method: input.method === 'Portal' ? 'Signed electronically' : 'Recorded by Head',
+    method: input.method === 'Portal' ? 'Signed electronically' : 'Recorded by administrator',
   });
   const completedSha256 = sha256(completed);
   const evidence: AgreementEvidence = {

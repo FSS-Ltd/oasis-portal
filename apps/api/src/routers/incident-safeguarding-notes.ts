@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { canUseComplianceAdminTag } from '@oasis/domain';
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { incidentReadProcedure, router } from '../trpc.js';
 
@@ -8,7 +9,11 @@ const addNoteInput = reportInput.extend({ body: z.string().trim().min(1).max(300
 
 export const incidentSafeguardingNotesRouter = router({
   list: incidentReadProcedure.input(reportInput).query(async ({ ctx, input }) => {
-    if (ctx.user.role !== 'Head' && ctx.user.role !== 'SafeguardingLead') {
+    if (
+      ctx.user.role !== 'Head' &&
+      ctx.user.role !== 'SafeguardingLead' &&
+      !canUseComplianceAdminTag(ctx.user)
+    ) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Safeguarding notes access required.' });
     }
     const notes = await ctx.withRls(async (tx) => {
@@ -40,7 +45,7 @@ export const incidentSafeguardingNotesRouter = router({
   }),
 
   add: incidentReadProcedure.input(addNoteInput).mutation(async ({ ctx, input }) => {
-    if (ctx.user.role !== 'SafeguardingLead') {
+    if (ctx.user.role !== 'SafeguardingLead' && !canUseComplianceAdminTag(ctx.user)) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'Safeguarding Lead access required.' });
     }
     const note = await ctx.withRls(async (tx) => {

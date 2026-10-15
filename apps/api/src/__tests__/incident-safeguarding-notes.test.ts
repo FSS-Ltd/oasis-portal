@@ -61,6 +61,19 @@ function makeCaller(session: SessionUser, db: ReturnType<typeof makeDb>) {
 }
 
 describe('safeguarding lead notes', () => {
+  it('allows a tagged staff member to add and read notes', async () => {
+    const db = makeDb();
+    const tagged = { ...user('ClubsLead'), tags: ['compliance-admin'] };
+    await expect(
+      makeCaller(tagged, db).safeguardingNotes.add({ reportId: 'report-1', body: 'Follow up.' }),
+    ).resolves.toEqual({ id: 'note-1' });
+    await expect(
+      makeCaller(tagged, db).safeguardingNotes.list({ reportId: 'report-1' }),
+    ).resolves.toHaveLength(1);
+    await expect(
+      makeCaller(user('ClubsLead'), db).safeguardingNotes.list({ reportId: 'report-1' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
   it('encrypts appended notes and lets the Head read them', async () => {
     const db = makeDb();
     await expect(

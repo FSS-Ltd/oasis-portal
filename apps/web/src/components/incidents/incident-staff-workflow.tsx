@@ -19,7 +19,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { displaySchoolYearLabel } from '@oasis/domain';
+import { canUseComplianceAdminTag, displaySchoolYearLabel } from '@oasis/domain';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import {
   BehaviourStudentSelector,
@@ -733,22 +733,26 @@ function ParentCopyPanel({
 }
 
 function IncidentDetail({
+  canEditIncident,
   canManageDraft,
+  canApprove,
+  canWriteNotes,
   canOverrideParentVisibility,
   showLeadNotes,
   onClose,
   onDeleteDraft,
   onEditDraft,
-  portal,
   report,
 }: {
+  canEditIncident: boolean;
   canManageDraft: boolean;
+  canApprove: boolean;
+  canWriteNotes: boolean;
   canOverrideParentVisibility: boolean;
   showLeadNotes: boolean;
   onClose: () => void;
   onDeleteDraft: (report: StaffIncident) => void;
   onEditDraft: (report: StaffIncident) => void;
-  portal: StaffIncidentWorkflowProps['portal'];
   report: StaffIncident;
 }) {
   const utils = api.useUtils();
@@ -847,7 +851,7 @@ function IncidentDetail({
             </div>
           </div>
         </div>
-        {portal !== 'compliance' ? (
+        {canEditIncident ? (
           <div className="incident-detail__actions">
             {canManageDraft ? (
               <>
@@ -884,7 +888,7 @@ function IncidentDetail({
             >
               Submit for Head review
             </Button>
-            {portal === 'admin' ? (
+            {canApprove ? (
               <>
                 <Button
                   disabled={report.status !== 'HeadReview' && report.status !== 'Escalated'}
@@ -916,8 +920,8 @@ function IncidentDetail({
       </Panel>
       {showLeadNotes ? (
         <IncidentSafeguardingNotes
-          canWrite={portal === 'compliance' && report.status !== 'Draft'}
-          isDraft={portal === 'compliance' && report.status === 'Draft'}
+          canWrite={canWriteNotes && report.status !== 'Draft'}
+          isDraft={canWriteNotes && report.status === 'Draft'}
           key={report.id}
           reportId={report.id}
         />
@@ -926,7 +930,7 @@ function IncidentDetail({
         <h3>Report details</h3>
         <IncidentReportDetail report={report} />
       </Panel>
-      {portal === 'admin' ? (
+      {canApprove ? (
         <ParentCopyPanel
           canOverrideParentVisibility={canOverrideParentVisibility}
           report={report}
@@ -937,7 +941,9 @@ function IncidentDetail({
 }
 
 export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
-  const readOnly = portal === 'compliance';
+  const actor = api.incident.actor.useQuery();
+  const taggedAdmin = actor.data ? canUseComplianceAdminTag(actor.data) : false;
+  const readOnly = portal === 'compliance' && !taggedAdmin;
   const [mode, setMode] = useState<'dashboard' | 'form'>('dashboard');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -945,8 +951,15 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
   const [deleteDraftReport, setDeleteDraftReport] = useState<StaffIncident | null>(null);
   const [form, setForm] = useState<IncidentFormState>(defaultIncidentForm);
   const incidents = api.incident.listStaff.useQuery();
-  const profile = api.profile.me.useQuery(undefined, { enabled: !readOnly, retry: false });
-  const students = api.student.list.useQuery(undefined, { enabled: !readOnly, retry: false });
+  const ordinaryStudents = api.student.list.useQuery(undefined, {
+    enabled: Boolean(actor.data) && !readOnly && !taggedAdmin,
+    retry: false,
+  });
+  const complianceStudents = api.incident.listStudentOptions.useQuery(undefined, {
+    enabled: !readOnly && taggedAdmin,
+    retry: false,
+  });
+  const students = taggedAdmin ? complianceStudents : ordinaryStudents;
   const staff = api.incident.listStaffOptions.useQuery(undefined, {
     enabled: !readOnly,
     retry: false,
@@ -1023,7 +1036,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
     [staff.data],
   );
   const selected = selectedId ? (rows.find((report) => report.id === selectedId) ?? null) : null;
-  const parentVisibilityAllowed = parentVisibilityRoles.has(profile.data?.role ?? '');
+  const parentVisibilityAllowed = taggedAdmin || parentVisibilityRoles.has(actor.data?.role ?? '');
   const savePending = createDraft.isPending || updateDraft.isPending;
   const stats = {
     escalated: (incidents.data ?? []).filter((report) => report.status === 'Escalated').length,
@@ -1245,19 +1258,21 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
           </Panel>
           {selected ? (
             <IncidentDetail
+              canEditIncident={!readOnly}
               canManageDraft={
                 !readOnly &&
                 selected.status === 'Draft' &&
-                selected.recordedById === profile.data?.id
+                (taggedAdmin || selected.recordedById === actor.data?.id)
               }
               canOverrideParentVisibility={parentVisibilityAllowed}
-              showLeadNotes={portal === 'compliance' || profile.data?.role === 'Head'}
+              showLeadNotes={portal === 'compliance' || actor.data?.role === 'Head' || taggedAdmin}
+              canApprove={portal === 'admin' || taggedAdmin}
+              canWriteNotes={portal === 'compliance' || taggedAdmin}
               onClose={() => {
                 setSelectedId(null);
               }}
               onDeleteDraft={setDeleteDraftReport}
               onEditDraft={startEditDraft}
-              portal={portal}
               report={selected}
             />
           ) : null}

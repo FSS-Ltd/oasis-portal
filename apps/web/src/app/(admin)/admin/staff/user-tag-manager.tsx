@@ -2,7 +2,7 @@
 
 import { roleLabel } from '@/lib/profile-display';
 
-import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
+import { PERMISSION_TAGS, canAssignPermissionTag, type PermissionTag } from '@oasis/domain';
 import { ShieldCheck } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { AdultNameBadges } from '@/components/compliance/adult-name-badges';
@@ -54,7 +54,7 @@ export function UserTagManager() {
       header: 'Permission tags',
       render: (user) => (
         <div className="tag-toggle-list">
-          {PERMISSION_TAGS.map((tag) => {
+          {PERMISSION_TAGS.filter((tag) => canAssignPermissionTag(user.role, tag)).map((tag) => {
             const checked = user.tags.includes(tag);
             return (
               <label className={checked ? 'tag-toggle is-checked' : 'tag-toggle'} key={tag}>

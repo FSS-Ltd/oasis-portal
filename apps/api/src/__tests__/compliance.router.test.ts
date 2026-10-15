@@ -87,6 +87,16 @@ function makeCaller(session: SessionUser, db: FakeDb) {
 }
 
 describe('compliance access and records', () => {
+  it('lets a tagged activities lead edit records and revokes access with the tag', async () => {
+    const db = makeDb();
+    const tagged = { ...activitiesLead, tags: ['compliance-admin'] };
+    await expect(makeCaller(tagged, db).compliance.update(validUpdate)).resolves.toEqual({
+      userId: 'parent-1',
+    });
+    await expect(
+      makeCaller(activitiesLead, db).compliance.update(validUpdate),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
   it('limits the lead to compliance procedures and keeps two-factor checks', async () => {
     const db = makeDb();
     await expect(makeCaller(lead, db).compliance.peopleOptions()).resolves.toEqual([]);

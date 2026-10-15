@@ -7,6 +7,7 @@ import { Mail, MapPin, Phone, Save, ShieldCheck, UserCheck, UserX } from 'lucide
 import {
   ADULT_USER_ACCOUNT_ROLES,
   PERMISSION_TAGS,
+  canAssignPermissionTag,
   displaySchoolYearLabel,
   type Role,
 } from '@oasis/domain';
@@ -308,29 +309,34 @@ export function UserProfilePanel({
                 <div className="profile-field-row profile-field-row--stacked">
                   <span>Permission tags</span>
                   <div className="tag-toggle-list">
-                    {PERMISSION_TAGS.map((tag) => {
-                      const checked = user.tags.includes(tag);
-                      return (
-                        <label
-                          className={checked ? 'tag-toggle is-checked' : 'tag-toggle'}
-                          key={tag}
-                        >
-                          <input
-                            checked={checked}
-                            disabled={user.role === 'SafeguardingLead' || updateTags.isPending}
-                            onChange={() => {
-                              updateTags.mutate({
-                                userId: user.id,
-                                tags: toggleTag(user.tags, tag),
-                              });
-                            }}
-                            type="checkbox"
-                          />
-                          <ShieldCheck aria-hidden="true" size={14} />
-                          <span>{permissionTagLabel(tag)}</span>
-                        </label>
-                      );
-                    })}
+                    {PERMISSION_TAGS.filter((tag) => canAssignPermissionTag(user.role, tag)).map(
+                      (tag) => {
+                        const checked = user.tags.includes(tag);
+                        return (
+                          <label
+                            className={checked ? 'tag-toggle is-checked' : 'tag-toggle'}
+                            key={tag}
+                          >
+                            <input
+                              checked={checked}
+                              disabled={
+                                (user.role === 'SafeguardingLead' && tag !== 'compliance-admin') ||
+                                updateTags.isPending
+                              }
+                              onChange={() => {
+                                updateTags.mutate({
+                                  userId: user.id,
+                                  tags: toggleTag(user.tags, tag),
+                                });
+                              }}
+                              type="checkbox"
+                            />
+                            <ShieldCheck aria-hidden="true" size={14} />
+                            <span>{permissionTagLabel(tag)}</span>
+                          </label>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
               </div>

@@ -7,7 +7,7 @@ import { portalComplianceRoute } from '../portal-compliance-route';
 export default async function ComplianceSafeguardingPage() {
   const user = await getComplianceUser();
   if (!canViewIncidentReports(user)) notFound();
-  const portalRoute = portalComplianceRoute(user.role, 'incidents');
+  const portalRoute = portalComplianceRoute(user, 'incidents');
   if (portalRoute) redirect(portalRoute);
   return <IncidentStaffWorkflow portal="compliance" />;
 }

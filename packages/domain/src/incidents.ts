@@ -2,6 +2,7 @@ import {
   AccessDeniedError,
   canUseAdminOperations,
   canUseLinkedChildGuardianAccess,
+  canUseComplianceAdminTag,
   type SessionUser,
 } from './rbac.js';
 
@@ -48,27 +49,31 @@ export const INCIDENT_CONFIDENTIALITIES = [
 ] as const;
 export type IncidentConfidentiality = (typeof INCIDENT_CONFIDENTIALITIES)[number];
 
-export function canCreateIncidentReport(user: Pick<SessionUser, 'role'>): boolean {
-  return canUseAdminOperations(user) || user.role === 'Supervisor';
+type IncidentActor = Pick<SessionUser, 'role'> & { tags?: readonly string[] };
+
+export function canCreateIncidentReport(user: IncidentActor): boolean {
+  return (
+    canUseAdminOperations(user) || user.role === 'Supervisor' || canUseComplianceAdminTag(user)
+  );
 }
 
-export function canViewIncidentReports(user: Pick<SessionUser, 'role'>): boolean {
+export function canViewIncidentReports(user: IncidentActor): boolean {
   return canCreateIncidentReport(user) || user.role === 'SafeguardingLead';
 }
 
-export function canSignOffIncidentReport(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Head' || user.role === 'HeadOfDiscipline';
+export function canSignOffIncidentReport(user: IncidentActor): boolean {
+  return user.role === 'Head' || user.role === 'HeadOfDiscipline' || canUseComplianceAdminTag(user);
 }
 
-export function canEscalateIncidentReport(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Pastor' || user.role === 'Principal';
+export function canEscalateIncidentReport(user: IncidentActor): boolean {
+  return user.role === 'Pastor' || user.role === 'Principal' || canUseComplianceAdminTag(user);
 }
 
-export function canShareIncidentParentCopy(user: Pick<SessionUser, 'role'>): boolean {
+export function canShareIncidentParentCopy(user: IncidentActor): boolean {
   return canSignOffIncidentReport(user) || canEscalateIncidentReport(user);
 }
 
-export function canOverrideIncidentParentVisibility(user: Pick<SessionUser, 'role'>): boolean {
+export function canOverrideIncidentParentVisibility(user: IncidentActor): boolean {
   return canShareIncidentParentCopy(user);
 }
 

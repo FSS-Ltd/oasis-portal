@@ -13,7 +13,7 @@
  * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
  * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`,
  * `pace-full-access`, `supervisor-all-students`, `supervisor-primary-students`, `calendar-manager`,
- * `parent-message-responder`, `club-lead`.
+ * `parent-message-responder`, `club-lead`, `librarian`, `compliance-admin`.
  */
 
 export const ROLES = [
@@ -83,8 +83,14 @@ export const PERMISSION_TAGS = [
   'parent-message-responder',
   'club-lead',
   'librarian',
+  'compliance-admin',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
+
+export function canAssignPermissionTag(role: Role, tag: PermissionTag): boolean {
+  if (role === 'SafeguardingLead') return tag === 'compliance-admin';
+  return tag !== 'compliance-admin' || (role !== 'Parent' && role !== 'Student');
+}
 
 export interface SessionUser {
   id: string;
@@ -180,8 +186,25 @@ export function canManageLibrary(user: Pick<SessionUser, 'role' | 'tags'>): bool
   );
 }
 
-export function canUseCompliance(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Head' || user.role === 'Pastor' || user.role === 'SafeguardingLead';
+export function canUseComplianceAdminTag(
+  user: Pick<SessionUser, 'role'> & { tags?: readonly string[] },
+): boolean {
+  return (
+    user.role !== 'Parent' &&
+    user.role !== 'Student' &&
+    (user.tags?.includes('compliance-admin') ?? false)
+  );
+}
+
+export function canUseCompliance(
+  user: Pick<SessionUser, 'role'> & { tags?: readonly string[] },
+): boolean {
+  return (
+    user.role === 'Head' ||
+    user.role === 'Pastor' ||
+    user.role === 'SafeguardingLead' ||
+    canUseComplianceAdminTag(user)
+  );
 }
 
 export function canViewCompliance(user: Pick<SessionUser, 'role'>): boolean {
