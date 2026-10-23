@@ -24,6 +24,7 @@
     "test": "vitest run --passWithNoTests",
     "realtime:configure": "tsx scripts/realtime-configuration.ts configure",
     "realtime:check": "tsx scripts/realtime-configuration.ts check",
+    "realtime:preflight": "tsx scripts/realtime-configuration.ts preflight",
     "test:realtime": "tsx scripts/test-realtime.ts"
   },
   "dependencies": {

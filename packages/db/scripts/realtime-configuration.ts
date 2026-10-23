@@ -1,6 +1,38 @@
 import { pathToFileURL } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 
+export interface RealtimeTransportState {
+  database: string;
+  messages: boolean;
+  send: boolean;
+  authorization: boolean;
+}
+
+export function assertRealtimeTransport(state: RealtimeTransportState | undefined): void {
+  if (!state?.messages || !state.send) {
+    throw new Error(
+      `Supabase Realtime transport is unavailable in database ${JSON.stringify(state?.database ?? 'unknown')}. Application tables and managed Realtime transport must share a database before releasing clients.`,
+    );
+  }
+  if (!state.authorization) {
+    throw new Error(
+      'Private Realtime authorization policies are missing. Apply the event migrations before releasing clients.',
+    );
+  }
+}
+
+async function checkRealtimeTransport(client: PrismaClient): Promise<void> {
+  const rows = await client.$queryRaw<RealtimeTransportState[]>`
+    SELECT current_database() AS database,
+      to_regclass('realtime.messages') IS NOT NULL AS messages,
+      to_regprocedure('realtime.send(jsonb,text,text,boolean)') IS NOT NULL AS send,
+      (SELECT count(*) = 3 FROM pg_policies
+       WHERE schemaname = 'realtime' AND tablename = 'messages'
+         AND policyname IN ('oasis_user_realtime_receive', 'oasis_user_realtime_isolation', 'oasis_user_realtime_no_publish')) AS authorization
+  `;
+  assertRealtimeTransport(rows[0]);
+}
+
 export function expectedTwoFactor(value: string | undefined): boolean {
   if (value === undefined)
     throw new Error('OASIS_ENFORCE_2FA must be set before configuring Realtime.');
@@ -38,7 +70,9 @@ async function main(): Promise<void> {
   const client = new PrismaClient({ datasources: { db: { url } } });
   try {
     if (process.argv[2] === 'configure') await configureRealtime(client, enforceTwoFactor);
-    else if (process.argv[2] !== 'check') throw new Error('Expected configure or check.');
+    else if (process.argv[2] === 'preflight') await checkRealtimeTransport(client);
+    else if (process.argv[2] !== 'check')
+      throw new Error('Expected configure, check or preflight.');
     await checkRealtime(client, enforceTwoFactor);
   } finally {
     await client.$disconnect();

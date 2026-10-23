@@ -42,9 +42,14 @@ Deploy the additive Realtime migrations before clients. Run migrations against t
 ```sh
 node scripts/with-env.mjs pnpm --filter @oasis/db realtime:configure
 node scripts/with-env.mjs pnpm --filter @oasis/db realtime:check
+node scripts/with-env.mjs pnpm --filter @oasis/db realtime:preflight
 ```
 
 The configuration parser matches the API: trimmed, case-insensitive `true` enables enforcement. An absent setting is an error. Unconfigured database subscription policies deny access. The check command rejects a mismatch, and CI checks the pulled Vercel environment before deploying clients. SQL validates Clerk `fva` with the same numeric, non-negative checks as `hasCompletedTwoFactor`.
+
+Release preflight additionally requires `realtime.messages`, `realtime.send`, and the private-channel authorization policies in the application database. A separate database on the same Supabase instance does not share that transport. Configuration-only checks and local transaction tests cannot prove hosted delivery readiness. Never create replacement objects in Supabase's managed schema to bypass this gate.
+
+Configure the GitHub Actions `PREVIEW_DIRECT_URL` secret with the actual preview database connection. Preview preflight reads that secret because Vercel's sensitive connection values are not included in pulled environment files. Production preflight uses the existing production connection secret. Keep these connections aligned with the respective deployed API environments.
 
 Use separate databases for environments with different enforcement settings. Check the target connection before configuring it. To change enforcement, synchronize the intended database setting and deployment environment together. Previous clients can still consume their legacy notifications; rolling back a client does not require removing additive database objects.
 
