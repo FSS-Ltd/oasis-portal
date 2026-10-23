@@ -117,6 +117,9 @@ importers:
       '@oasis/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@supabase/supabase-js':
+        specifier: 2.104.1
+        version: 2.104.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.99.2(react@18.3.1)

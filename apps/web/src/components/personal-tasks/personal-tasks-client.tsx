@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { useDeadlineClock } from '@/lib/hooks/use-deadline-clock';
 
 type PersonalTask = RouterOutputs['personalTask']['list'][number];
 
@@ -147,7 +148,11 @@ export function PersonalTasksClient() {
   const [reminderAt, setReminderAt] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
-  const now = new Date();
+  const now = useDeadlineClock(
+    (tasksQuery.data ?? []).flatMap((task) =>
+      task.completedAt ? [] : [task.dueAt, task.reminderAt],
+    ),
+  );
 
   const refreshTasks = () => utils.personalTask.list.invalidate();
   const createTask = api.personalTask.create.useMutation({

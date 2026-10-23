@@ -61,7 +61,6 @@ describe('parent volunteer mobile wiring', () => {
     expect(router).toMatch(
       /<ParentPortalScreen[\s\S]*parentVolunteerAccess=\{parentVolunteerAccess\}/,
     );
-    expect(router).toMatch(/AppState\.addEventListener\('change'/);
     expect(router).toMatch(/void health\.refetch\(\)/);
     expect(router).toMatch(/onRefreshEntitlement=\{health\.refetch\}/);
     expect(portal).toMatch(/enabled: canUseParentVolunteer && route === 'volunteer'/);

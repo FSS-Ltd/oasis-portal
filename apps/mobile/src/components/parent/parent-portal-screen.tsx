@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AppState, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { canUseParentVolunteerNavigation, type ParentVolunteerAccess } from '@oasis/domain';
@@ -32,8 +32,6 @@ import { MobilePublishedTimetableScreen } from '../timetable/mobile-published-ti
 import { MobileAgreementsContent } from '../agreements/mobile-agreements';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type MessagePage = RouterOutputs['message']['listConversations'];
-type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type ParentPortalRoute =
   | 'home'
   | 'pace'
@@ -91,8 +89,6 @@ export function ParentPortalScreen({
   const canUseParentVolunteer = canUseParentVolunteerNavigation(parentVolunteerAccess);
   const [route, setRoute] = useState<ParentPortalRoute>('home');
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
-  const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
-  const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
   const [timetableTermKey, setTimetableTermKey] = useState('');
   const profile = api.profile.me.useQuery(undefined, { retry: false });
   const dashboard = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
@@ -105,9 +101,13 @@ export function ParentPortalScreen({
     enabled: hasLinkedChildren && route === 'notices',
     retry: false,
   });
-  const conversationsQuery = api.message.listConversations.useQuery(
-    { cursor: messageCursor, kinds: ['ParentStaff'], limit: messagePageSize },
-    { enabled: hasLinkedChildren && route === 'messages', retry: false },
+  const conversationsQuery = api.message.listConversations.useInfiniteQuery(
+    { kinds: ['ParentStaff'], limit: messagePageSize },
+    {
+      enabled: hasLinkedChildren && route === 'messages',
+      retry: false,
+      getNextPageParam: (page) => page.nextCursor ?? undefined,
+    },
   );
   const recipients = api.message.listRecipients.useQuery(
     { kind: 'ParentStaff' },
@@ -141,14 +141,7 @@ export function ParentPortalScreen({
     retry: false,
   });
   const agreementPending = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void agreementPending.refetch();
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, [agreementPending.refetch]);
+
   const parentInvoices = api.invoice.listParent.useQuery(
     { status: 'All' },
     {
@@ -181,10 +174,10 @@ export function ParentPortalScreen({
   });
   const utils = api.useUtils();
   const conversations = useMemo(
-    () => messagePages.flatMap(({ page }) => page.items),
-    [messagePages],
+    () => conversationsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [conversationsQuery.data],
   );
-  const nextMessageCursor = messagePages[messagePages.length - 1]?.page.nextCursor ?? null;
+  const hasMoreMessages = conversationsQuery.hasNextPage;
   const unreadNoticeCount = (notices.data ?? []).filter((notice) => !notice.read).length;
   const unreadMessageCount = conversations.reduce(
     (count, conversation) => count + conversation.unreadCount,
@@ -193,17 +186,6 @@ export function ParentPortalScreen({
   const visibleParentTabs = parentTabs.filter(
     (tab) => canUseParentVolunteer || tab.id !== 'volunteer',
   );
-
-  useEffect(() => {
-    if (!conversationsQuery.data) return;
-    setMessagePages((currentPages) => {
-      const nextPage = { cursor: messageCursor, page: conversationsQuery.data };
-      if (!messageCursor) return [nextPage];
-      const existingIndex = currentPages.findIndex((page) => page.cursor === messageCursor);
-      if (existingIndex === -1) return [...currentPages, nextPage];
-      return currentPages.map((page, index) => (index === existingIndex ? nextPage : page));
-    });
-  }, [conversationsQuery.data, messageCursor]);
 
   useEffect(() => {
     if (!canUseParentVolunteer && route === 'volunteer') {
@@ -225,8 +207,6 @@ export function ParentPortalScreen({
   }, [timetableTermKey, timetableTerms.data]);
 
   async function refresh() {
-    setMessageCursor(undefined);
-    setMessagePages([]);
     await Promise.all([
       onRefreshEntitlement(),
       profile.refetch(),
@@ -344,10 +324,10 @@ export function ParentPortalScreen({
           {routeQueryError ? <ErrorText>{routeQueryError}</ErrorText> : null}
           <ParentMessagesScreen
             conversations={conversations}
-            hasMore={Boolean(nextMessageCursor)}
-            loadingMore={conversationsQuery.isFetching && Boolean(messageCursor)}
+            hasMore={hasMoreMessages}
+            loadingMore={conversationsQuery.isFetchingNextPage}
             onLoadMore={() => {
-              if (nextMessageCursor) setMessageCursor(nextMessageCursor);
+              if (hasMoreMessages) void conversationsQuery.fetchNextPage();
             }}
             onRefresh={refresh}
             recipients={recipients.data ?? []}

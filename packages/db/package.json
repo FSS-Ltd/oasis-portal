@@ -11,8 +11,8 @@
   },
   "scripts": {
     "generate": "prisma generate",
-    "migrate": "pnpm migrate:deploy && pnpm rls:apply",
-    "migrate:dev": "prisma migrate dev && pnpm rls:apply",
+    "migrate": "pnpm migrate:deploy && pnpm rls:apply && pnpm realtime:configure && pnpm realtime:check",
+    "migrate:dev": "prisma migrate dev && pnpm rls:apply && pnpm realtime:configure && pnpm realtime:check",
     "migrate:deploy": "prisma migrate deploy",
     "rls:apply": "tsx scripts/apply-rls.ts",
     "db:integration": "tsx scripts/smoke-rls.ts",
@@ -21,7 +21,10 @@
     "seed": "tsx prisma/seed.ts",
     "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "realtime:configure": "tsx scripts/realtime-configuration.ts configure",
+    "realtime:check": "tsx scripts/realtime-configuration.ts check",
+    "test:realtime": "tsx scripts/test-realtime.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0"

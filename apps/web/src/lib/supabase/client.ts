@@ -17,6 +17,9 @@ export function createClient(options: CreateClientOptions = {}): BrowserSupabase
     return createBrowserClient<SupabaseDatabase>(url, publishableKey, {
       accessToken: options.accessToken,
       isSingleton: false,
+      realtime: {
+        reconnectAfterMs: (attempt) => Math.min(1_000 * 2 ** Math.min(attempt, 5), 30_000),
+      },
     });
   }
 

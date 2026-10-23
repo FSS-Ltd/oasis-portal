@@ -7,7 +7,7 @@ interface HealthData {
   accountAccessState: string;
   linkedChildCount: number;
   parentVolunteerAccess: string;
-  user: { id: string; role: string };
+  user: { id: string; role: string; requires2fa?: boolean };
 }
 
 interface HealthQuery {
@@ -33,7 +33,9 @@ function hasWarningText(props: unknown): props is { children: string } {
 }
 
 function hasText(props: unknown, text: string): props is { children: string } {
-  return typeof props === 'object' && props !== null && 'children' in props && props.children === text;
+  return (
+    typeof props === 'object' && props !== null && 'children' in props && props.children === text
+  );
 }
 
 function hasRetryAccessRefresh(props: unknown): props is { onPress: () => void } {
@@ -84,11 +86,13 @@ const mocks = vi.hoisted(() => {
   };
 });
 
+vi.mock('@clerk/clerk-expo', () => ({ useClerk: () => ({ signOut: vi.fn() }) }));
+
 vi.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
   AppState: mocks.appState,
   Pressable: 'Pressable',
-  StyleSheet: { create: <T,>(styles: T) => styles },
+  StyleSheet: { create: <T>(styles: T) => styles },
   Text: 'Text',
   View: 'View',
 }));
@@ -143,24 +147,24 @@ describe('signed-in router entitlement refresh', () => {
     };
   });
 
-  it('refetches only when the app resumes and removes the AppState subscription on unmount', () => {
+  it('delegates foreground reconciliation to the shared subscription provider', () => {
     const renderer = renderRouter();
-    const listener = mocks.listener.current;
-    if (!listener) throw new Error('Expected AppState listener registration');
-
-    mobileTestRenderer.act(() => {
-      listener('active');
-      listener('background');
-      listener('active');
-      listener('inactive');
-      listener('active');
-    });
-
-    expect(mocks.refetch).toHaveBeenCalledTimes(2);
+    expect(mocks.listener.current).toBeUndefined();
+    expect(mocks.refetch).not.toHaveBeenCalled();
     mobileTestRenderer.act(() => {
       renderer.unmount();
     });
-    expect(mocks.remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides protected portals when two-factor authentication is required', () => {
+    if (!mocks.query.current.data) throw new Error('Expected test account');
+    mocks.query.current.data.user.requires2fa = true;
+    const renderer = renderRouter();
+    expect(mocks.parentPortal).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).toContain('Complete two-factor authentication');
+    mobileTestRenderer.act(() => {
+      renderer.unmount();
+    });
   });
 
   it('keeps a cached portal mounted with a retryable refresh warning after pull-to-refresh fails', async () => {

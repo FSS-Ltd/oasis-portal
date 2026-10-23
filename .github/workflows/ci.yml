@@ -44,6 +44,7 @@ jobs:
     env:
       DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
       DIRECT_URL: postgres://oasis:oasis@localhost:5432/oasis_test
+      OASIS_ENFORCE_2FA: 'false'
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
@@ -85,6 +86,14 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Apply isolated integration database migrations
+        run: pnpm --filter @oasis/db migrate
+
+      - name: Verify transactional Realtime delivery
+        env:
+          OASIS_REALTIME_TEST_DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
+        run: pnpm --filter @oasis/db test:realtime
 
   preview-changes:
     name: Detect preview deploy changes
@@ -258,6 +267,9 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL \
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
+      - name: Check preview Realtime authorization configuration
+        run: node --env-file=.vercel/.env.preview.local scripts/with-env.mjs pnpm --filter @oasis/db realtime:check
+
       - name: Build preview deployment
         run: vercel build
 
@@ -298,6 +310,8 @@ jobs:
       VERCEL_TELEMETRY_DISABLED: '1'
       EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
       EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL }}
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
     steps:
       - uses: actions/checkout@v6
@@ -319,7 +333,7 @@ jobs:
       - name: Validate PWA preview deploy secrets
         run: |
           missing=()
-          for name in VERCEL_TOKEN VERCEL_ORG_ID OASIS_APP_VERCEL_PROJECT_ID EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY EXPO_PUBLIC_TRPC_URL; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID OASIS_APP_VERCEL_PROJECT_ID EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY EXPO_PUBLIC_TRPC_URL EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY; do
             if [ -z "${!name}" ]; then
               missing+=("${name}")
             fi
@@ -354,6 +368,14 @@ jobs:
         run: |
           mkdir -p apps/mobile/.vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' "${VERCEL_ORG_ID}" "${OASIS_APP_VERCEL_PROJECT_ID}" > apps/mobile/.vercel/project.json
+
+      - name: Check API preview Realtime authorization before PWA deploy
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          node scripts/require-env-file-keys.mjs --process-env VERCEL_PROJECT_ID
+          vercel pull --yes --environment=preview
+          node --env-file=.vercel/.env.preview.local scripts/with-env.mjs pnpm --filter @oasis/db realtime:check
 
       - name: Build PWA preview artifact
         run: pnpm --filter @oasis/mobile build:web
@@ -448,9 +470,6 @@ jobs:
             exit 1
           fi
 
-      - name: Apply production database migrations
-        run: pnpm db:migrate
-
       - name: Install Vercel CLI
         run: |
           npm config set fetch-retries 5
@@ -473,12 +492,18 @@ jobs:
       - name: Pull Vercel production environment
         run: vercel pull --yes --environment=production
 
+      - name: Apply production database migrations
+        run: node --env-file=.vercel/.env.production.local scripts/with-env.mjs pnpm db:migrate
+
       - name: Validate GitHub production build environment
         run: |
           node scripts/require-env-file-keys.mjs --process-env \
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
             NEXT_PUBLIC_SUPABASE_URL \
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+
+      - name: Check production Realtime authorization configuration
+        run: node --env-file=.vercel/.env.production.local scripts/with-env.mjs pnpm --filter @oasis/db realtime:check
 
       - name: Build production deployment
         run: vercel build --prod
@@ -505,6 +530,8 @@ jobs:
       VERCEL_TELEMETRY_DISABLED: '1'
       EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
       EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL }}
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
     steps:
       - uses: actions/checkout@v6
@@ -526,7 +553,7 @@ jobs:
       - name: Validate PWA production deploy secrets
         run: |
           missing=()
-          for name in VERCEL_TOKEN VERCEL_ORG_ID OASIS_APP_VERCEL_PROJECT_ID EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY EXPO_PUBLIC_TRPC_URL; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID OASIS_APP_VERCEL_PROJECT_ID EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY EXPO_PUBLIC_TRPC_URL EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY; do
             if [ -z "${!name}" ]; then
               missing+=("${name}")
             fi

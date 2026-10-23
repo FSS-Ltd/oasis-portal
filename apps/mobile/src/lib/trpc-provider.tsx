@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import superjson from 'superjson';
 import { api } from './trpc';
 import { trpcUrl } from './trpc-url';
+import { MobileRealtimeProvider } from './realtime/mobile-realtime-provider';
 
 export function MobileTrpcProvider({ children }: { children: ReactNode }) {
   const { getToken } = useAuth();
@@ -14,7 +15,7 @@ export function MobileTrpcProvider({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 15_000,
-            refetchOnReconnect: true,
+            refetchOnReconnect: false,
             refetchOnWindowFocus: false,
           },
         },
@@ -40,7 +41,9 @@ export function MobileTrpcProvider({ children }: { children: ReactNode }) {
 
   return (
     <api.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <MobileRealtimeProvider>{children}</MobileRealtimeProvider>
+      </QueryClientProvider>
     </api.Provider>
   );
 }

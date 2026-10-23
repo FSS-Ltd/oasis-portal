@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -19,14 +18,6 @@ import { saveOrSharePdf } from '../timetable/mobile-pdf-file';
 
 type ActiveScoreKeyRow = RouterOutputs['report']['scoreKeys']['current']['rows'][number];
 
-function visibleOnWeb(): boolean {
-  return (
-    Platform.OS !== 'web' ||
-    typeof document === 'undefined' ||
-    document.visibilityState === 'visible'
-  );
-}
-
 export function StaffScoreKeyReportScreen({ onBack }: { onBack: () => void }) {
   const [scope, setScope] = useState<(typeof ACTIVE_SCORE_KEY_SCOPES)[number]>('all');
   const report = api.report.scoreKeys.current.useQuery(
@@ -34,10 +25,8 @@ export function StaffScoreKeyReportScreen({ onBack }: { onBack: () => void }) {
     {
       staleTime: 0,
       refetchOnMount: true,
-      refetchOnReconnect: true,
+      refetchOnReconnect: false,
       retry: false,
-      refetchInterval: () =>
-        AppState.currentState === 'active' && visibleOnWeb() ? 30_000 : false,
     },
   );
   const download = api.report.scoreKeys.downloadPdf.useQuery(
@@ -63,23 +52,11 @@ export function StaffScoreKeyReportScreen({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       setActive(nextState === 'active');
-      if (nextState === 'active' && visibleOnWeb()) void report.refetch();
     });
-    if (Platform.OS !== 'web') {
-      return () => {
-        subscription.remove();
-      };
-    }
-
-    function onVisibilityChange() {
-      if (visibleOnWeb() && AppState.currentState === 'active') void report.refetch();
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       subscription.remove();
-      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [report.refetch]);
+  }, []);
 
   async function printReport() {
     setExporting(true);

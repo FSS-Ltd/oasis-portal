@@ -13,6 +13,10 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import { useQueryClient } from '@tanstack/react-query';
+import { getQueryKey } from '@trpc/react-query';
+import { waitForCachedConfirmation } from '@/lib/realtime/cache-confirmation';
+import { useLiveDraft } from '@/lib/hooks/use-live-draft';
 import { effectiveStudentPortalLock } from '@oasis/domain/studentPortalSettings';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
@@ -36,15 +40,6 @@ interface UsageLimitForm {
 }
 
 const childLoginHandlePattern = /^[a-z0-9]+$/iu;
-const createLoginConfirmationAttempts = 8;
-const createLoginConfirmationDelayMs = 750;
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
 function emptyUsageLimitForm(): UsageLimitForm {
   return {
     dailyUsageLimitMinutes: null,
@@ -219,7 +214,10 @@ function CredentialsPanel({
   onSaved: (child: LinkedChildSettings) => void;
 }) {
   const utils = api.useUtils();
-  const [loginHandle, setLoginHandle] = useState(child.loginHandle ?? '');
+  const [loginHandle, setLoginHandle, acceptLoginHandle] = useLiveDraft(
+    child.studentId,
+    child.loginHandle ?? '',
+  );
   const [password, setPassword] = useState('');
   const [success, setSuccess] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -243,18 +241,18 @@ function CredentialsPanel({
   }
 
   useEffect(() => {
-    setLoginHandle(child.loginHandle ?? '');
     setPassword('');
     setSuccess(null);
     setPasswordError(null);
     setPasswordPolicySuccess(null);
-  }, [child.studentId, child.loginHandle]);
+  }, [child.studentId]);
 
   const saveLoginHandle = api.studentSettings.setLoginHandle.useMutation({
     onError(error) {
       showErrorToast(error, 'Login handle could not be saved.');
     },
     async onSuccess(updated) {
+      acceptLoginHandle(updated.loginHandle ?? '');
       onSaved(updated);
       setSuccess('Login handle saved.');
       showSuccessToast('Login handle saved.');
@@ -414,23 +412,24 @@ function CreateLoginPanel({
 }: {
   child: LinkedChildSettings;
   disabled: boolean;
-  onProvisioned: (child: LinkedChildSettings) => Promise<LinkedChildSettings>;
+  onProvisioned: (child: LinkedChildSettings, retry?: boolean) => Promise<LinkedChildSettings>;
 }) {
   const mounted = useRef(true);
-  const [loginHandle, setLoginHandle] = useState(child.loginHandle ?? '');
+  const [loginHandle, setLoginHandle] = useLiveDraft(child.studentId, child.loginHandle ?? '');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [confirmingProvisioning, setConfirmingProvisioning] = useState(false);
+  const [provisioned, setProvisioned] = useState<LinkedChildSettings | null>(null);
 
   useEffect(() => {
-    setLoginHandle(child.loginHandle ?? '');
     setPassword('');
     setLocalError(null);
     setSuccess(null);
-  }, [child.studentId, child.loginHandle]);
+  }, [child.studentId]);
 
   useEffect(() => {
+    mounted.current = true;
     return () => {
       mounted.current = false;
     };
@@ -443,25 +442,30 @@ function CreateLoginPanel({
     setLocalError(null);
     const trimmedHandle = loginHandle.trim();
     if (
-      trimmedHandle.length < 4 ||
-      trimmedHandle.length > 64 ||
-      !childLoginHandlePattern.test(trimmedHandle)
+      !provisioned &&
+      (trimmedHandle.length < 4 ||
+        trimmedHandle.length > 64 ||
+        !childLoginHandlePattern.test(trimmedHandle))
     ) {
       setLocalError('Login handle must be 4 to 64 letters or numbers.');
       return;
     }
-    if (password.length < 12 || password.length > 128) {
+    if (!provisioned && (password.length < 12 || password.length > 128)) {
       setLocalError('Password must be 12 to 128 characters.');
       return;
     }
     setConfirmingProvisioning(true);
     try {
-      const created = await createChildLogin.mutateAsync({
-        loginHandle: trimmedHandle,
-        password,
-        studentId: child.studentId,
-      });
-      await onProvisioned(created);
+      const created =
+        provisioned ??
+        (await createChildLogin.mutateAsync({
+          loginHandle: trimmedHandle,
+          password,
+          studentId: child.studentId,
+        }));
+      setProvisioned(created);
+      setPassword('');
+      await onProvisioned(created, provisioned !== null);
       showSuccessToast('Student login created.');
       if (mounted.current) {
         setPassword('');
@@ -492,7 +496,7 @@ function CreateLoginPanel({
         <Field label="Login handle">
           <TextInput
             autoComplete="username"
-            disabled={disabled || busy}
+            disabled={disabled || busy || provisioned !== null}
             maxLength={64}
             onChange={(event) => {
               setLoginHandle(event.target.value);
@@ -506,7 +510,7 @@ function CreateLoginPanel({
         <Field label="Initial password">
           <TextInput
             autoComplete="new-password"
-            disabled={disabled || busy}
+            disabled={disabled || busy || provisioned !== null}
             maxLength={128}
             onChange={(event) => {
               setPassword(event.target.value);
@@ -522,16 +526,19 @@ function CreateLoginPanel({
 
       <div className="parent-settings-actions">
         <Button
-          disabled={disabled || loginHandle.trim().length === 0 || password.length === 0}
+          disabled={
+            disabled || (!provisioned && (loginHandle.trim().length === 0 || password.length === 0))
+          }
           onClick={() => {
             void submit();
           }}
           pending={busy}
           type="button"
         >
-          Create login
+          {provisioned ? 'Check account link' : 'Create login'}
         </Button>
       </div>
+      {confirmingProvisioning ? <p role="status">Confirming account link…</p> : null}
       {localError ? <p className="status--error">{localError}</p> : null}
       <InlineStatus error={createChildLogin.error} success={success} />
     </Panel>
@@ -548,21 +555,22 @@ function UsageLimitsPanel({
   onSaved: (child: LinkedChildSettings) => void;
 }) {
   const utils = api.useUtils();
-  const [limits, setLimits] = useState<UsageLimitForm>(() => usageLimitFormFor(child));
+  const savedLimits = useMemo(() => usageLimitFormFor(child), [child]);
+  const [limits, setLimits, acceptLimits] = useLiveDraft(child.studentId, savedLimits);
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    setLimits(usageLimitFormFor(child));
     setLocalError(null);
     setSuccess(null);
-  }, [child.dailyUsageLimitMinutes, child.offLimitWeekdays, child.studentId]);
+  }, [child.studentId]);
 
   const saveUsageLimits = api.studentSettings.setUsageLimits.useMutation({
     onError(error) {
       showErrorToast(error, 'Usage limits could not be saved.');
     },
     async onSuccess(updated) {
+      acceptLimits(usageLimitFormFor(updated));
       onSaved(updated);
       setSuccess('Usage limits saved.');
       showSuccessToast('Usage limits saved.');
@@ -715,7 +723,10 @@ function ChildIconPanel({
 
 function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled: boolean }) {
   const utils = api.useUtils();
-  const [lockReason, setLockReason] = useState(child.parentLockReason ?? '');
+  const [lockReason, setLockReason, acceptLockReason] = useLiveDraft(
+    child.studentId,
+    child.parentLockReason ?? '',
+  );
   const [success, setSuccess] = useState<string | null>(null);
 
   function patchCachedChild(
@@ -761,9 +772,8 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
   }
 
   useEffect(() => {
-    setLockReason(child.parentLockReason ?? '');
     setSuccess(null);
-  }, [child.parentLockReason, child.studentId]);
+  }, [child.studentId]);
 
   const setMeritShopBlock = api.studentSettings.setMeritShopBlock.useMutation({
     async onMutate(input) {
@@ -820,6 +830,7 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
       showErrorToast(error, 'Account lock could not be updated.');
     },
     onSuccess(updated) {
+      acceptLockReason(updated.parentLockReason ?? '');
       patchCachedChild(updated.studentId, (current) =>
         optimisticAccessState(current, {
           parentAccountLocked: updated.parentAccountLocked,
@@ -959,6 +970,9 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
 }
 
 export function ParentStudentSettingsClient() {
+  const queryClient = useQueryClient();
+  const confirmationController = useRef<AbortController | null>(null);
+  useEffect(() => () => confirmationController.current?.abort(), []);
   const utils = api.useUtils();
   const settingsQuery = api.studentSettings.listLinkedChildren.useQuery(undefined, {
     retry: false,
@@ -976,22 +990,29 @@ export function ParentStudentSettingsClient() {
 
   async function confirmProvisionedChild(
     created: LinkedChildSettings,
+    retry = false,
   ): Promise<LinkedChildSettings> {
-    for (let attempt = 0; attempt < createLoginConfirmationAttempts; attempt += 1) {
-      const result = await settingsQuery.refetch();
-      const confirmed = result.data?.find((child) => child.studentId === created.studentId);
-      if (confirmed?.accountLinked) {
-        updateCachedChild(confirmed);
-        return confirmed;
-      }
-      if (attempt < createLoginConfirmationAttempts - 1) {
-        await wait(createLoginConfirmationDelayMs);
-      }
+    // The mutation response is authoritative once its transaction committed.
+    if (created.accountLinked) {
+      updateCachedChild(created);
+      return created;
     }
-
-    throw new Error(
-      'Student login was created, but the account link is still being confirmed. Refresh in a moment before changing credentials.',
+    if (retry) await settingsQuery.refetch();
+    confirmationController.current?.abort();
+    const controller = new AbortController();
+    confirmationController.current = controller;
+    const result = await waitForCachedConfirmation(
+      queryClient,
+      getQueryKey(api.studentSettings.listLinkedChildren, undefined, 'query'),
+      (rows: LinkedChildSettings[] | undefined) =>
+        rows?.some((row) => row.studentId === created.studentId && row.accountLinked)
+          ? rows
+          : undefined,
+      controller.signal,
     );
+    const confirmed = result.find((row) => row.studentId === created.studentId);
+    if (!confirmed) throw new Error('Account link is unavailable.');
+    return confirmed;
   }
 
   if (settingsQuery.isLoading) {
@@ -1062,6 +1083,7 @@ export function ParentStudentSettingsClient() {
             />
           ) : (
             <CreateLoginPanel
+              key={selectedChild.studentId}
               child={selectedChild}
               disabled={controlsDisabled}
               onProvisioned={confirmProvisionedChild}

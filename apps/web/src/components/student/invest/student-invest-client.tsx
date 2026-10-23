@@ -168,11 +168,10 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
 
   const accountQuery = api.investment.account.useQuery(
     { studentId: studentId ?? '' },
-    { enabled: !!studentId, refetchInterval: 60_000 },
+    { enabled: !!studentId },
   );
 
   const marketQuery = api.investment.marketData.useQuery(undefined, {
-    refetchInterval: 5 * 60 * 1000,
     retry: false,
   });
 

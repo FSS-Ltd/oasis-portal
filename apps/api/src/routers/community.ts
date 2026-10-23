@@ -202,8 +202,15 @@ async function ensureCentralCommunityGroup(ctx: AuthedContext): Promise<{ id: st
 
 async function ensureCentralMembership(ctx: AuthedContext, studentId: string): Promise<void> {
   const centralGroup = await ensureCentralCommunityGroup(ctx);
+  const where = { groupId_studentId: { groupId: centralGroup.id, studentId } };
+  const membership = await ctx.db.communityGroupMember.findUnique({
+    where,
+    select: { active: true },
+  });
+  if (membership?.active) return;
+
   await ctx.db.communityGroupMember.upsert({
-    where: { groupId_studentId: { groupId: centralGroup.id, studentId } },
+    where,
     create: { groupId: centralGroup.id, studentId, active: true },
     update: { active: true },
   });

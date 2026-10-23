@@ -11,6 +11,7 @@
       "env": [
         "APP_URL",
         "FEATURE_PUSH_NOTIFICATIONS",
+        "EXPO_PUBLIC_*",
         "INVESTMENT_NAV_SEED",
         "NEXT_PUBLIC_*",
         "NODE_ENV",

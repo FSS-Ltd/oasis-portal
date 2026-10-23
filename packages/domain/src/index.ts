@@ -29,3 +29,4 @@ export * from './parentVolunteer.js';
 export * from './parentEmailNotifications.js';
 export * from './timetable.js';
 export * from './compliance.js';
+export * from './realtime/index.js';

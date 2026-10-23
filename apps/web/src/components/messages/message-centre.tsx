@@ -1,5 +1,7 @@
 'use client';
 
+import { subscribeRealtimeAreas } from '@/lib/realtime/area-listeners';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { friendlyErrorMessage, showErrorToast } from '@/lib/notifications';
@@ -150,6 +152,14 @@ export function MessageCentre({ mode }: MessageCentreProps) {
     setConversationCursor(undefined);
     setConversationPages([]);
   }, []);
+
+  useEffect(
+    () =>
+      subscribeRealtimeAreas((areas) => {
+        if (areas.includes('message')) resetConversationPages();
+      }),
+    [resetConversationPages],
+  );
 
   useEffect(() => {
     if (!conversationsQuery.data) return;
