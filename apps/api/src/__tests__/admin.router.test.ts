@@ -737,7 +737,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       },
     ]);
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: { role: { not: 'Student' } },
+      where: { role: { not: 'Student' }, deletedAt: null },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
       take: 100,
       select: {
@@ -1566,7 +1566,7 @@ describe('admin.listUserAccounts and account support updates', () => {
     ]);
     expect(result[0]).not.toHaveProperty('children');
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: {},
+      where: { deletedAt: null },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
       take: 100,
       select: {
@@ -1731,7 +1731,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       caller.admin.updateUserAccountStatus({ userId: 'u_parent', active: true }),
     ).resolves.toMatchObject({ id: 'u_parent', active: true });
     expect(db.user.update).toHaveBeenCalledWith({
-      where: { id: 'u_parent' },
+      where: { id: 'u_parent', deletedAt: null },
       data: { active: false },
       select: {
         id: true,
@@ -1747,7 +1747,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       },
     });
     expect(db.user.update).toHaveBeenCalledWith({
-      where: { id: 'u_parent' },
+      where: { id: 'u_parent', deletedAt: null },
       data: { active: true },
       select: {
         id: true,

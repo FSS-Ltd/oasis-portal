@@ -352,6 +352,8 @@ describe('loadAccountAccess', () => {
 describe('createPrismaClerkUserStore', () => {
   interface ExistingUser {
     id: string;
+    active?: boolean;
+    deletedAt?: Date | null;
   }
 
   interface UserFindUniqueArgs {
@@ -407,6 +409,49 @@ describe('createPrismaClerkUserStore', () => {
       updateParentLinkRequests,
     };
   }
+
+  it.each(['clerkId', 'emailBidx'] as const)(
+    'does not resurrect a deleted account matched by %s',
+    async (match) => {
+      const deleted = { id: 'deleted_user', active: false, deletedAt: new Date() };
+      const { db, create, update, updateMany } = makeDb(
+        match === 'clerkId' ? deleted : null,
+        match === 'emailBidx' ? deleted : null,
+      );
+      await createPrismaClerkUserStore(db).upsertUser({
+        clerkUserId: 'user_123',
+        fullName: 'Deleted Person',
+        email: 'person@example.com',
+        phone: '',
+        role: 'Parent',
+        tags: [],
+      });
+      expect(create).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+      expect(updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['clerkId', 'emailBidx'] as const)(
+    'preserves inactive status when syncing by %s',
+    async (match) => {
+      const inactive = { id: 'inactive_user', active: false };
+      const { db, update } = makeDb(
+        match === 'clerkId' ? inactive : null,
+        match === 'emailBidx' ? inactive : null,
+      );
+      update.mockResolvedValue({ id: inactive.id });
+      await createPrismaClerkUserStore(db).upsertUser({
+        clerkUserId: 'user_123',
+        fullName: 'Inactive Person',
+        email: 'person@example.com',
+        phone: '',
+        role: 'Parent',
+        tags: [],
+      });
+      expect(update.mock.calls[0]?.[0]).not.toHaveProperty('data.active');
+    },
+  );
 
   it('creates a new user with role/tags from input on first sync', async () => {
     const { db, findUnique, create, update, updateMany } = makeDb(null);
@@ -692,7 +737,6 @@ describe('createPrismaClerkUserStore', () => {
         emailEnc: 'enc:Jean@Example.com',
         emailBidx: 'bidx:jean@example.com',
         phoneEnc: 'enc:+447700900123',
-        active: true,
       },
       select: { id: true },
     });
@@ -729,7 +773,6 @@ describe('createPrismaClerkUserStore', () => {
         emailEnc: 'enc:Jean@Example.com',
         emailBidx: 'bidx:jean@example.com',
         phoneEnc: 'enc:+447700900123',
-        active: true,
       },
       select: { id: true },
     });

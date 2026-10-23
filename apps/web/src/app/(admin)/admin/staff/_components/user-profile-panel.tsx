@@ -3,7 +3,7 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Mail, MapPin, Phone, Save, ShieldCheck, UserCheck, UserX } from 'lucide-react';
+import { Mail, MapPin, Phone, Save, ShieldCheck } from 'lucide-react';
 import {
   ADULT_USER_ACCOUNT_ROLES,
   PERMISSION_TAGS,
@@ -14,7 +14,7 @@ import {
 import { api } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { permissionTagLabel, personTypeLabel, roleLabel } from '@/lib/profile-display';
-import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
+import { AccountAccessPanel } from './account-access-panel';
 import { Avatar } from '@/components/ui/avatar';
 import type { AdultComplianceBadgeSummary } from '@oasis/domain';
 import { ComplianceBadges } from '@/components/compliance/compliance-badges';
@@ -38,6 +38,7 @@ interface UserProfilePanelProps {
   currentUserId: string;
   currentUserRole: Role;
   kind: 'parent' | 'supervisor';
+  onAccountAccessChanged: () => void;
   user: UserRow;
 }
 
@@ -60,13 +61,13 @@ export function UserProfilePanel({
   currentUserId,
   currentUserRole,
   kind,
+  onAccountAccessChanged,
   user,
 }: UserProfilePanelProps) {
   const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<UserProfileTab>('personal');
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(userForm(user));
-  const [statusAction, setStatusAction] = useState<'deactivate' | 'reactivate' | null>(null);
   const updateUser = api.admin.updateUserProfile.useMutation({
     async onSuccess() {
       await utils.admin.listUsers.invalidate();
@@ -95,19 +96,6 @@ export function UserProfilePanel({
       showErrorToast(error, 'Role could not be updated.');
     },
   });
-  const updateStatus = api.admin.updateUserAccountStatus.useMutation({
-    async onSuccess() {
-      await Promise.all([
-        utils.admin.listUsers.invalidate(),
-        utils.admin.listUserAccounts.invalidate(),
-      ]);
-      setStatusAction(null);
-      showSuccessToast('Account status updated.');
-    },
-    onError(error) {
-      showErrorToast(error, 'Account status could not be updated.');
-    },
-  });
   const isSelf = user.id === currentUserId;
   const canChangeRole = canChangeUserRole(currentUserRole, isSelf);
   const visibleTabs = userTabs[kind].filter(
@@ -118,7 +106,6 @@ export function UserProfilePanel({
     setForm(userForm(user));
     setEditing(false);
     setActiveTab('personal');
-    setStatusAction(null);
   }, [user]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -435,81 +422,14 @@ export function UserProfilePanel({
           <StaffAttendanceHistoryPanel staffUserId={user.id} />
         ) : null}
 
-        <section className="panel">
-          <div className="panel__body form-grid">
-            <div className="section-title">
-              <div>
-                <h2>Account access</h2>
-                <p className="muted">
-                  Deactivate access without deleting profile or audit history.
-                </p>
-              </div>
-            </div>
-            <div className="profile-field-list">
-              <div className="profile-field-row">
-                <span>Status</span>
-                <Badge tone={statusTone(user.active)}>{user.active ? 'Active' : 'Inactive'}</Badge>
-              </div>
-            </div>
-            <div className="lifecycle-actions">
-              {user.active ? (
-                <Button
-                  disabled={isSelf}
-                  onClick={() => {
-                    setStatusAction('deactivate');
-                  }}
-                  pending={updateStatus.isPending}
-                  type="button"
-                  variant="danger"
-                >
-                  <UserX aria-hidden="true" size={16} />
-                  Deactivate account
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    setStatusAction('reactivate');
-                  }}
-                  pending={updateStatus.isPending}
-                  type="button"
-                  variant="secondary"
-                >
-                  <UserCheck aria-hidden="true" size={16} />
-                  Reactivate account
-                </Button>
-              )}
-            </div>
-            {isSelf && user.active ? (
-              <p className="muted">Your own account cannot be deactivated here.</p>
-            ) : null}
-          </div>
-        </section>
+        <AccountAccessPanel
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          key={user.id}
+          onAccessChanged={onAccountAccessChanged}
+          user={user}
+        />
       </form>
-      <ConfirmationDialog
-        confirmLabel={statusAction === 'deactivate' ? 'Deactivate account' : 'Reactivate account'}
-        errorMessage={updateStatus.error ? friendlyErrorMessage(updateStatus.error) : undefined}
-        onCancel={() => {
-          if (!updateStatus.isPending) setStatusAction(null);
-        }}
-        onConfirm={() => {
-          if (!statusAction) return;
-          updateStatus.mutate({ userId: user.id, active: statusAction === 'reactivate' });
-        }}
-        open={statusAction !== null}
-        pending={updateStatus.isPending}
-        title={
-          statusAction === 'deactivate'
-            ? `Deactivate ${user.fullName}?`
-            : `Reactivate ${user.fullName}?`
-        }
-        variant={statusAction === 'reactivate' ? 'primary' : 'danger'}
-      >
-        <p>
-          {statusAction === 'deactivate'
-            ? 'This will stop the account from signing in while preserving profile data, linked records, and audit history.'
-            : 'This will allow the account to sign in again if their Clerk access is valid.'}
-        </p>
-      </ConfirmationDialog>
     </>
   );
 }

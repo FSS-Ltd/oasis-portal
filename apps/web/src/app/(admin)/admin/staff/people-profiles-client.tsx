@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GraduationCap, UserPlus, UsersRound } from 'lucide-react';
 import { displaySchoolYearLabel, type Role } from '@oasis/domain';
 import { friendlyErrorMessage } from '@/lib/notifications';
@@ -15,6 +15,7 @@ import { StudentProfilePanel } from './_components/student-profile-panel';
 import { UserProfilePanel } from './_components/user-profile-panel';
 import {
   childLabel,
+  matchesDirectoryFilter,
   type DirectoryFilter,
   type DirectoryItem,
 } from './_components/people-profile-model';
@@ -28,6 +29,7 @@ export function PeopleProfilesClient({
   currentUserId,
   currentUserRole,
 }: PeopleProfilesClientProps) {
+  const detailRef = useRef<HTMLDivElement>(null);
   const [filter, setFilter] = useState<DirectoryFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
@@ -85,15 +87,8 @@ export function PeopleProfilesClient({
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     return directoryItems.filter((item) => {
-      const filterKind =
-        item.kind === 'invite'
-          ? item.invitation.role === 'Parent'
-            ? 'parent'
-            : 'supervisor'
-          : item.kind;
-      const matchesFilter = filter === 'all' || filterKind === filter;
       const matchesSearch = query.length === 0 || item.searchText.includes(query);
-      return matchesFilter && matchesSearch;
+      return matchesDirectoryFilter(item, filter) && matchesSearch;
     });
   }, [directoryItems, filter, search]);
 
@@ -113,9 +108,9 @@ export function PeopleProfilesClient({
     (usersQuery.error ? friendlyErrorMessage(usersQuery.error) : null) ??
     (studentsQuery.error ? friendlyErrorMessage(studentsQuery.error) : null) ??
     (invitationsQuery.error ? friendlyErrorMessage(invitationsQuery.error) : null);
-  const accountCount =
-    (usersQuery.data?.filter((user) => user.role !== 'Student').length ?? 0) +
-    (invitationsQuery.data?.length ?? 0);
+  const accounts = usersQuery.data?.filter((user) => user.role !== 'Student') ?? [];
+  const activeAccountCount = accounts.filter((user) => user.active).length;
+  const summaryValue = (count: number) => (loading ? '—' : String(count));
 
   return (
     <div className="people-profiles">
@@ -123,27 +118,33 @@ export function PeopleProfilesClient({
         <div className="people-summary-card">
           <UsersRound aria-hidden="true" size={18} />
           <span>
-            <strong>{String(accountCount)}</strong>
-            <small>Accounts and pending invites</small>
+            <strong>{summaryValue(activeAccountCount)}</strong>
+            <small>Active accounts</small>
           </span>
         </div>
         <div className="people-summary-card">
           <GraduationCap aria-hidden="true" size={18} />
           <span>
-            <strong>{String(studentsQuery.data?.length ?? 0)}</strong>
-            <small>Student profiles</small>
+            <strong>
+              {summaryValue(studentsQuery.data?.filter((student) => student.active).length ?? 0)}
+            </strong>
+            <small>Active student profiles</small>
           </span>
         </div>
         <div className="people-summary-card">
           <UserPlus aria-hidden="true" size={18} />
           <span>
-            <strong>Invite</strong>
-            <small>Add a supervisor or parent</small>
+            <strong>{summaryValue(invitationsQuery.data?.length ?? 0)}</strong>
+            <small>Pending invitations</small>
           </span>
         </div>
       </div>
 
-      {error ? <p className="status--error">{error}</p> : null}
+      {error ? (
+        <p className="status--error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <div className="people-profiles__layout">
         <PeopleDirectory
@@ -157,10 +158,15 @@ export function PeopleProfilesClient({
           search={search}
           selectedKey={selectedItem?.key ?? ''}
         />
-        <div className="people-profiles__detail">
+        <div
+          className="people-profiles__detail"
+          id="selected-profile"
+          ref={detailRef}
+          tabIndex={-1}
+        >
           {!selectedItem && !loading ? (
             <EmptyState
-              detail="Invite a person or create a student to begin."
+              detail="Try another search or filter, or invite a new person."
               title="No profile selected"
             />
           ) : null}
@@ -176,6 +182,9 @@ export function PeopleProfilesClient({
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
               kind={selectedItem.kind}
+              onAccountAccessChanged={() => {
+                detailRef.current?.focus();
+              }}
               user={selectedItem.user}
             />
           ) : null}
@@ -185,7 +194,7 @@ export function PeopleProfilesClient({
         </div>
       </div>
 
-      <section className="people-invite-section">
+      <section className="people-invite-section" id="invite-person">
         <div className="section-title">
           <div>
             <h2>Invite person</h2>

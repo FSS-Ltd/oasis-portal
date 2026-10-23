@@ -1,0 +1,145 @@
+.directoryHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 16px 0;
+}
+
+.directoryHeading h3 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 0.85rem;
+}
+
+.directoryHeading > span {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--oasis-bg);
+  color: var(--oasis-text-secondary);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.clearSearch {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+}
+
+.directoryHeading ~ :global(.people-directory__search):focus-within,
+.clearSearch:focus-visible {
+  outline: 2px solid var(--oasis-blue);
+  outline-offset: 2px;
+}
+
+.accountAccess {
+  display: grid;
+  gap: 18px;
+}
+
+.accessHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--oasis-navy);
+}
+
+.accessHeading h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.accessRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.accessRow h3 {
+  margin: 0 0 5px;
+  color: var(--oasis-navy);
+  font-size: 0.85rem;
+}
+
+.accessRow p,
+.accountAccess > p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.accessRow button {
+  flex-shrink: 0;
+}
+
+.deleteRow {
+  padding-top: 18px;
+  border-top: 1px solid var(--oasis-border);
+}
+
+.actionDialog {
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--oasis-border);
+  border-radius: 12px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 20%);
+}
+
+.actionDialog::backdrop {
+  background: rgb(15 23 42 / 50%);
+}
+
+.dialogBody {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.dialogBody h2 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.dialogBody p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+@media (max-width: 700px) {
+  .accessRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+.filters:global(.people-directory__filters) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.filters > button:last-child {
+  grid-column: 1 / -1;
+}
