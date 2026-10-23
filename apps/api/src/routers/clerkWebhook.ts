@@ -207,9 +207,7 @@ export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUser
   return mapClerkUserPayloadToUpsertInput(asClerkUserPayload(data));
 }
 
-export function mapClerkUserProfileToUpsertInput(
-  profile: ClerkUserProfile,
-): ClerkUserUpsertInput {
+export function mapClerkUserProfileToUpsertInput(profile: ClerkUserProfile): ClerkUserUpsertInput {
   return mapClerkUserPayloadToUpsertInput(clerkUserPayloadFromProfile(profile));
 }
 
@@ -354,6 +352,7 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
       // Find-then-branch: role/tags are admin-managed, so re-syncs from
       // user.updated must not overwrite them with stale Clerk metadata.
       const existing = await db.user.findUnique({ where: { clerkId: input.clerkUserId } });
+      if (existing?.deletedAt) return;
       if (existing) {
         const updated = await db.user.update({
           where: { clerkId: input.clerkUserId },
@@ -362,7 +361,6 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
             emailEnc,
             emailBidx,
             phoneEnc,
-            active: true,
           },
           select: { id: true },
         });
@@ -371,6 +369,7 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
       }
 
       const existingByEmail = emailBidx ? await db.user.findUnique({ where: { emailBidx } }) : null;
+      if (existingByEmail?.deletedAt) return;
       if (existingByEmail) {
         const updated = await db.user.update({
           where: { id: existingByEmail.id },
@@ -380,7 +379,6 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
             emailEnc,
             emailBidx,
             phoneEnc,
-            active: true,
           },
           select: { id: true },
         });

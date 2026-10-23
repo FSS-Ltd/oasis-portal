@@ -154,6 +154,7 @@ model User {
   addressEnc                        String?
   // --- operational ---
   active                            Boolean                       @default(true)
+  deletedAt                         DateTime?
   staffParentVolunteerAccess        Boolean                       @default(false)
   lunchAndClubsVolunteerExempt      Boolean                       @default(false)
   parentEmailNotificationsEnabled   Boolean                       @default(true)

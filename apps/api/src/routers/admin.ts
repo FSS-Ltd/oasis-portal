@@ -51,6 +51,7 @@ import {
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 import { logOperationalEvent } from '../lib/observability.js';
 import type { AppContext } from '../context.js';
+import { deleteUserAccount } from '../services/delete-user-account.js';
 
 export interface AdminRouterDeps {
   appUrl?: string;
@@ -1102,9 +1103,15 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return subjects;
     }),
 
+    deleteUserAccount: userAccountAdminProcedure
+      .input(z.object({ userId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteUserAccount({ actor: ctx.user, userId: input.userId, withRls: ctx.withRls }),
+      ),
+
     listUserAccounts: userAccountAdminProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
-        where: {},
+        where: { deletedAt: null },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
         select: userAccountSelect,
@@ -1202,16 +1209,16 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
         const existingUser = await ctx.db.user.findUnique({
           where: { id: input.userId },
-          select: { id: true, role: true },
+          select: { id: true, role: true, deletedAt: true },
         });
-        if (!existingUser) {
+        if (!existingUser || existingUser.deletedAt) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
         }
         assertCanManageTargetRole(ctx.user, existingUser.role);
 
         try {
           const user = await ctx.db.user.update({
-            where: { id: input.userId },
+            where: { id: input.userId, deletedAt: null },
             data: { active: input.active },
             select: userAccountSelect,
           });
@@ -1237,7 +1244,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
     listUsers: adminOperationsProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
-        where: { role: { not: 'Student' } },
+        where: { role: { not: 'Student' }, deletedAt: null },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
         select: adminUserProfileSelect,

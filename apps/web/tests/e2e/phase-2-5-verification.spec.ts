@@ -22,21 +22,30 @@ test.describe('Phase 2.5 access and export verification', () => {
 
     const detail = page.locator('.people-profiles__detail');
 
-    await page.getByRole('tab', { name: 'Students' }).click();
+    await page
+      .getByRole('group', { name: 'Filter people' })
+      .getByRole('button', { name: 'Students' })
+      .click();
     const studentRows = page.locator('.people-directory-row');
     if ((await studentRows.count()) > 0) {
       await studentRows.first().click();
       await expect(detail.getByRole('tab', { name: 'Attendance' })).toBeVisible();
     }
 
-    await page.getByRole('tab', { name: 'Supervisors' }).click();
+    await page
+      .getByRole('group', { name: 'Filter people' })
+      .getByRole('button', { name: 'Supervisors' })
+      .click();
     const supervisorRows = page.locator('.people-directory-row');
     if ((await supervisorRows.count()) > 0) {
       await supervisorRows.first().click();
       await expect(detail.getByRole('tab', { name: 'Attendance' })).toBeVisible();
     }
 
-    await page.getByRole('tab', { name: 'Parents' }).click();
+    await page
+      .getByRole('group', { name: 'Filter people' })
+      .getByRole('button', { name: 'Parents' })
+      .click();
     const parentRows = page.locator('.people-directory-row');
     if ((await parentRows.count()) > 0) {
       await parentRows.first().click();

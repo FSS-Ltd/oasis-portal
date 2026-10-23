@@ -4,7 +4,7 @@ import type { RouterOutputs } from '@/lib/trpc';
 export type UserRow = RouterOutputs['admin']['listUsers'][number];
 export type InvitationRow = RouterOutputs['admin']['listUserInvitations'][number];
 export type StudentRow = RouterOutputs['student']['list'][number];
-export type DirectoryFilter = 'all' | 'student' | 'supervisor' | 'parent';
+export type DirectoryFilter = 'all' | 'student' | 'supervisor' | 'parent' | 'inactive';
 export type UserProfileTab = 'personal' | 'role' | 'contact' | 'children' | 'attendance';
 export type StudentProfileTab = 'personal' | 'academic' | 'contact' | 'attendance';
 
@@ -39,6 +39,7 @@ export const directoryFilters: readonly { id: DirectoryFilter; label: string }[]
   { id: 'student', label: 'Students' },
   { id: 'supervisor', label: 'Supervisors' },
   { id: 'parent', label: 'Parents' },
+  { id: 'inactive', label: 'Inactive' },
 ];
 
 export const userTabs = {
@@ -101,4 +102,22 @@ export function userForm(user: UserRow) {
 
 export function statusTone(active: boolean): 'amber' | 'green' {
   return active ? 'green' : 'amber';
+}
+
+export function isInactiveProfile(item: DirectoryItem): boolean {
+  if (item.kind === 'invite') return false;
+  return item.kind === 'student' ? !item.student.active : !item.user.active;
+}
+
+export function matchesDirectoryFilter(item: DirectoryItem, filter: DirectoryFilter): boolean {
+  if (filter === 'inactive') return isInactiveProfile(item);
+  if (isInactiveProfile(item)) return false;
+  if (filter === 'all') return true;
+  const kind =
+    item.kind === 'invite'
+      ? item.invitation.role === 'Parent'
+        ? 'parent'
+        : 'supervisor'
+      : item.kind;
+  return kind === filter;
 }
