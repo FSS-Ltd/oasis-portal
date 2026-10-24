@@ -87,6 +87,46 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Verify managed PostgreSQL migration safety
+        env:
+          OASIS_MIGRATION_SECURITY_TEST: '1'
+        run: |
+          fixture_container="oasis-migration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fixture_id=''
+          cleanup() {
+            if [ -n "${fixture_id}" ]; then
+              docker rm --force "${fixture_id}" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
+
+          # Host networking preserves the fixture's server-side loopback/port guards.
+          # Trust authentication is confined to this ephemeral loopback-only database.
+          fixture_id="$(docker run --detach --rm --name "${fixture_container}" \
+            --network host \
+            --env POSTGRES_USER=postgres \
+            --env POSTGRES_DB=postgres \
+            --env POSTGRES_HOST_AUTH_METHOD=trust \
+            postgres:17 postgres -p 55441 -c listen_addresses=127.0.0.1)"
+
+          ready=false
+          for attempt in {1..30}; do
+            if docker exec "${fixture_id}" pg_isready -h 127.0.0.1 -p 55441 -U postgres -d postgres; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "${ready}" != true ]; then
+            echo 'Isolated PostgreSQL 17 migration fixture did not become ready.' >&2
+            exit 1
+          fi
+
+          docker exec "${fixture_id}" psql -X --no-password -h 127.0.0.1 -p 55441 \
+            -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c 'CREATE ROLE oasis_migration_fixture NOLOGIN; CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          pnpm --filter @oasis/db test:managed-migration
+
       - name: Apply isolated integration database migrations
         run: pnpm --filter @oasis/db migrate
 

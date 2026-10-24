@@ -13,9 +13,9 @@ BEGIN
       AND EXISTS (SELECT FROM pg_roles WHERE rolname='oasis_migration_fixture' AND NOT rolcanlogin)
       AND coalesce(shobj_description((SELECT oid FROM pg_database WHERE datname=current_database()), 'pg_database'), '')='oasis-migration-fixture-v1'
     )) THEN RAISE EXCEPTION 'Source identity is required'; END IF;
-  SELECT array_agg(name ORDER BY name) INTO reviewed
+  SELECT array_agg(name ORDER BY name COLLATE "C") INTO reviewed
     FROM jsonb_array_elements_text(current_setting('oasis_migration.reviewed_tables')::jsonb) name;
-  SELECT array_agg(c.relname::text ORDER BY c.relname::text) INTO actual
+  SELECT array_agg(c.relname::text ORDER BY c.relname::text COLLATE "C") INTO actual
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relkind IN ('r','p');
   IF reviewed IS NULL OR reviewed IS DISTINCT FROM actual THEN
@@ -23,7 +23,7 @@ BEGIN
   END IF;
   -- ACCESS EXCLUSIVE waits for pre-existing writers and readers. A timeout rolls
   -- back the whole freeze; never terminate unknown transactions automatically.
-  EXECUTE (SELECT 'LOCK TABLE ' || string_agg(format('public.%I', name), ', ' ORDER BY name) || ' IN ACCESS EXCLUSIVE MODE'
+  EXECUTE (SELECT 'LOCK TABLE ' || string_agg(format('public.%I', name), ', ' ORDER BY name COLLATE "C") || ' IN ACCESS EXCLUSIVE MODE'
     FROM unnest(reviewed) name);
 END;
 $scope$;
@@ -31,7 +31,7 @@ $scope$;
 DO $unfreeze$
 DECLARE name text;
 BEGIN
-  FOR name IN SELECT jsonb_array_elements_text(current_setting('oasis_migration.reviewed_tables')::jsonb) LOOP
+  FOR name IN SELECT value FROM jsonb_array_elements_text(current_setting('oasis_migration.reviewed_tables')::jsonb) AS reviewed(value) ORDER BY value COLLATE "C" LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS oasis_migration_write_freeze ON public.%I', name);
   END LOOP;
 END;

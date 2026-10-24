@@ -52,6 +52,7 @@ After any real destination write, switching URLs back would lose commits. Freeze
 ## Evidence recorded so far
 
 - Metadata inventory: 132 application tables, 2,003 objects, no sequences.
+- Freeze and recovery scope checks use explicit C collation so JSON table names and PostgreSQL catalog names compare consistently. A real PostgreSQL 17 ICU-default regression verifies freeze, blocked writes and unfreeze. CI runs the isolated migration safety suite on a loopback-only PostgreSQL 17 fixture.
 - Consistent encrypted warm backup: 182,201 rows across all 132 tables.
 - Keychain creation/read-back and fresh-process authentication/decryption passed.
 - Full encrypted restore passed: every table count/content digest, schema object, enabled trigger and constraint matched. The 132 tables contained 182,201 rows. Restore phases took approximately 57 seconds locally.

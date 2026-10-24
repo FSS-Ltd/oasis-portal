@@ -158,6 +158,58 @@ describe.skipIf(!enabled)('managed Postgres SQL on isolated PostgreSQL 17', () =
       query(`DROP DATABASE "${rehearsal}" WITH (FORCE)`, 'postgres');
     }
   });
+  it('freezes and unfreezes exact table scope with an ICU default unlike catalog C collation', () => {
+    const collatedDatabase = `oasis_migration_fixture_collation_${String(process.pid)}`;
+    const reviewedTables = ['User', '_prisma_migrations', 'Alpha'];
+    query(
+      `CREATE DATABASE "${collatedDatabase}" WITH TEMPLATE template0 LOCALE_PROVIDER icu ICU_LOCALE 'en-US'`,
+      'postgres',
+    );
+    try {
+      query(
+        `COMMENT ON DATABASE "${collatedDatabase}" IS 'oasis-migration-fixture-v1';
+        CREATE TABLE public."User" (id text);
+        CREATE TABLE public._prisma_migrations (id text);
+        CREATE TABLE public."Alpha" (id text);`,
+        collatedDatabase,
+      );
+      const settings = `SET oasis_migration.expected_database='${collatedDatabase}'; SET oasis_migration.reviewed_tables='${JSON.stringify(reviewedTables)}';`;
+      // Reproduce the original failure with identical sets: JSON text uses the ICU
+      // database default while pg_class.relname retains catalog C collation.
+      expect(
+        query(
+          `SELECT
+        (SELECT array_agg(name ORDER BY name) FROM jsonb_array_elements_text('${JSON.stringify(reviewedTables)}'::jsonb) name)
+        IS DISTINCT FROM
+        (SELECT array_agg(c.relname::text ORDER BY c.relname::text) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='public' AND c.relkind IN ('r','p'))`,
+          collatedDatabase,
+        ),
+      ).toBe('t');
+      for (const operation of ['maintenance', 'unfreeze']) {
+        const sql = readFileSync(
+          fileURLToPath(new URL(`../../sql/managed-postgres-${operation}.sql`, import.meta.url)),
+          'utf8',
+        );
+        query(settings + sql, collatedDatabase);
+        expect(
+          query(
+            "SELECT count(*) FROM pg_trigger WHERE tgname='oasis_migration_write_freeze'",
+            collatedDatabase,
+          ),
+        ).toBe(operation === 'maintenance' ? '3' : '0');
+        if (operation === 'maintenance') {
+          expect(() =>
+            query('UPDATE public."User" SET id=id WHERE false', collatedDatabase),
+          ).toThrow('Application writes paused');
+        }
+      }
+      query('INSERT INTO public."User" VALUES (\'after-unfreeze\')', collatedDatabase);
+      expect(query('SELECT count(*) FROM public."User"', collatedDatabase)).toBe('1');
+    } finally {
+      query(`DROP DATABASE "${collatedDatabase}" WITH (FORCE)`, 'postgres');
+    }
+  });
   it('does not alter managed postgres default ACLs', () => {
     expect(
       query(
