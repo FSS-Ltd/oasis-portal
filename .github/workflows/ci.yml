@@ -320,7 +320,8 @@ jobs:
       - name: Deploy preview
         id: deploy
         run: |
-          deployment_url="$(vercel deploy --prebuilt --archive=tgz)"
+          vercel deploy --prebuilt --archive=tgz > "${RUNNER_TEMP}/vercel-deploy-url.txt"
+          deployment_url="$(cat "${RUNNER_TEMP}/vercel-deploy-url.txt")"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "Preview deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -428,7 +429,8 @@ jobs:
       - name: Deploy PWA preview
         id: deploy
         run: |
-          deployment_url="$(vercel deploy dist --cwd apps/mobile --archive=tgz --yes)"
+          vercel deploy dist --cwd apps/mobile --archive=tgz --yes > "${RUNNER_TEMP}/vercel-deploy-url.txt"
+          deployment_url="$(cat "${RUNNER_TEMP}/vercel-deploy-url.txt")"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "PWA preview deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -556,7 +558,8 @@ jobs:
       - name: Deploy production
         id: deploy
         run: |
-          deployment_url="$(vercel deploy --prebuilt --prod --archive=tgz)"
+          vercel deploy --prebuilt --prod --archive=tgz > "${RUNNER_TEMP}/vercel-deploy-url.txt"
+          deployment_url="$(cat "${RUNNER_TEMP}/vercel-deploy-url.txt")"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "Production deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -640,6 +643,7 @@ jobs:
       - name: Deploy PWA production
         id: deploy
         run: |
-          deployment_url="$(vercel deploy dist --cwd apps/mobile --prod --archive=tgz --yes)"
+          vercel deploy dist --cwd apps/mobile --prod --archive=tgz --yes > "${RUNNER_TEMP}/vercel-deploy-url.txt"
+          deployment_url="$(cat "${RUNNER_TEMP}/vercel-deploy-url.txt")"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "PWA production deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
