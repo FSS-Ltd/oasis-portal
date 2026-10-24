@@ -270,6 +270,7 @@ export function SignInPanel() {
               label="Email"
               onChangeText={setEmail}
               placeholder="supervisor@example.com"
+              testID="sign-in-email"
               value={email}
             />
             <Field
@@ -277,6 +278,7 @@ export function SignInPanel() {
               onChangeText={setPassword}
               placeholder="Password"
               secureTextEntry
+              testID="sign-in-password"
               value={password}
             />
             <Pressable

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
@@ -43,6 +43,18 @@ export function StaffRotaScreen({
   const [month, setMonth] = useState(currentMonthKey);
   const [weeklyDraft, setWeeklyDraft] = useState<AvailabilityDraft[]>([]);
   const [monthlyDraft, setMonthlyDraft] = useState<MonthlyAvailabilityDraft[]>([]);
+  const weeklyDirty = useRef(false);
+  const monthlyDirty = useRef(false);
+  const weeklyOwner = useRef(user?.id);
+  const monthlyIdentity = useRef(JSON.stringify([user?.id, month]));
+  const currentDrafts = useRef({ userId: user?.id, month, weeklyDraft, monthlyDraft });
+  currentDrafts.current = { userId: user?.id, month, weeklyDraft, monthlyDraft };
+  const weeklySubmission = useRef<{ userId: string | undefined; rows: AvailabilityDraft[] }>();
+  const monthlySubmission = useRef<{
+    userId: string | undefined;
+    month: string;
+    rows: MonthlyAvailabilityDraft[];
+  }>();
   const [fromShiftId, setFromShiftId] = useState('');
   const [toShiftId, setToShiftId] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -93,8 +105,13 @@ export function StaffRotaScreen({
       setStatusMessage(error.message);
     },
     onSuccess: async (rows) => {
+      const submitted = weeklySubmission.current;
+      if (!submitted || currentDrafts.current.userId !== submitted.userId) return;
       setStatusMessage('Weekly availability saved.');
-      setWeeklyDraft(rows.map((row) => ({ ...row, id: row.id })));
+      if (currentDrafts.current.weeklyDraft === submitted.rows) {
+        weeklyDirty.current = false;
+        setWeeklyDraft(rows.map((row) => ({ ...row, id: row.id })));
+      }
       await Promise.all([
         utils.rota.myAvailability.invalidate(),
         utils.staffHome.summary.invalidate(),
@@ -106,10 +123,18 @@ export function StaffRotaScreen({
       setStatusMessage(error.message);
     },
     onSuccess: async (rows) => {
+      const submitted = monthlySubmission.current;
+      if (!submitted || currentDrafts.current.userId !== submitted.userId) return;
       setStatusMessage('Monthly unavailability saved.');
-      setMonthlyDraft(rows.map((row) => ({ ...row, id: row.id })));
+      if (
+        currentDrafts.current.month === submitted.month &&
+        currentDrafts.current.monthlyDraft === submitted.rows
+      ) {
+        monthlyDirty.current = false;
+        setMonthlyDraft(rows.map((row) => ({ ...row, id: row.id })));
+      }
       await Promise.all([
-        utils.rota.myMonthlyAvailability.invalidate({ month }),
+        utils.rota.myMonthlyAvailability.invalidate({ month: submitted.month }),
         utils.staffHome.summary.invalidate(),
       ]);
     },
@@ -132,7 +157,12 @@ export function StaffRotaScreen({
   });
 
   useEffect(() => {
-    if (!availability.data) return;
+    if (weeklyOwner.current !== user?.id) {
+      weeklyOwner.current = user?.id;
+      weeklyDirty.current = false;
+      setWeeklyDraft([]);
+    }
+    if (!availability.data || weeklyDirty.current) return;
     setWeeklyDraft(
       availability.data.map((window) => ({
         id: window.id,
@@ -141,10 +171,16 @@ export function StaffRotaScreen({
         startMinute: window.startMinute,
       })),
     );
-  }, [availability.data]);
+  }, [availability.data, user?.id]);
 
   useEffect(() => {
-    if (!monthlyAvailability.data) return;
+    const identity = JSON.stringify([user?.id, month]);
+    if (monthlyIdentity.current !== identity) {
+      monthlyIdentity.current = identity;
+      monthlyDirty.current = false;
+      setMonthlyDraft([]);
+    }
+    if (!monthlyAvailability.data || monthlyDirty.current) return;
     setMonthlyDraft(
       monthlyAvailability.data.map((window) => ({
         id: window.id,
@@ -153,7 +189,7 @@ export function StaffRotaScreen({
         startMinute: window.startMinute,
       })),
     );
-  }, [monthlyAvailability.data]);
+  }, [monthlyAvailability.data, month, user?.id]);
 
   // Cover feature is intentionally disabled for now; the required APIs are no longer exposed in
   // the router. Re-enable this effect once `myStaffLunchAndClubsVolunteerDays` is available again.
@@ -328,15 +364,24 @@ export function StaffRotaScreen({
               monthlyLoading={monthlyAvailability.isLoading}
               month={month}
               onAddMonthly={() => {
+                monthlyDirty.current = true;
                 setMonthlyDraft((rows) => [...rows, newMonthlyAvailabilityDraft(month)]);
               }}
               onAddWeekly={() => {
+                weeklyDirty.current = true;
                 setWeeklyDraft((rows) => [...rows, newAvailabilityDraft()]);
               }}
-              onChangeMonthly={setMonthlyDraft}
+              onChangeMonthly={(rows) => {
+                monthlyDirty.current = true;
+                setMonthlyDraft(rows);
+              }}
               onChangeMonth={setMonth}
-              onChangeWeekly={setWeeklyDraft}
+              onChangeWeekly={(rows) => {
+                weeklyDirty.current = true;
+                setWeeklyDraft(rows);
+              }}
               onSaveMonthly={() => {
+                monthlySubmission.current = { userId: user?.id, month, rows: monthlyDraft };
                 saveMonthlyAvailability.mutate({
                   month,
                   windows: monthlyDraft.map(({ date, endMinute, startMinute }) => ({
@@ -347,6 +392,7 @@ export function StaffRotaScreen({
                 });
               }}
               onSaveWeekly={() => {
+                weeklySubmission.current = { userId: user?.id, rows: weeklyDraft };
                 saveAvailability.mutate({
                   windows: weeklyDraft.map(({ dayOfWeek, endMinute, startMinute }) => ({
                     dayOfWeek,

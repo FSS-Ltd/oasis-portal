@@ -2,7 +2,7 @@
 
 import { Plus, Send, Trash2, UserRoundPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import {
   REGISTRATION_CONSENT_COPY,
@@ -109,6 +109,8 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   });
   const updateRegistration = api.registration.updateMine.useMutation({
     async onSuccess() {
+      if (saveIdentity.current !== formIdentity.current) return;
+      if (JSON.stringify(getValues()) === JSON.stringify(saveValues.current)) reset(getValues());
       showSuccessToast('Registration saved.');
       await Promise.all([
         utils.registration.mine.invalidate(),
@@ -138,7 +140,8 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   const {
     control,
     clearErrors,
-    formState: { errors },
+    formState: { errors, dirtyFields },
+    getValues,
     handleSubmit,
     register,
     reset,
@@ -147,6 +150,12 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   } = useForm<RegistrationFormValues>({
     defaultValues: mode === 'initial' ? loadRegistrationDraftValues() : blankRegistrationValues(),
   });
+
+  const formIdentity = useRef<string | null>(null);
+  const saveIdentity = useRef<string | null>(null);
+  const saveValues = useRef<RegistrationFormValues | null>(null);
+  const dirtyFieldsRef = useRef(dirtyFields);
+  dirtyFieldsRef.current = dirtyFields;
 
   const guardianContacts = useFieldArray({ control, name: 'guardianContacts' });
   const emergencyContacts = useFieldArray({ control, name: 'emergencyContacts' });
@@ -174,13 +183,32 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   }, [mode, watch]);
 
   useEffect(() => {
-    if (mode === 'initial' || !mineQuery.data) return;
-    reset(
+    if (mode === 'initial') {
+      if (formIdentity.current !== null) reset(loadRegistrationDraftValues());
+      formIdentity.current = null;
+      return;
+    }
+    if (!mineQuery.data) return;
+    const identity = `${mode}:${mineQuery.data.registrationId}`;
+    const sameRegistration = formIdentity.current === identity;
+    formIdentity.current = identity;
+    const next =
       mode === 'sibling'
         ? siblingValuesFromServer(mineQuery.data)
-        : registrationValuesFromServer(mineQuery.data),
-    );
-  }, [mineQuery.data, mode, reset]);
+        : registrationValuesFromServer(mineQuery.data);
+    // A field-array edit owns its row structure until saved, including additions/removals.
+    if (sameRegistration) {
+      for (const name of [
+        'guardianContacts',
+        'emergencyContacts',
+        'pickupContacts',
+        'students',
+      ] as const) {
+        if (dirtyFieldsRef.current[name]) Object.assign(next, { [name]: getValues(name) });
+      }
+    }
+    reset(next, { keepDirtyValues: sameRegistration });
+  }, [getValues, mineQuery.data, mode, reset]);
 
   if (mode === 'initial' && statusQuery.isLoading) {
     return <div className="empty-state">Loading registration...</div>;
@@ -225,6 +253,8 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
               });
               return;
             }
+            saveIdentity.current = formIdentity.current;
+            saveValues.current = structuredClone(values);
             updateRegistration.mutate(result.data);
             return;
           }

@@ -61,7 +61,7 @@ vi.mock('../../lib/trpc', () => ({
     library: { parentSummary: { useQuery: () => mocks.queryResult } },
     meritLedger: { balances: { useQuery: () => mocks.queryResult } },
     message: {
-      listConversations: { useQuery: () => mocks.queryResult },
+      listConversations: { useInfiniteQuery: () => mocks.queryResult },
       listRecipients: { useQuery: () => mocks.queryResult },
     },
     notice: { listForParents: { useQuery: () => mocks.queryResult } },

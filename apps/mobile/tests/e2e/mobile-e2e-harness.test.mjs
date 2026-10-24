@@ -110,6 +110,84 @@ test('mobile e2e runner invokes only flows with complete credentials', () => {
   }
 });
 
+test('mobile e2e runner supplies flow credentials through Maestro environment without exposing them in argv', () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'oasis-maestro-'));
+  const capturePath = path.join(tempDir, 'maestro-inputs.jsonl');
+  const maestroPath = path.join(tempDir, 'maestro');
+  writeFileSync(
+    maestroPath,
+    `#!${process.execPath}
+const { appendFileSync, readFileSync } = require('node:fs');
+const argv = process.argv.slice(2);
+if (argv[0] === '--version') process.exit(0);
+const flow = readFileSync(argv[1], 'utf8');
+const importedEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([name]) => name.startsWith('MAESTRO_')),
+);
+const inputs = [...flow.matchAll(/- inputText: \\$\\{(\\w+)\\}/g)].map(
+  ([, name]) => importedEnv[name] ?? null,
+);
+const inputIds = [...flow.matchAll(/- tapOn:\\n\\s+id: (.+)/g)].map(([, id]) => id);
+appendFileSync(process.env.MAESTRO_CAPTURE, JSON.stringify({ argv, inputs, inputIds }) + '\\n');
+`,
+  );
+  chmodSync(maestroPath, 0o755);
+
+  try {
+    const credentials = {
+      E2E_PARENT_EMAIL: 'parent@example.test',
+      E2E_PARENT_PASSWORD: 'parent-"$secret\\password',
+      E2E_STUDENT_EMAIL: 'student@example.test',
+      E2E_STUDENT_PASSWORD: 'student-"$secret\\password',
+      E2E_SUPERVISOR_EMAIL: 'staff@example.test',
+      E2E_SUPERVISOR_PASSWORD: 'staff-"$secret\\password',
+    };
+    const result = runHarness({
+      ...credentials,
+      E2E_ALLOW_MOBILE_PRODUCTION_JOURNEYS: '1',
+      E2E_ALLOW_MOBILE_STAFF_PERMISSION_JOURNEYS: '1',
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_example',
+      EXPO_PUBLIC_TRPC_URL: 'http://127.0.0.1:3000/api/trpc',
+      MAESTRO_E2E_PARENT_PASSWORD: 'stale-password',
+      MAESTRO_CAPTURE: capturePath,
+      PATH: tempDir,
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const captured = readFileSync(capturePath, 'utf8').trim().split('\n').map(JSON.parse);
+    const expectedFlows = [
+      ['parent-smoke', credentials.E2E_PARENT_EMAIL, credentials.E2E_PARENT_PASSWORD],
+      ['parent-production-journeys', credentials.E2E_PARENT_EMAIL, credentials.E2E_PARENT_PASSWORD],
+      ['student-smoke', credentials.E2E_STUDENT_EMAIL, credentials.E2E_STUDENT_PASSWORD],
+      [
+        'student-production-journeys',
+        credentials.E2E_STUDENT_EMAIL,
+        credentials.E2E_STUDENT_PASSWORD,
+      ],
+      ['staff-smoke', credentials.E2E_SUPERVISOR_EMAIL, credentials.E2E_SUPERVISOR_PASSWORD],
+      [
+        'staff-production-journeys',
+        credentials.E2E_SUPERVISOR_EMAIL,
+        credentials.E2E_SUPERVISOR_PASSWORD,
+      ],
+    ];
+    assert.equal(captured.length, expectedFlows.length);
+    for (const [index, [flow, email, password]] of expectedFlows.entries()) {
+      assert.deepEqual(captured[index], {
+        argv: ['test', `.maestro/mobile-${flow}.yaml`],
+        inputs: [email, password],
+        inputIds: ['sign-in-email', 'sign-in-password'],
+      });
+    }
+    for (const value of Object.values(credentials)) {
+      assert.ok(!result.stdout.includes(value));
+      assert.ok(!result.stderr.includes(value));
+    }
+  } finally {
+    rmSync(tempDir, { force: true, recursive: true });
+  }
+});
+
 test('mobile e2e runner registers gated production journey flows', () => {
   const runner = readMobile('scripts/run-maestro-e2e.mjs');
 
@@ -207,8 +285,8 @@ test('mobile e2e harness defines parent, student, and staff smoke flows', () => 
 
     const flow = readMobile(flowPath);
     assert.match(flow, /appId: uk\.oasis\.portal/);
-    assert.match(flow, new RegExp(`\\$\\{${emailEnv}\\}`));
-    assert.match(flow, new RegExp(`\\$\\{${passwordEnv}\\}`));
+    assert.match(flow, new RegExp(`\\$\\{MAESTRO_${emailEnv}\\}`));
+    assert.match(flow, new RegExp(`\\$\\{MAESTRO_${passwordEnv}\\}`));
     assert.match(flow, /tapOn: Sign in/);
     assert.match(flow, new RegExp(`assertVisible: ${portalText}`));
     assert.match(flow, new RegExp(`assertVisible: ${tabText}`));

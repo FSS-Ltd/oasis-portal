@@ -1,17 +1,10 @@
 import { CLUBS_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
-import { useEffect, useMemo } from 'react';
-import {
-  AppState,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useMemo } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
+import { useSchoolNow } from '../../lib/realtime/school-clock';
 import { roleLabel } from '../access/user-access-model';
 import { C } from '../core/mobile-theme';
 import {
@@ -53,8 +46,8 @@ function datePartsInSchoolTimeZone(value: Date): { day: string; month: string; y
   };
 }
 
-function todayDate(): Date {
-  const parts = datePartsInSchoolTimeZone(new Date());
+function todayDate(now: Date): Date {
+  const parts = datePartsInSchoolTimeZone(now);
   return new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00.000Z`);
 }
 
@@ -136,16 +129,10 @@ export function StaffHomeScreen({
   user: SessionUser | undefined;
 }) {
   const { signOut } = useClerk();
-  const summary = api.staffHome.summary.useQuery({ date: todayDate() }, { retry: false });
+  const now = useSchoolNow();
+  const summary = api.staffHome.summary.useQuery({ date: todayDate(now) }, { retry: false });
   const pendingAgreements = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void pendingAgreements.refetch();
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, [pendingAgreements.refetch]);
+
   const data = summary.data;
   const canUseAcademicInventory = canOpenAcademicInventory(user);
   const view = useMemo(

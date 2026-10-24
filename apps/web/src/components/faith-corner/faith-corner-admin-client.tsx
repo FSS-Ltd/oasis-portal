@@ -1,12 +1,12 @@
 'use client';
 
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { BookOpenText, Check, MessageCircle, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
-import { api } from '@/lib/trpc';
+import { api, type RouterOutputs } from '@/lib/trpc';
 
 const emptyForm = {
   weeklyTheme: '',
@@ -31,31 +31,44 @@ function formatDate(value: Date | null): string {
 }
 
 export function FaithCornerAdminClient() {
-  const utils = api.useUtils();
   const current = api.faithCorner.currentForAdmin.useQuery(undefined, { retry: false });
+  return <FaithCornerAdminView key={current.data?.id ?? 'unpublished'} current={current} />;
+}
+
+function FaithCornerAdminView({
+  current,
+}: {
+  current: {
+    data: RouterOutputs['faithCorner']['currentForAdmin'] | undefined;
+    isLoading: boolean;
+    error: { message: string } | null;
+  };
+}) {
+  const utils = api.useUtils();
   const pendingComments = api.faithCorner.pendingCommentsForAdmin.useQuery(undefined, {
     retry: false,
   });
-  const [form, setForm] = useState<FaithCornerForm>(emptyForm);
+  const [draft, setDraft] = useState<Partial<FaithCornerForm>>({});
   const [formError, setFormError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!current.data?.ready || !current.data.memoryVerse) return;
-    setForm({
-      weeklyTheme: current.data.weeklyTheme,
-      memoryVerseReference: current.data.memoryVerse.reference,
-      memoryVerseText: current.data.memoryVerse.text,
-      reflectionPrompt: current.data.reflectionPrompt ?? '',
-      verseOfDayReference: current.data.verseOfDay?.reference ?? '',
-      verseOfDayText: current.data.verseOfDay?.text ?? '',
-    });
-  }, [current.data]);
+  const savedForm: FaithCornerForm =
+    current.data?.ready && current.data.memoryVerse
+      ? {
+          weeklyTheme: current.data.weeklyTheme,
+          memoryVerseReference: current.data.memoryVerse.reference,
+          memoryVerseText: current.data.memoryVerse.text,
+          reflectionPrompt: current.data.reflectionPrompt ?? '',
+          verseOfDayReference: current.data.verseOfDay?.reference ?? '',
+          verseOfDayText: current.data.verseOfDay?.text ?? '',
+        }
+      : emptyForm;
+  const form = { ...savedForm, ...draft };
 
   const publish = api.faithCorner.publish.useMutation({
     async onSuccess() {
       setFormError(null);
       showSuccessToast('Faith Corner published.');
       await utils.faithCorner.currentForAdmin.invalidate();
+      setDraft({});
     },
     onError(error) {
       showErrorToast(error, 'Faith Corner could not be published.');
@@ -75,7 +88,12 @@ export function FaithCornerAdminClient() {
   });
 
   function updateField(field: keyof FaithCornerForm, value: string) {
-    setForm((currentForm) => ({ ...currentForm, [field]: value }));
+    setDraft((currentDraft) => {
+      const next = { ...currentDraft };
+      if (value === savedForm[field]) Reflect.deleteProperty(next, field);
+      else next[field] = value;
+      return next;
+    });
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -121,6 +139,7 @@ export function FaithCornerAdminClient() {
           <form onSubmit={submit}>
             <Field label="Weekly theme" required>
               <TextInput
+                disabled={publish.isPending}
                 maxLength={120}
                 onChange={(event) => {
                   updateField('weeklyTheme', event.target.value);
@@ -131,6 +150,7 @@ export function FaithCornerAdminClient() {
             </Field>
             <Field label="Memory verse reference" required>
               <TextInput
+                disabled={publish.isPending}
                 maxLength={80}
                 onChange={(event) => {
                   updateField('memoryVerseReference', event.target.value);
@@ -143,6 +163,7 @@ export function FaithCornerAdminClient() {
             <Field label="Memory verse text" required>
               <textarea
                 className="input faith-corner-textarea"
+                disabled={publish.isPending}
                 maxLength={1000}
                 onChange={(event) => {
                   updateField('memoryVerseText', event.target.value);
@@ -155,6 +176,7 @@ export function FaithCornerAdminClient() {
             <Field label="Reflection prompt" required>
               <textarea
                 className="input faith-corner-textarea"
+                disabled={publish.isPending}
                 maxLength={1000}
                 onChange={(event) => {
                   updateField('reflectionPrompt', event.target.value);
@@ -167,6 +189,7 @@ export function FaithCornerAdminClient() {
             <div className="faith-corner-form-grid">
               <Field label="Verse of the day reference">
                 <TextInput
+                  disabled={publish.isPending}
                   maxLength={80}
                   onChange={(event) => {
                     updateField('verseOfDayReference', event.target.value);
@@ -178,6 +201,7 @@ export function FaithCornerAdminClient() {
               <Field label="Verse of the day text">
                 <textarea
                   className="input faith-corner-textarea"
+                  disabled={publish.isPending}
                   maxLength={1000}
                   onChange={(event) => {
                     updateField('verseOfDayText', event.target.value);

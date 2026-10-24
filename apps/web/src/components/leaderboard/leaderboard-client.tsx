@@ -171,30 +171,21 @@ function LeaderboardRowItem({
   );
 }
 
-function CharityPotCard({ canManageGoal }: { canManageGoal: boolean }) {
-  const charityPot = api.leaderboard.charityPot.get.useQuery(undefined, { retry: false });
+function CharityGoalForm({ goalMerits }: { goalMerits: number | undefined }) {
   const utils = api.useUtils();
-  const [goalInput, setGoalInput] = useState('');
+  const [goalDraft, setGoalDraft] = useState<string>();
+  const savedGoal = goalMerits === undefined ? '' : String(goalMerits);
+  const goalInput = goalDraft ?? savedGoal;
   const updateGoal = api.leaderboard.charityPot.updateGoal.useMutation({
     onError(error) {
       showErrorToast(error.message);
     },
-    onSuccess(result) {
-      setGoalInput(String(result.goalMerits));
+    async onSuccess() {
       showSuccessToast('Charity pot goal updated.');
-      void utils.leaderboard.charityPot.get.invalidate();
+      await utils.leaderboard.charityPot.get.invalidate();
+      setGoalDraft(undefined);
     },
   });
-
-  const pot = charityPot.data;
-  const goalMerits = pot?.goalMerits ?? 0;
-  const currentMerits = pot?.currentMerits ?? 0;
-  const progressPct = pot?.progressPct ?? 0;
-  const goalReached = pot?.goalReached ?? false;
-
-  useEffect(() => {
-    if (pot) setGoalInput(String(pot.goalMerits));
-  }, [pot]);
 
   function submitGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -205,6 +196,40 @@ function CharityPotCard({ canManageGoal }: { canManageGoal: boolean }) {
     }
     updateGoal.mutate({ goalMerits: goalMeritsInput });
   }
+
+  return (
+    <form className="charity-pot-form" onSubmit={submitGoal}>
+      <label htmlFor="charity-pot-goal">Goal amount</label>
+      <div>
+        <input
+          className="input"
+          disabled={updateGoal.isPending}
+          id="charity-pot-goal"
+          inputMode="numeric"
+          min={0}
+          onChange={(event) => {
+            const value = event.target.value;
+            setGoalDraft(value === savedGoal ? undefined : value);
+          }}
+          placeholder={String(goalMerits ?? 0)}
+          type="number"
+          value={goalInput}
+        />
+        <button className="button button--primary" disabled={updateGoal.isPending} type="submit">
+          {updateGoal.isPending ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CharityPotCard({ canManageGoal }: { canManageGoal: boolean }) {
+  const charityPot = api.leaderboard.charityPot.get.useQuery(undefined, { retry: false });
+  const pot = charityPot.data;
+  const goalMerits = pot?.goalMerits ?? 0;
+  const currentMerits = pot?.currentMerits ?? 0;
+  const progressPct = pot?.progressPct ?? 0;
+  const goalReached = pot?.goalReached ?? false;
 
   return (
     <aside className="panel panel__body charity-pot-card" aria-labelledby="charity-pot-title">
@@ -250,32 +275,7 @@ function CharityPotCard({ canManageGoal }: { canManageGoal: boolean }) {
         </>
       ) : null}
 
-      {canManageGoal ? (
-        <form className="charity-pot-form" onSubmit={submitGoal}>
-          <label htmlFor="charity-pot-goal">Goal amount</label>
-          <div>
-            <input
-              className="input"
-              id="charity-pot-goal"
-              inputMode="numeric"
-              min={0}
-              onChange={(event) => {
-                setGoalInput(event.target.value);
-              }}
-              placeholder={String(goalMerits)}
-              type="number"
-              value={goalInput}
-            />
-            <button
-              className="button button--primary"
-              disabled={updateGoal.isPending}
-              type="submit"
-            >
-              {updateGoal.isPending ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </form>
-      ) : null}
+      {canManageGoal ? <CharityGoalForm goalMerits={pot?.goalMerits} /> : null}
     </aside>
   );
 }

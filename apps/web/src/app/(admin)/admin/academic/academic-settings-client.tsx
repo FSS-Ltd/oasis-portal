@@ -2,7 +2,7 @@
 
 import { Save, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -90,7 +90,16 @@ export function AcademicSettingsClient() {
   const [subjectName, setSubjectName] = useState('');
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [editingSubjectName, setEditingSubjectName] = useState('');
-  const [policyForm, setPolicyForm] = useState<PolicyForm>(defaultPolicyForm);
+  const [policyDraft, setPolicyDraft] = useState<Partial<PolicyForm>>({});
+  const savedPolicyForm: PolicyForm = policyQuery.data
+    ? {
+        dailyTestLimitEnabled: policyQuery.data.dailyTestLimitEnabled,
+        maxTestsPerStudentPerDay: String(policyQuery.data.maxTestsPerStudentPerDay),
+        samePaceSameDayBlockEnabled: policyQuery.data.samePaceSameDayBlockEnabled,
+        passThreshold: String(policyQuery.data.passThreshold),
+      }
+    : defaultPolicyForm;
+  const policyForm = { ...savedPolicyForm, ...policyDraft };
 
   const bands = useMemo<YearGroupBand[]>(() => bandsQuery.data ?? [], [bandsQuery.data]);
   const bandStudents = useMemo<AgeBandStudent[]>(
@@ -184,25 +193,46 @@ export function AcademicSettingsClient() {
     },
   });
   const updatePolicy = api.admin.updatePacePolicy.useMutation({
-    async onSuccess() {
+    async onSuccess(_result, input) {
       showSuccessToast('PACE policy saved.');
       await utils.admin.getPacePolicy.invalidate();
+      setPolicyDraft((current) => {
+        const next = { ...current };
+        if (next.dailyTestLimitEnabled === input.dailyTestLimitEnabled) {
+          delete next.dailyTestLimitEnabled;
+        }
+        if (next.samePaceSameDayBlockEnabled === input.samePaceSameDayBlockEnabled) {
+          delete next.samePaceSameDayBlockEnabled;
+        }
+        if (Number(next.maxTestsPerStudentPerDay) === input.maxTestsPerStudentPerDay) {
+          delete next.maxTestsPerStudentPerDay;
+        }
+        if (Number(next.passThreshold) === input.passThreshold) delete next.passThreshold;
+        return next;
+      });
     },
     onError(error) {
       showErrorToast(error, 'PACE policy could not be saved.');
     },
   });
 
-  useEffect(() => {
-    const policy = policyQuery.data;
-    if (!policy) return;
-    setPolicyForm({
-      dailyTestLimitEnabled: policy.dailyTestLimitEnabled,
-      maxTestsPerStudentPerDay: String(policy.maxTestsPerStudentPerDay),
-      samePaceSameDayBlockEnabled: policy.samePaceSameDayBlockEnabled,
-      passThreshold: String(policy.passThreshold),
-    });
-  }, [policyQuery.data]);
+  function changePolicy(next: PolicyForm) {
+    const baseline = updatePolicy.isPending ? policyForm : savedPolicyForm;
+    const draft: Partial<PolicyForm> = updatePolicy.isPending ? { ...policyDraft } : {};
+    if (next.dailyTestLimitEnabled !== baseline.dailyTestLimitEnabled) {
+      draft.dailyTestLimitEnabled = next.dailyTestLimitEnabled;
+    }
+    if (next.samePaceSameDayBlockEnabled !== baseline.samePaceSameDayBlockEnabled) {
+      draft.samePaceSameDayBlockEnabled = next.samePaceSameDayBlockEnabled;
+    }
+    if (next.maxTestsPerStudentPerDay !== baseline.maxTestsPerStudentPerDay) {
+      draft.maxTestsPerStudentPerDay = next.maxTestsPerStudentPerDay;
+    }
+    if (next.passThreshold !== baseline.passThreshold) {
+      draft.passThreshold = next.passThreshold;
+    }
+    setPolicyDraft(draft);
+  }
 
   return (
     <div className="settings-grid">
@@ -575,7 +605,7 @@ export function AcademicSettingsClient() {
 
       <PacePolicyPanel
         form={policyForm}
-        onChange={setPolicyForm}
+        onChange={changePolicy}
         onSubmit={() => {
           updatePolicy.mutate({
             dailyTestLimitEnabled: policyForm.dailyTestLimitEnabled,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Prisma } from '@oasis/db';
+import { decryptField, Prisma } from '@oasis/db';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { createAdminRouter } from '../routers/admin.js';
@@ -1506,6 +1506,33 @@ describe('admin.listUsers and admin.updateUserTags', () => {
 });
 
 describe('admin.listUserAccounts and account support updates', () => {
+  it('lists email-less students alongside accounts with email', async () => {
+    const db = makeFakeDb();
+    db.user.findMany.mockResolvedValue([
+      makeAdminUserRow(),
+      { ...makeAdminUserRow(), id: 'u_student', role: 'Student', emailEnc: null },
+    ]);
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    const result = await caller.admin.listUserAccounts();
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'u_sup', email: 'sam@example.com' }),
+      expect.objectContaining({ id: 'u_student', email: null }),
+    ]);
+  });
+
+  it('rejects account lists containing malformed email ciphertext', async () => {
+    const db = makeFakeDb();
+    db.user.findMany.mockResolvedValue([makeAdminUserRow({ emailEnc: 'malformed' })]);
+    db.$enc.decrypt.mockImplementation((value: string | null | undefined) =>
+      value === 'malformed' ? decryptField(value) : decryptTestValue(value),
+    );
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    await expect(caller.admin.listUserAccounts()).rejects.toThrow('Malformed ciphertext');
+  });
+
   it('lists safe account rows for Technical Support with tags but without child links', async () => {
     const db = makeFakeDb();
     db.user.findMany.mockResolvedValue([

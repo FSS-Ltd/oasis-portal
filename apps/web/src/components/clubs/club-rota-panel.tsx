@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Save, Trash2, UsersRound, X } from 'lucide-react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
@@ -61,12 +61,6 @@ function shiftToForm(shift: ClubShift): ShiftForm {
   };
 }
 
-function selectedCandidateIds(candidates: readonly Candidate[]): Set<string> {
-  return new Set(
-    candidates.filter((candidate) => candidate.selected).map((candidate) => candidate.id),
-  );
-}
-
 function availabilityLabel(window: {
   dayOfWeek: number;
   startMinute: number;
@@ -79,10 +73,12 @@ function availabilityLabel(window: {
 
 function CandidatePicker({
   candidates,
+  disabled,
   onToggle,
   selectedUserIds,
 }: {
   candidates: readonly Candidate[];
+  disabled: boolean;
   onToggle: (userId: string) => void;
   selectedUserIds: ReadonlySet<string>;
 }) {
@@ -98,6 +94,7 @@ function CandidatePicker({
           key={candidate.id}
         >
           <input
+            disabled={disabled}
             checked={selectedUserIds.has(candidate.id)}
             onChange={() => {
               onToggle(candidate.id);
@@ -118,10 +115,15 @@ function CandidatePicker({
 }
 
 export function ClubRotaPanel({ club }: { club: ManagedClub }) {
+  return <ClubRotaEditor key={club.id} club={club} />;
+}
+
+function ClubRotaEditor({ club }: { club: ManagedClub }) {
   const utils = api.useUtils();
+  const [savingParticipants, setSavingParticipants] = useState(false);
   const initialWeek = useMemo(() => mondayFor(dateFromKey(dateKey(new Date()))), []);
   const [weekStart, setWeekStart] = useState(initialWeek);
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [participantDraft, setParticipantDraft] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [shiftForm, setShiftForm] = useState<ShiftForm>(() =>
     emptyShiftForm(club, dateKey(addDays(initialWeek, 1))),
   );
@@ -152,6 +154,11 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   const deleteShift = api.club.deleteClubRotaShift.useMutation();
 
   const candidates = candidatesQuery.data ?? [];
+  const selectedUserIds = new Set(
+    candidates
+      .filter((candidate) => participantDraft.get(candidate.id) ?? candidate.selected)
+      .map((candidate) => candidate.id),
+  );
   const selectedCandidates = candidates.filter((candidate) => selectedUserIds.has(candidate.id));
   const shifts = scheduleQuery.data ?? [];
   const availability = availabilityQuery.data ?? [];
@@ -169,11 +176,6 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   const mutationError =
     setParticipants.error ?? createShiftBatch.error ?? updateShift.error ?? deleteShift.error;
 
-  useEffect(() => {
-    if (!candidatesQuery.data) return;
-    setSelectedUserIds(selectedCandidateIds(candidatesQuery.data));
-  }, [candidatesQuery.data]);
-
   async function refreshRota() {
     await Promise.all([
       utils.club.rotaCandidates.invalidate({ clubId: club.id }),
@@ -183,24 +185,28 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   }
 
   function toggleCandidate(userId: string) {
-    setSelectedUserIds((current) => {
-      const next = new Set(current);
-      if (next.has(userId)) {
-        next.delete(userId);
-      } else {
-        next.add(userId);
-      }
+    const candidate = candidates.find((row) => row.id === userId);
+    if (!candidate) return;
+    setParticipantDraft((current) => {
+      const next = new Map(current);
+      const selected = !(current.get(userId) ?? candidate.selected);
+      if (selected === candidate.selected) next.delete(userId);
+      else next.set(userId, selected);
       return next;
     });
   }
 
   async function saveParticipants() {
+    setSavingParticipants(true);
     try {
       await setParticipants.mutateAsync({ clubId: club.id, userIds: [...selectedUserIds] });
       showSuccessToast('Rota access saved.');
       await refreshRota();
+      setParticipantDraft(new Map());
     } catch (error) {
       showErrorToast(error, 'Rota access could not be saved.');
+    } finally {
+      setSavingParticipants(false);
     }
   }
 
@@ -272,7 +278,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
               onClick={() => {
                 void saveParticipants();
               }}
-              pending={setParticipants.isPending}
+              pending={savingParticipants || setParticipants.isPending}
               size="sm"
               type="button"
             >
@@ -285,6 +291,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
             <p className="status--error">{friendlyErrorMessage(candidatesQuery.error)}</p>
           ) : null}
           <CandidatePicker
+            disabled={savingParticipants || setParticipants.isPending}
             candidates={candidates}
             onToggle={toggleCandidate}
             selectedUserIds={selectedUserIds}

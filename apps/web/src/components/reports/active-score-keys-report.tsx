@@ -30,8 +30,6 @@ export function ActiveScoreKeysReport({ enabled = true }: { enabled?: boolean })
       refetchOnMount: true,
       refetchOnReconnect: true,
       refetchOnWindowFocus: true,
-      refetchInterval: () =>
-        typeof document === 'undefined' || document.visibilityState === 'visible' ? 30_000 : false,
       retry: false,
     },
   );
@@ -48,18 +46,6 @@ export function ActiveScoreKeysReport({ enabled = true }: { enabled?: boolean })
     }
     return [...groups.values()];
   }, [data?.rows]);
-
-  useEffect(() => {
-    function refetchWhenVisible() {
-      if (document.visibilityState === 'visible') {
-        void reportQuery.refetch();
-      }
-    }
-    document.addEventListener('visibilitychange', refetchWhenVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', refetchWhenVisible);
-    };
-  }, [reportQuery.refetch]);
 
   useEffect(
     () => () => {

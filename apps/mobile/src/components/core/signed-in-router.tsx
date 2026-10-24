@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { useClerk } from '@clerk/clerk-expo';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
 import { C } from './mobile-theme';
 import { ParentPortalScreen } from '../parent/parent-portal-screen';
@@ -12,20 +13,10 @@ import { MobileAgreementsScreen } from '../agreements/mobile-agreements';
 type MobilePortalView = 'default' | 'parent';
 
 export function SignedInRouter() {
+  const { signOut } = useClerk();
   const [portalView, setPortalView] = useState<MobilePortalView>('default');
   const health = api.health.me.useQuery(undefined, { retry: false });
-  useEffect(() => {
-    let appState = AppState.currentState;
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (appState.match(/inactive|background/) && nextAppState === 'active') {
-        void health.refetch();
-      }
-      appState = nextAppState;
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, [health.refetch]);
+
   const user = health.data?.user;
   const linkedChildCount = health.data?.linkedChildCount ?? 0;
   const parentVolunteerAccess = health.data?.parentVolunteerAccess ?? null;
@@ -100,6 +91,24 @@ export function SignedInRouter() {
 
   if (health.data?.accountAccessState === 'deactivated') {
     return <MobileAccessRevokedScreen />;
+  }
+
+  if (user?.requires2fa) {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.loadingText}>
+          Complete two-factor authentication to access the portal. Sign out and sign in again to
+          continue.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void signOut()}
+          style={styles.retryButton}
+        >
+          <Text style={styles.retryButtonText}>Sign out</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   if (user && canSwitchToParent && portalView === 'parent') {

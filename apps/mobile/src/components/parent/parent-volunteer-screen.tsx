@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type RouterOutputs, api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
@@ -275,6 +275,8 @@ function ParentVolunteerSchedule({ slots }: { slots: ParentVolunteerScheduleSlot
     new Set(),
   );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const selectionTerm = useRef<string | null>(null);
+  const selectionDirty = useRef(false);
 
   const selectedTerm = terms.find((term) => term.id === selectedTermId) ?? terms[0] ?? null;
 
@@ -284,6 +286,9 @@ function ParentVolunteerSchedule({ slots }: { slots: ParentVolunteerScheduleSlot
 
   useEffect(() => {
     if (!selectedTerm) return;
+    if (selectionTerm.current === selectedTerm.id && selectionDirty.current) return;
+    selectionTerm.current = selectedTerm.id;
+    selectionDirty.current = false;
     setCentreDates(selectedDates(selectedTerm.centreVolunteer.days));
     setPrimaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.primary.days));
     setSecondaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.secondary.days));
@@ -294,13 +299,16 @@ function ParentVolunteerSchedule({ slots }: { slots: ParentVolunteerScheduleSlot
       setSuccessMessage(null);
       await utils.rota.parentVolunteerSlots.invalidate();
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (selectionTerm.current !== variables.termId) return;
+      selectionDirty.current = false;
       setSuccessMessage('Your volunteer days have been saved.');
       await utils.rota.parentVolunteerSlots.invalidate();
     },
   });
 
   function toggleCentreDate(date: string): void {
+    selectionDirty.current = true;
     setCentreDates((current) => {
       const next = new Set(current);
       if (next.has(date)) next.delete(date);
@@ -310,6 +318,7 @@ function ParentVolunteerSchedule({ slots }: { slots: ParentVolunteerScheduleSlot
   }
 
   function toggleLunchAndClubsDate(date: string, placement: 'primary' | 'secondary'): void {
+    selectionDirty.current = true;
     toggleExclusiveDate(
       date,
       placement === 'primary' ? setPrimaryLunchAndClubsDates : setSecondaryLunchAndClubsDates,
@@ -382,6 +391,8 @@ function StaffVolunteerSchedule({ slots }: { slots: StaffVolunteerScheduleSlots 
     new Set(),
   );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const selectionTerm = useRef<string | null>(null);
+  const selectionDirty = useRef(false);
   const selectedTerm = terms.find((term) => term.id === selectedTermId) ?? terms[0] ?? null;
 
   useEffect(() => {
@@ -390,6 +401,9 @@ function StaffVolunteerSchedule({ slots }: { slots: StaffVolunteerScheduleSlots 
 
   useEffect(() => {
     if (!selectedTerm) return;
+    if (selectionTerm.current === selectedTerm.id && selectionDirty.current) return;
+    selectionTerm.current = selectedTerm.id;
+    selectionDirty.current = false;
     setPrimaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.primary.days));
     setSecondaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.secondary.days));
   }, [selectedTerm]);
@@ -399,13 +413,16 @@ function StaffVolunteerSchedule({ slots }: { slots: StaffVolunteerScheduleSlots 
       setSuccessMessage(null);
       await utils.rota.parentVolunteerSlots.invalidate();
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (selectionTerm.current !== variables.termId) return;
+      selectionDirty.current = false;
       setSuccessMessage('Your volunteer days have been saved.');
       await utils.rota.parentVolunteerSlots.invalidate();
     },
   });
 
   function toggleLunchAndClubsDate(date: string, placement: 'primary' | 'secondary'): void {
+    selectionDirty.current = true;
     toggleExclusiveDate(
       date,
       placement === 'primary' ? setPrimaryLunchAndClubsDates : setSecondaryLunchAndClubsDates,

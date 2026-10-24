@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { AppState, ScrollView, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { type RouterOutputs, api } from '../../lib/trpc';
@@ -60,14 +60,7 @@ export function TechnicalSupportPortalScreen({
   const { signOut } = useClerk();
   const [route, setRoute] = useState<SupportPortalRoute>('access');
   const agreementPending = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void agreementPending.refetch();
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, [agreementPending.refetch]);
+
   const calendarQuery = api.calendar.listVisible.useQuery(undefined, {
     enabled: route === 'calendar',
     retry: false,

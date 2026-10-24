@@ -1,7 +1,7 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Mail, MapPin, Phone, Save, ShieldCheck, UserCheck, UserX } from 'lucide-react';
 import {
   ADULT_USER_ACCOUNT_ROLES,
@@ -50,18 +50,27 @@ function isAdultUserAccountRole(value: string): value is (typeof ADULT_USER_ACCO
   return ADULT_USER_ACCOUNT_ROLES.some((role) => role === value);
 }
 
-export function AccessAccountPanel({
-  account,
-  complianceSummary,
-  currentUserId,
-}: AccessAccountPanelProps) {
+export function AccessAccountPanel(props: AccessAccountPanelProps) {
+  return <AccountEditor key={props.account.id} {...props} />;
+}
+
+function AccountEditor({ account, complianceSummary, currentUserId }: AccessAccountPanelProps) {
   const utils = api.useUtils();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(accountForm(account));
+  const [draft, setDraft] = useState<
+    Partial<Record<'fullName' | 'phone' | 'address', string | undefined>>
+  >({});
+  const savedForm = accountForm(account);
+  const form = {
+    fullName: draft.fullName ?? savedForm.fullName,
+    phone: draft.phone ?? savedForm.phone,
+    address: draft.address ?? savedForm.address,
+  };
   const [statusAction, setStatusAction] = useState<'deactivate' | 'reactivate' | null>(null);
   const updateProfile = api.admin.updateUserAccountProfile.useMutation({
     async onSuccess() {
       await utils.admin.listUserAccounts.invalidate();
+      setDraft({});
       setEditing(false);
       showSuccessToast('Profile saved.');
     },
@@ -108,12 +117,6 @@ export function AccessAccountPanel({
     ? ADULT_USER_ACCOUNT_ROLES
     : [account.role, ...ADULT_USER_ACCOUNT_ROLES];
 
-  useEffect(() => {
-    setForm(accountForm(account));
-    setEditing(false);
-    setStatusAction(null);
-  }, [account]);
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.fullName.trim()) return;
@@ -153,8 +156,9 @@ export function AccessAccountPanel({
             {editing ? (
               <>
                 <Button
+                  disabled={updateProfile.isPending}
                   onClick={() => {
-                    setForm(accountForm(account));
+                    setDraft({});
                     setEditing(false);
                   }}
                   type="button"
@@ -186,23 +190,36 @@ export function AccessAccountPanel({
             <div className="form-grid form-grid--two">
               <Field label="Full name">
                 <TextInput
-                  disabled={!editing}
+                  disabled={!editing || updateProfile.isPending}
                   onChange={(event) => {
-                    setForm((current) => ({ ...current, fullName: event.target.value }));
+                    const value = event.target.value;
+                    setDraft((current) => ({
+                      ...current,
+                      fullName: value === savedForm.fullName ? undefined : value,
+                    }));
                   }}
                   value={form.fullName}
                 />
               </Field>
               <Field label="Account email">
-                <TextInput disabled type="email" value={account.email} />
+                <TextInput
+                  disabled
+                  placeholder="No email recorded"
+                  type="email"
+                  value={account.email ?? ''}
+                />
               </Field>
             </div>
             <div className="form-grid form-grid--two">
               <Field label="Phone">
                 <TextInput
-                  disabled={!editing}
+                  disabled={!editing || updateProfile.isPending}
                   onChange={(event) => {
-                    setForm((current) => ({ ...current, phone: event.target.value }));
+                    const value = event.target.value;
+                    setDraft((current) => ({
+                      ...current,
+                      phone: value === savedForm.phone ? undefined : value,
+                    }));
                   }}
                   type="tel"
                   value={form.phone}
@@ -210,9 +227,13 @@ export function AccessAccountPanel({
               </Field>
               <Field label="Address">
                 <TextInput
-                  disabled={!editing}
+                  disabled={!editing || updateProfile.isPending}
                   onChange={(event) => {
-                    setForm((current) => ({ ...current, address: event.target.value }));
+                    const value = event.target.value;
+                    setDraft((current) => ({
+                      ...current,
+                      address: value === savedForm.address ? undefined : value,
+                    }));
                   }}
                   value={form.address}
                 />
@@ -253,7 +274,7 @@ export function AccessAccountPanel({
             <div className="profile-contact-strip">
               <span>
                 <Mail aria-hidden="true" size={15} />
-                {account.email}
+                {account.email ?? 'No email recorded'}
               </span>
               <span>
                 <Phone aria-hidden="true" size={15} />

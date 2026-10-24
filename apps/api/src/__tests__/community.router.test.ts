@@ -594,6 +594,26 @@ function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
 }
 
 describe('community student access', () => {
+  it('does not write or emit changes when active central membership already exists', async () => {
+    const { caller, db } = makeCaller(studentUser);
+    await caller.community.listStudentGroups();
+    await caller.community.listStudentGroups();
+    expect(db.communityGroupMember.upsert).not.toHaveBeenCalled();
+  });
+
+  it('restores an inactive central membership once', async () => {
+    const { caller, db } = makeCaller(studentUser);
+    const membership = db.memberships.find(
+      (row) => row.groupId === 'group_central' && row.studentId === 'student_jamie',
+    );
+    if (!membership) throw new Error('Missing fixture membership');
+    membership.active = false;
+    await caller.community.listStudentGroups();
+    await caller.community.listStudentGroups();
+    expect(db.communityGroupMember.upsert).toHaveBeenCalledTimes(1);
+    expect(membership.active).toBe(true);
+  });
+
   it('lists active central and joined groups for a student with moderation state', async () => {
     const { caller } = makeCaller(studentUser);
 

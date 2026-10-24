@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, MutedText, MobileButton } from '../core/mobile-ui';
+import { useRealtimeDeadline } from '../../lib/realtime/use-realtime-deadline';
 
 export type StaffNotice = RouterOutputs['notice']['listForStaff'][number];
 
@@ -17,6 +18,10 @@ function formatDateTime(value: Date | string): string {
 }
 
 export function StaffNoticesPanel({ notices }: { notices: StaffNotice[] }) {
+  useRealtimeDeadline(
+    notices.map((notice) => notice.expiresAt),
+    ['notice', 'staffHome'],
+  );
   const utils = api.useUtils();
   const [pendingNoticeId, setPendingNoticeId] = useState<string | null>(null);
   const markRead = api.notice.markRead.useMutation({

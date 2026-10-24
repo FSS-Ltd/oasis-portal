@@ -4,6 +4,7 @@ import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, MutedText, MobileButton } from '../core/mobile-ui';
 import { formatParentDateTime } from './parent-home-utils';
+import { useRealtimeDeadline } from '../../lib/realtime/use-realtime-deadline';
 
 type Notice = RouterOutputs['notice']['listForParents'][number];
 
@@ -49,6 +50,10 @@ function ParentNoticeCard({
 }
 
 export function ParentNoticesScreen({ notices }: { notices: readonly Notice[] }) {
+  useRealtimeDeadline(
+    notices.map((notice) => notice.expiresAt),
+    ['notice'],
+  );
   const utils = api.useUtils();
   const [pendingNoticeId, setPendingNoticeId] = useState<string | null>(null);
   const markRead = api.notice.markRead.useMutation({

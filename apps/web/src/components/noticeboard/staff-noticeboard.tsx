@@ -1,5 +1,7 @@
 'use client';
 
+import { useDeadlineClock } from '@/lib/hooks/use-deadline-clock';
+
 import { type FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, CheckCircle2, Send } from 'lucide-react';
@@ -226,6 +228,12 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
       : mode === 'parent'
         ? parentNoticesQuery
         : staffNoticesQuery;
+  useDeadlineClock(
+    (noticesQuery.data ?? []).map((notice) => notice.expiresAt),
+    () => {
+      void refreshNoticeState();
+    },
+  );
   const postNotice = api.notice.post.useMutation({
     onSuccess: async (result) => {
       setTitle('');

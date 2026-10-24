@@ -24,6 +24,7 @@
     "@expo/vector-icons": "14.0.4",
     "@oasis/api": "workspace:*",
     "@oasis/domain": "workspace:*",
+    "@supabase/supabase-js": "2.104.1",
     "@tanstack/react-query": "^5.62.0",
     "@trpc/client": "^11.0.0-rc.600",
     "@trpc/react-query": "^11.0.0-rc.600",

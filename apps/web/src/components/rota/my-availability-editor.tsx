@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -48,38 +48,46 @@ function fromTimeValue(value: string): number {
 
 export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvailabilityEditorProps) {
   const utils = api.useUtils();
-  const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [draft, setDraft] = useState<AvailabilityDraft[] | null>(null);
   const availabilityQuery = api.rota.myAvailability.useQuery(undefined, { retry: false });
   const saveAvailability = api.rota.setMyAvailability.useMutation({
     onSuccess: async () => {
       showSuccessToast('Availability saved.');
-      await Promise.all([
-        utils.rota.myAvailability.invalidate(),
-        utils.rota.staffAvailability.invalidate(),
-      ]);
+      setRefreshing(true);
+      try {
+        await Promise.all([
+          utils.rota.myAvailability.invalidate(),
+          utils.rota.staffAvailability.invalidate(),
+        ]);
+        setDraft(null);
+      } finally {
+        setRefreshing(false);
+      }
     },
     onError(error) {
       showErrorToast(error, 'Availability could not be saved.');
     },
   });
 
-  useEffect(() => {
-    if (!availabilityQuery.data) return;
-    setAvailabilityDraft(
-      availabilityQuery.data.map((window) => ({
-        id: window.id,
-        dayOfWeek: window.dayOfWeek,
-        startMinute: window.startMinute,
-        endMinute: window.endMinute,
-      })),
-    );
-  }, [availabilityQuery.data]);
+  const savedAvailability = (availabilityQuery.data ?? []).map((window) => ({
+    id: window.id,
+    dayOfWeek: window.dayOfWeek,
+    startMinute: window.startMinute,
+    endMinute: window.endMinute,
+  }));
+  const availabilityDraft = draft ?? savedAvailability;
+
+  function setAvailabilityDraft(update: (rows: AvailabilityDraft[]) => AvailabilityDraft[]) {
+    setDraft((current) => update(current ?? savedAvailability));
+  }
 
   return (
     <section className="panel panel__body">
       <div className="section-title">
         <h2>{title}</h2>
         <Button
+          disabled={refreshing || saveAvailability.isPending || availabilityQuery.isLoading}
           onClick={() => {
             setAvailabilityDraft((rows) => [...rows, emptyAvailabilityRow()]);
           }}
@@ -107,6 +115,7 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
             <div className="availability-editor__row" key={window.id}>
               <Field label="Day">
                 <SelectInput
+                  disabled={refreshing || saveAvailability.isPending}
                   aria-label="Availability day"
                   onChange={(event) => {
                     setAvailabilityDraft((rows) =>
@@ -128,6 +137,7 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
               </Field>
               <Field label="Start">
                 <TextInput
+                  disabled={refreshing || saveAvailability.isPending}
                   aria-label="Availability start time"
                   onChange={(event) => {
                     setAvailabilityDraft((rows) =>
@@ -144,6 +154,7 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
               </Field>
               <Field label="End">
                 <TextInput
+                  disabled={refreshing || saveAvailability.isPending}
                   aria-label="Availability end time"
                   onChange={(event) => {
                     setAvailabilityDraft((rows) =>
@@ -159,6 +170,7 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
                 />
               </Field>
               <Button
+                disabled={refreshing || saveAvailability.isPending || availabilityQuery.isLoading}
                 aria-label="Remove availability window"
                 onClick={() => {
                   setAvailabilityDraft((rows) => rows.filter((row) => row.id !== window.id));
@@ -175,6 +187,7 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
       </div>
 
       <Button
+        disabled={refreshing || saveAvailability.isPending || availabilityQuery.isLoading}
         className="supervisor-submit"
         onClick={() => {
           saveAvailability.mutate({

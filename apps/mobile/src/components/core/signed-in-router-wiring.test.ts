@@ -13,8 +13,9 @@ describe('signed-in mobile routing', () => {
     const router = readMobile('src/components/core/signed-in-router.tsx');
 
     expect(router).toMatch(/api\.health\.me\.useQuery\(undefined, \{ retry: false \}\)/);
-    expect(router).not.toMatch(/useClerk/);
-    expect(router).not.toMatch(/signOut/);
+    expect(router).toContain('if (user?.requires2fa)');
+    expect(router).toContain('onPress={() => void signOut()}');
+    expect(router).not.toContain('await signOut()');
     expect(router).toContain('We could not refresh your access. Please try again.');
     expect(router).not.toMatch(/health\.error\.message/);
   });

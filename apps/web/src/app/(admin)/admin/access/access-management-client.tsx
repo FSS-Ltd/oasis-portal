@@ -40,7 +40,9 @@ function filterAccount(account: AccessAccount, filter: AccessFilter, query: stri
     account.role === filter;
   const matchesSearch =
     query.length === 0 ||
-    `${account.fullName} ${account.email} ${roleLabel(account.role)}`.toLowerCase().includes(query);
+    `${account.fullName} ${account.email ?? ''} ${roleLabel(account.role)}`
+      .toLowerCase()
+      .includes(query);
   return matchesFilter && matchesSearch;
 }
 
