@@ -88,7 +88,7 @@ export function UserAccessAccountDetail({
         <Field label="Full name" onChangeText={setFullName} value={fullName} />
         <Field label="Phone" onChangeText={setPhone} value={phone} />
         <Field label="Address" onChangeText={setAddress} value={address} />
-        <DetailRow label="Email" value={account.email} />
+        <DetailRow label="Email" value={account.email ?? 'No email recorded'} />
         <DetailRow label="Joined" value={formatAccountDate(account.createdAt)} />
         {updateProfile.error ? <ErrorText>{updateProfile.error.message}</ErrorText> : null}
         <MobileButton

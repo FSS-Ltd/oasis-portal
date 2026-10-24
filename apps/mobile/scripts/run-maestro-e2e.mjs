@@ -66,9 +66,7 @@ const runtimeMissing = missingEnvironment([
   'EXPO_PUBLIC_TRPC_URL',
 ]);
 if (runtimeMissing.length > 0) {
-  console.log(
-    `Skipping mobile e2e because runtime env is missing: ${runtimeMissing.join(', ')}`,
-  );
+  console.log(`Skipping mobile e2e because runtime env is missing: ${runtimeMissing.join(', ')}`);
   process.exit(0);
 }
 
@@ -114,6 +112,7 @@ for (const flow of flows) {
     cwd: mobileRoot,
     env: {
       ...process.env,
+      ...Object.fromEntries(flow.credentials.map((name) => [`MAESTRO_${name}`, process.env[name]])),
     },
     stdio: 'inherit',
   });

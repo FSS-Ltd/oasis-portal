@@ -194,7 +194,12 @@ export function AccessAccountPanel({
                 />
               </Field>
               <Field label="Account email">
-                <TextInput disabled type="email" value={account.email} />
+                <TextInput
+                  disabled
+                  placeholder="No email recorded"
+                  type="email"
+                  value={account.email ?? ''}
+                />
               </Field>
             </div>
             <div className="form-grid form-grid--two">
@@ -253,7 +258,7 @@ export function AccessAccountPanel({
             <div className="profile-contact-strip">
               <span>
                 <Mail aria-hidden="true" size={15} />
-                {account.email}
+                {account.email ?? 'No email recorded'}
               </span>
               <span>
                 <Phone aria-hidden="true" size={15} />

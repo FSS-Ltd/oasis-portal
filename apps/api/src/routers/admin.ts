@@ -495,7 +495,7 @@ function mapUserAccount(
     role: user.role,
     tags: user.tags,
     fullName: decryptRequired(ctx.db.$enc.decrypt, user.fullNameEnc, 'user PII'),
-    email: decryptRequired(ctx.db.$enc.decrypt, user.emailEnc, 'user PII'),
+    email: ctx.db.$enc.decrypt(user.emailEnc),
     phone: ctx.db.$enc.decrypt(user.phoneEnc),
     address: ctx.db.$enc.decrypt(user.addressEnc),
     active: user.active,

@@ -127,6 +127,7 @@ export function MobileButton({
 }
 
 interface FieldProps {
+  testID?: string;
   label: string;
   value: string;
   onChangeText: (value: string) => void;
@@ -138,6 +139,7 @@ interface FieldProps {
 }
 
 export function Field({
+  testID,
   label,
   value,
   onChangeText,
@@ -151,6 +153,7 @@ export function Field({
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
+        testID={testID}
         accessibilityLabel={label}
         editable={!disabled}
         autoCapitalize="none"

@@ -37,7 +37,11 @@ BEGIN
     OR EXISTS (SELECT FROM pg_auth_members WHERE member='oasis_owner'::regrole) THEN
     RAISE EXCEPTION 'Application owner must be an isolated restricted NOLOGIN role';
   END IF;
-  GRANT oasis_owner TO postgres WITH ADMIN OPTION;
+  -- PostgreSQL 17 already grants non-superuser CREATEROLE creators ADMIN via
+  -- bootstrap membership. Grant only restore/ownership access back to the creator;
+  -- regranting ADMIN creates a forbidden grant cycle on managed administrators.
+  -- https://www.postgresql.org/docs/17/role-attributes.html
+  GRANT oasis_owner TO postgres WITH INHERIT TRUE, SET TRUE;
   CREATE SCHEMA IF NOT EXISTS oasis_private AUTHORIZATION oasis_owner;
   GRANT USAGE, CREATE ON SCHEMA public, oasis_private TO oasis_owner;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'oasis_app') THEN

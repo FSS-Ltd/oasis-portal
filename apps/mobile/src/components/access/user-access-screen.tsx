@@ -44,7 +44,7 @@ function rowMatches(row: DirectoryRow, query: string): boolean {
   if (!query) return true;
   const values =
     row.kind === 'account'
-      ? `${row.account.fullName} ${row.account.email} ${row.account.role}`
+      ? `${row.account.fullName} ${row.account.email ?? ''} ${row.account.role}`
       : `${row.invitation.email} ${row.invitation.role} pending`;
   return values.toLowerCase().includes(query);
 }

@@ -56,8 +56,10 @@ After any real destination write, switching URLs back would lose commits. Freeze
 - Keychain creation/read-back and fresh-process authentication/decryption passed.
 - Full encrypted restore passed: every table count/content digest, schema object, enabled trigger and constraint matched. The 132 tables contained 182,201 rows. Restore phases took approximately 57 seconds locally.
 - Nineteen reviewed SECURITY DEFINER functions transferred to the trusted owner locally. Canonical RLS definitions matched the source.
-- Repository lint, typecheck, tests and changed-file formatting passed. Twelve actual PostgreSQL permission, freeze and ownership integration cases passed. The local iOS simulator build passed.
-- Hosted installation, runtime, delivery and client cutover checks remain pending. Local superuser fixtures do not prove managed administrator compatibility.
+- Repository lint, typecheck, tests and changed-file formatting passed. Thirteen actual PostgreSQL permission, freeze and ownership integration cases passed, including installation as a non-superuser CREATEROLE administrator. The local iOS simulator build passed.
+- Managed administrator role installation passed on the empty hosted target. The runtime has no superuser or RLS-bypass authority; no application data was copied. The first attempt rolled back completely after PostgreSQL rejected an unnecessary ADMIN grant; the corrected installer preserves PostgreSQL’s automatic creator grant.
+- Restricted-runtime profile/account reads, role denial and RLS queries passed against the retained restore. An authenticated browser reached its server-rendered account route without page errors. Nullable account emails uncovered during these checks now have regression coverage.
+- Hosted delivery and client cutover checks remain pending. Native authentication verification remains in progress; the local iOS build alone does not prove sign-in or event delivery.
 - The user separately approved enabling Oasis’s Clerk Native API after native authentication reported it disabled. The saved setting was verified after reload.
 - No source freeze, target copy, URL change or public write cutover has occurred.
 
