@@ -3,6 +3,11 @@ import { publicProcedure, router } from '../trpc.js';
 
 export const healthRouter = router({
   ping: publicProcedure.query(() => ({ ok: true, at: new Date().toISOString() })),
+  // Post-deploy probe: fails if the runtime database connection is broken.
+  db: publicProcedure.query(async ({ ctx }) => {
+    await ctx.db.$queryRaw`SELECT 1`;
+    return { ok: true };
+  }),
   me: publicProcedure.query(async ({ ctx }) => {
     const [linkedChildCount, parentVolunteerUser] = ctx.user
       ? await Promise.all([

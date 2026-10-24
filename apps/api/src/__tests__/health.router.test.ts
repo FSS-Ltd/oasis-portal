@@ -100,3 +100,30 @@ describe('health.me', () => {
     expect(guardianCount).not.toHaveBeenCalled();
   });
 });
+
+describe('health.db', () => {
+  function makeDbCtx(queryRaw: ReturnType<typeof vi.fn>): AppContext {
+    return {
+      db: { $queryRaw: queryRaw } as unknown as AppContext['db'],
+      requestId: 'req_health_db_test',
+      user: null,
+      accountAccessState: 'unavailable',
+      withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
+    };
+  }
+
+  it('reports ok when the database answers', async () => {
+    const queryRaw = vi.fn().mockResolvedValue([{ '?column?': 1 }]);
+
+    await expect(healthRouter.createCaller(makeDbCtx(queryRaw)).db()).resolves.toEqual({
+      ok: true,
+    });
+    expect(queryRaw).toHaveBeenCalledOnce();
+  });
+
+  it('fails when the database is unreachable', async () => {
+    const queryRaw = vi.fn().mockRejectedValue(new Error('invalid datasource URL'));
+
+    await expect(healthRouter.createCaller(makeDbCtx(queryRaw)).db()).rejects.toThrow();
+  });
+});
