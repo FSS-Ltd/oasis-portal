@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PACE_CATALOGUE } from '@oasis/domain';
 import { api } from '../../lib/trpc';
@@ -17,8 +17,15 @@ export function StaffAcademicGapPlan({
     { studentId, subjectId },
     { enabled: Boolean(studentId && subjectId), retry: false },
   );
-  const [selected, setSelected] = useState<number[]>([]);
-  const [jumpTo, setJumpTo] = useState('');
+  const [selected, setSelectedState] = useState<number[]>([]);
+  const [jumpTo, setJumpToState] = useState('');
+  const dirty = useRef(false);
+  // Keep the original optimistic version until this draft is saved or explicitly refreshed.
+  const baseline = useRef<{
+    identity: string;
+    version: number | undefined;
+    currentPace: number | undefined;
+  }>();
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
   const [page, setPage] = useState(0);
@@ -27,6 +34,18 @@ export function StaffAcademicGapPlan({
   const active = query.data?.plans.find((plan) => plan.status === 'Active');
   const reviewPlan = query.data?.plans.find((plan) => plan.reviewRequired);
   const completed = new Set(query.data?.completedPaceNumbers ?? []);
+  const currentIdentity = useRef({
+    studentId,
+    subjectId,
+    activeId: active?.id,
+    reviewId: reviewPlan?.id,
+  });
+  currentIdentity.current = {
+    studentId,
+    subjectId,
+    activeId: active?.id,
+    reviewId: reviewPlan?.id,
+  };
 
   async function invalidateGapPlanDependencies() {
     await Promise.all([
@@ -42,7 +61,14 @@ export function StaffAcademicGapPlan({
   }
 
   const create = api.academicInventory.createGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (
+        currentIdentity.current.studentId !== variables.studentId ||
+        currentIdentity.current.subjectId !== variables.subjectId ||
+        currentIdentity.current.activeId !== undefined
+      )
+        return;
+      dirty.current = false;
       setConflict(false);
       setMessage('Gap PACEs started.');
       await invalidateGapPlanDependencies();
@@ -53,7 +79,9 @@ export function StaffAcademicGapPlan({
     },
   });
   const update = api.academicInventory.updateGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (currentIdentity.current.activeId !== variables.planId) return;
+      dirty.current = false;
       setConflict(false);
       setMessage('Gap plan saved.');
       await invalidateGapPlanDependencies();
@@ -64,7 +92,9 @@ export function StaffAcademicGapPlan({
     },
   });
   const cancel = api.academicInventory.cancelGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (currentIdentity.current.activeId !== variables.planId) return;
+      dirty.current = false;
       setMessage('Gap plan cancelled. The student is at its configured destination.');
       await invalidateGapPlanDependencies();
     },
@@ -73,7 +103,9 @@ export function StaffAcademicGapPlan({
     },
   });
   const review = api.academicInventory.reviewGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (currentIdentity.current.reviewId !== variables.planId) return;
+      dirty.current = false;
       setMessage('Gap plan review resolved.');
       await invalidateGapPlanDependencies();
     },
@@ -83,15 +115,43 @@ export function StaffAcademicGapPlan({
   });
   const busy = create.isPending || update.isPending || cancel.isPending || review.isPending;
 
+  const resetDraft = useCallback(
+    (data: typeof query.data) => {
+      const plan = data?.plans.find((entry) => entry.status === 'Active');
+      baseline.current = {
+        identity: JSON.stringify([studentId, subjectId, plan?.id]),
+        version: plan?.version,
+        currentPace: data?.currentPaceNumber,
+      };
+      dirty.current = false;
+      setConflict(false);
+      setSelectedState(
+        plan?.items
+          .filter((item) => !item.removed && !item.completed)
+          .map((item) => item.paceNumber) ?? [],
+      );
+      setRangeFrom('');
+      setRangeTo('');
+      setJumpToState(String(plan?.jumpToPaceNumber ?? data?.currentPaceNumber ?? ''));
+      setMessage('');
+    },
+    [studentId, subjectId],
+  );
+  const draftIdentity = JSON.stringify([studentId, subjectId, active?.id]);
   useEffect(() => {
-    setSelected(
-      active?.items
-        .filter((item) => !item.removed && !item.completed)
-        .map((item) => item.paceNumber) ?? [],
-    );
-    setJumpTo(String(active?.jumpToPaceNumber ?? query.data?.currentPaceNumber ?? ''));
-    setMessage('');
-  }, [studentId, subjectId, query.data?.currentPaceNumber, active?.id, active?.version]);
+    if (baseline.current?.identity === draftIdentity && dirty.current) return;
+    resetDraft(query.data);
+  }, [draftIdentity, query.data, resetDraft]);
+
+  function setSelected(value: SetStateAction<number[]>) {
+    dirty.current = true;
+    setSelectedState(value);
+  }
+
+  function setJumpTo(value: string) {
+    dirty.current = true;
+    setJumpToState(value);
+  }
 
   if (!studentId || !subjectId)
     return (
@@ -131,7 +191,7 @@ export function StaffAcademicGapPlan({
     if (active)
       update.mutate({
         planId: active.id,
-        expectedVersion: active.version,
+        expectedVersion: baseline.current?.version ?? active.version,
         remainingPaceNumbers: sorted,
         jumpToPaceNumber: jump,
       });
@@ -141,7 +201,7 @@ export function StaffAcademicGapPlan({
         subjectId,
         paceNumbers: sorted,
         jumpToPaceNumber: jump,
-        expectedCurrentPaceNumber: query.data.currentPaceNumber,
+        expectedCurrentPaceNumber: baseline.current?.currentPace ?? query.data.currentPaceNumber,
       });
   };
   const addRange = () => {
@@ -258,17 +318,25 @@ export function StaffAcademicGapPlan({
       <View style={styles.range}>
         <View style={styles.rangeField}>
           <Field
+            disabled={busy}
             label="Range from"
             value={rangeFrom}
-            onChangeText={setRangeFrom}
+            onChangeText={(value) => {
+              dirty.current = true;
+              setRangeFrom(value);
+            }}
             keyboardType="numeric"
           />
         </View>
         <View style={styles.rangeField}>
           <Field
+            disabled={busy}
             label="Range to"
             value={rangeTo}
-            onChangeText={setRangeTo}
+            onChangeText={(value) => {
+              dirty.current = true;
+              setRangeTo(value);
+            }}
             keyboardType="numeric"
           />
         </View>
@@ -290,7 +358,8 @@ export function StaffAcademicGapPlan({
           variant="secondary"
           disabled={query.isFetching}
           onPress={() => {
-            void query.refetch().then(() => {
+            void query.refetch().then((result) => {
+              resetDraft(result.data);
               setConflict(false);
               setMessage('Latest plan loaded. Review it before saving again.');
             });

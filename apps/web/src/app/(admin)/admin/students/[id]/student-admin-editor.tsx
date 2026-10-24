@@ -39,7 +39,13 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
   const [statusAction, setStatusAction] = useState<'archive' | 'restore' | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const updateStudent = api.student.update.useMutation({
-    async onSuccess() {
+    async onSuccess(_, variables) {
+      if (
+        formIdentity.current === variables.id &&
+        (saveValues.current === null ||
+          JSON.stringify(getValues()) === JSON.stringify(saveValues.current))
+      )
+        reset(getValues());
       await Promise.all([
         utils.student.byId.invalidate({ id: studentId }),
         utils.student.list.invalidate(),
@@ -136,7 +142,8 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
   );
 
   const {
-    formState: { errors },
+    formState: { errors, dirtyFields },
+    getValues,
     handleSubmit,
     register,
     reset,
@@ -152,29 +159,49 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       address: '',
     },
   });
+  // Reading dirtyFields subscribes RHF to the state needed by keepDirtyValues.
+  void dirtyFields;
+  const formIdentity = useRef<string | null>(null);
+  const saveValues = useRef<EditValues | null>(null);
+  const paceBaseline = useRef<Record<string, string>>({});
   const lastAutoYear = useRef<StandardSchoolYear | null>(null);
   const dobValue = watch('dob');
   const yearGroupValue = watch('yearGroup');
 
   useEffect(() => {
     const student = studentQuery.data;
-    if (!student) return;
+    if (!student || student.id !== studentId) return;
+    const sameStudent = formIdentity.current === student.id;
+    formIdentity.current = student.id;
     const derived = deriveSchoolYearFromDateInput(student.dob);
     lastAutoYear.current = derived && student.yearGroup === derived ? derived : null;
-    reset({
-      fullName: student.fullName,
-      dob: student.dob,
-      yearGroup: canonicalSchoolYear(student.yearGroup) ?? '',
-      enrolmentDate: new Date(student.enrolmentDate).toISOString().slice(0, 10),
-      address: student.address ?? '',
-    });
-    setPaceDrafts(
+    reset(
+      {
+        fullName: student.fullName,
+        dob: student.dob,
+        yearGroup: canonicalSchoolYear(student.yearGroup) ?? '',
+        enrolmentDate: new Date(student.enrolmentDate).toISOString().slice(0, 10),
+        address: student.address ?? '',
+      },
+      { keepDirtyValues: sameStudent },
+    );
+    const nextPaces = Object.fromEntries(
+      student.subjects.map((subject) => [subject.subjectId, String(subject.currentPaceNumber)]),
+    );
+    const previousPaces = paceBaseline.current;
+    setPaceDrafts((current) =>
       Object.fromEntries(
-        student.subjects.map((subject) => [subject.subjectId, String(subject.currentPaceNumber)]),
+        Object.entries(nextPaces).map(([id, value]) => [
+          id,
+          sameStudent && current[id] !== undefined && current[id] !== previousPaces[id]
+            ? current[id]
+            : value,
+        ]),
       ),
     );
-    setStatusAction(null);
-  }, [reset, studentQuery.data]);
+    paceBaseline.current = nextPaces;
+    if (!sameStudent) setStatusAction(null);
+  }, [reset, studentId, studentQuery.data]);
 
   useEffect(() => {
     const derived = deriveSchoolYearFromDateInput(dobValue);
@@ -225,6 +252,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
               className="panel"
               onSubmit={(event) => {
                 void handleSubmit((values) => {
+                  saveValues.current = structuredClone(values);
                   updateStudent.mutate({
                     id: student.id,
                     fullName: values.fullName,

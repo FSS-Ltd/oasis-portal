@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient, REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
@@ -20,9 +20,12 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
   const { getToken, isSignedIn, userId, sessionId } = useAuth();
   const queryClient = useQueryClient();
   const utils = api.useUtils();
+  // Clerk Expo recreates getToken each render; keep it fresh without restarting subscriptions.
+  const current = useRef({ getToken, utils });
+  current.current = { getToken, utils };
   const fetchAuthority = useCallback(
-    () => utils.health.me.fetch(undefined, { staleTime: 0 }),
-    [utils],
+    () => current.current.utils.health.me.fetch(undefined, { staleTime: 0 }),
+    [],
   );
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [attempt, setAttempt] = useState(0);
@@ -59,7 +62,7 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
     function start() {
       if (stopped || !visible() || stopSession) return;
       const client = createClient(settings.url, settings.key, {
-        accessToken: getToken,
+        accessToken: () => current.current.getToken(),
         auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
         realtime: {
           reconnectAfterMs: (tries: number) => Math.min(1_000 * 2 ** Math.min(tries, 5), 30_000),
@@ -129,7 +132,7 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
       if (Platform.OS === 'web' && typeof document !== 'undefined')
         document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [attempt, fetchAuthority, getToken, isSignedIn, queryClient, userId, sessionId]);
+  }, [attempt, fetchAuthority, isSignedIn, queryClient, userId, sessionId]);
 
   // A session swap must never reuse another account's cached data.
   useEffect(

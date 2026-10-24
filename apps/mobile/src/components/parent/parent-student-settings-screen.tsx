@@ -150,6 +150,7 @@ export function ParentStudentSettingsScreen({ onRefresh }: { onRefresh: () => Pr
             }}
           />
           <UsageLimitsCard
+            key={selectedChild.studentId}
             child={selectedChild}
             disabled={!selectedChild.parentControlAllowed}
             onError={setFormError}
@@ -357,18 +358,13 @@ function UsageLimitsCard({
   onError: (message: string | null) => void;
   onSaved: (child: LinkedChildSettings) => void;
 }) {
-  const [dailyLimit, setDailyLimit] = useState(
-    child.dailyUsageLimitMinutes === null ? '' : String(child.dailyUsageLimitMinutes),
-  );
-  const [offLimitWeekdays, setOffLimitWeekdays] = useState<number[]>(child.offLimitWeekdays);
+  const [dailyLimitDraft, setDailyLimit] = useState<string | null>(null);
+  const dailyLimit =
+    dailyLimitDraft ??
+    (child.dailyUsageLimitMinutes === null ? '' : String(child.dailyUsageLimitMinutes));
+  const [offLimitDraft, setOffLimitWeekdays] = useState<number[] | null>(null);
+  const offLimitWeekdays = offLimitDraft ?? child.offLimitWeekdays;
   const setUsageLimits = api.studentSettings.setUsageLimits.useMutation();
-
-  useEffect(() => {
-    setDailyLimit(
-      child.dailyUsageLimitMinutes === null ? '' : String(child.dailyUsageLimitMinutes),
-    );
-    setOffLimitWeekdays(child.offLimitWeekdays);
-  }, [child.dailyUsageLimitMinutes, child.offLimitWeekdays, child.studentId]);
 
   async function saveLimits() {
     onError(null);
@@ -384,6 +380,8 @@ function UsageLimitsCard({
         studentId: child.studentId,
       });
       onSaved(updated);
+      setDailyLimit((current) => (current === dailyLimitDraft ? null : current));
+      setOffLimitWeekdays((current) => (current === offLimitDraft ? null : current));
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Usage limits could not be saved.');
     }
@@ -391,7 +389,7 @@ function UsageLimitsCard({
 
   function toggleWeekday(day: number): void {
     setOffLimitWeekdays((current) => {
-      const next = new Set(current);
+      const next = new Set(current ?? child.offLimitWeekdays);
       if (next.has(day)) {
         next.delete(day);
       } else {

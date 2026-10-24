@@ -3,7 +3,7 @@
 import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Save, ShieldCheck } from 'lucide-react';
 import {
@@ -94,12 +94,27 @@ export function SelfProfileClient({
   const [emailNotificationPreferences, setEmailNotificationPreferences] = useState<
     Profile['emailNotificationPreferences']
   >({ enabled: true, optedOutCategories: [] });
+  const baseline = useRef<{
+    id: string;
+    form: ReturnType<typeof profileForm>;
+    preferences: Profile['emailNotificationPreferences'];
+  } | null>(null);
+  const profileSaveIdentity = useRef<string | null>(null);
+  const preferencesSaveIdentity = useRef<string | null>(null);
   const utils = api.useUtils();
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
   const updateProfile = api.profile.updateMe.useMutation({
-    async onSuccess() {
+    async onSuccess(_, variables) {
+      if (baseline.current?.id !== profileSaveIdentity.current) return;
+      baseline.current.form = {
+        ...baseline.current.form,
+        fullName: variables.fullName ?? baseline.current.form.fullName,
+        email: variables.email ?? baseline.current.form.email,
+        phone: variables.phone ?? '',
+        address: variables.address ?? '',
+      };
       await utils.profile.me.invalidate();
-      setEditing(false);
+      if (baseline.current.id === profileSaveIdentity.current) setEditing(false);
       showSuccessToast('Profile saved.');
     },
     onError(error) {
@@ -108,7 +123,9 @@ export function SelfProfileClient({
   });
   const updateEmailNotificationPreferences =
     api.profile.updateEmailNotificationPreferences.useMutation({
-      async onSuccess() {
+      async onSuccess(_, variables) {
+        if (baseline.current?.id !== preferencesSaveIdentity.current) return;
+        baseline.current.preferences = variables;
         await utils.profile.me.invalidate();
         showSuccessToast('Email notification preferences saved.');
       },
@@ -119,8 +136,38 @@ export function SelfProfileClient({
 
   useEffect(() => {
     if (!profileQuery.data) return;
-    setForm(profileForm(profileQuery.data));
-    setEmailNotificationPreferences(emailNotificationPreferencesForm(profileQuery.data));
+    const nextForm = profileForm(profileQuery.data);
+    const nextPreferences = emailNotificationPreferencesForm(profileQuery.data);
+    const previous = baseline.current;
+    const sameProfile = previous?.id === profileQuery.data.id;
+    setForm((current) =>
+      sameProfile
+        ? {
+            fullName:
+              current.fullName === previous.form.fullName ? nextForm.fullName : current.fullName,
+            email: current.email === previous.form.email ? nextForm.email : current.email,
+            phone: current.phone === previous.form.phone ? nextForm.phone : current.phone,
+            address: current.address === previous.form.address ? nextForm.address : current.address,
+          }
+        : nextForm,
+    );
+    setEmailNotificationPreferences((current) =>
+      sameProfile
+        ? {
+            enabled:
+              current.enabled === previous.preferences.enabled
+                ? nextPreferences.enabled
+                : current.enabled,
+            optedOutCategories:
+              JSON.stringify(current.optedOutCategories) ===
+              JSON.stringify(previous.preferences.optedOutCategories)
+                ? nextPreferences.optedOutCategories
+                : current.optedOutCategories,
+          }
+        : nextPreferences,
+    );
+    baseline.current = { id: profileQuery.data.id, form: nextForm, preferences: nextPreferences };
+    if (!sameProfile) setEditing(false);
   }, [profileQuery.data]);
 
   if (profileQuery.isLoading) {
@@ -154,6 +201,7 @@ export function SelfProfileClient({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit) return;
+    profileSaveIdentity.current = profile.id;
     updateProfile.mutate({
       fullName: form.fullName,
       email: form.email,
@@ -243,7 +291,7 @@ export function SelfProfileClient({
             <div className="form-grid form-grid--two">
               <Field label="Full name">
                 <TextInput
-                  disabled={!editing}
+                  disabled={!editing || updateProfile.isPending}
                   onChange={(event) => {
                     setForm((current) => ({ ...current, fullName: event.target.value }));
                   }}
@@ -252,7 +300,7 @@ export function SelfProfileClient({
               </Field>
               <Field label="Account email">
                 <TextInput
-                  disabled={!editing}
+                  disabled={!editing || updateProfile.isPending}
                   onChange={(event) => {
                     setForm((current) => ({ ...current, email: event.target.value }));
                   }}
@@ -262,7 +310,7 @@ export function SelfProfileClient({
               </Field>
               <Field label="Phone">
                 <TextInput
-                  disabled={!editing}
+                  disabled={!editing || updateProfile.isPending}
                   onChange={(event) => {
                     setForm((current) => ({ ...current, phone: event.target.value }));
                   }}
@@ -272,7 +320,7 @@ export function SelfProfileClient({
               </Field>
               <Field label="Address">
                 <TextInput
-                  disabled={!editing}
+                  disabled={!editing || updateProfile.isPending}
                   onChange={(event) => {
                     setForm((current) => ({ ...current, address: event.target.value }));
                   }}
@@ -354,6 +402,7 @@ export function SelfProfileClient({
             <div className="email-notification-preferences__actions">
               <Button
                 onClick={() => {
+                  preferencesSaveIdentity.current = profile.id;
                   updateEmailNotificationPreferences.mutate(emailNotificationPreferences);
                 }}
                 pending={updateEmailNotificationPreferences.isPending}

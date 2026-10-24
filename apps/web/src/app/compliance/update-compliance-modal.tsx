@@ -46,13 +46,31 @@ export function UpdateComplianceModal({
 }: UpdateComplianceModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [form, setForm] = useState<UpdateAdultComplianceInput>(blankForm);
+  const [draft, setDraft] = useState<Partial<Omit<UpdateAdultComplianceInput, 'userId'>>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const utils = api.useUtils();
   const person = api.compliance.person.useQuery(
     { userId: selectedUserId },
     { enabled: Boolean(selectedUserId), retry: false },
   );
+  const savedForm: UpdateAdultComplianceInput =
+    person.data?.id === selectedUserId
+      ? {
+          userId: person.data.id,
+          dob: person.data.dob,
+          dbsCertificateNumber: person.data.dbsCertificateNumber,
+          dbsApplicationReference: person.data.dbsApplicationReference,
+          dbsCompletedAt: person.data.dbsCompletedAt,
+          dbsIssueDate: person.data.dbsIssueDate,
+          dbsApplicationType: person.data.dbsApplicationType,
+          dbsStatus: person.data.dbsStatus,
+          firstAidCompletedAt: person.data.firstAidCompletedAt,
+          firstAidLevel: person.data.firstAidLevel,
+          safeguardingCompletedAt: person.data.safeguardingCompletedAt,
+          safeguardingLevel: person.data.safeguardingLevel,
+        }
+      : blankForm;
+  const form = { ...savedForm, ...draft };
   const update = api.compliance.update.useMutation({
     async onSuccess() {
       await Promise.all([
@@ -61,6 +79,7 @@ export function UpdateComplianceModal({
         utils.compliance.badgeSummaries.invalidate(),
         utils.compliance.allBadgeSummaries.invalidate(),
       ]);
+      setDraft({});
       showSuccessToast('Compliance record updated.');
       dialogRef.current?.close();
     },
@@ -74,31 +93,18 @@ export function UpdateComplianceModal({
     dialogRef.current?.querySelector('select')?.focus();
   }, []);
 
-  useEffect(() => {
-    if (!person.data || person.data.id !== selectedUserId) return;
-    setForm({
-      userId: person.data.id,
-      dob: person.data.dob,
-      dbsCertificateNumber: person.data.dbsCertificateNumber,
-      dbsApplicationReference: person.data.dbsApplicationReference,
-      dbsCompletedAt: person.data.dbsCompletedAt,
-      dbsIssueDate: person.data.dbsIssueDate,
-      dbsApplicationType: person.data.dbsApplicationType,
-      dbsStatus: person.data.dbsStatus,
-      firstAidCompletedAt: person.data.firstAidCompletedAt,
-      firstAidLevel: person.data.firstAidLevel,
-      safeguardingCompletedAt: person.data.safeguardingCompletedAt,
-      safeguardingLevel: person.data.safeguardingLevel,
-    });
-    setErrorMessage(null);
-  }, [person.data, selectedUserId]);
-
   function setField<K extends EditableField>(field: K, value: UpdateAdultComplianceInput[K]) {
-    setForm((current) => ({ ...current, [field]: value }));
+    setDraft((current) => {
+      const next = { ...current };
+      if (value === savedForm[field]) Reflect.deleteProperty(next, field);
+      else next[field] = value;
+      return next;
+    });
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (disabled) return;
     const parsed = updateAdultComplianceInput.safeParse(form);
     if (!parsed.success) {
       setErrorMessage(parsed.error.issues[0]?.message ?? 'Check the record and try again.');
@@ -108,7 +114,8 @@ export function UpdateComplianceModal({
     update.mutate(parsed.data);
   }
 
-  const disabled = !selectedUserId || person.isLoading || update.isPending || !person.data;
+  const disabled =
+    !selectedUserId || person.isLoading || update.isPending || person.data?.id !== selectedUserId;
 
   return (
     <dialog
@@ -142,7 +149,7 @@ export function UpdateComplianceModal({
               disabled={optionsLoading || update.isPending}
               onChange={(event) => {
                 setSelectedUserId(event.target.value);
-                setForm(blankForm);
+                setDraft({});
                 setErrorMessage(null);
               }}
               value={selectedUserId}

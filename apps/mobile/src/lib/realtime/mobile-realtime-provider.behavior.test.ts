@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => {
     }),
   };
   return {
+    unstableGetToken: false,
+    clientOptions: [] as Array<{ accessToken: () => Promise<string | null> }>,
     reconcile,
     receive,
     dispose,
@@ -57,7 +59,12 @@ const mockUtils = {
 };
 vi.mock('../trpc', () => ({ api: { useUtils: () => mockUtils } }));
 
-vi.mock('@clerk/clerk-expo', () => ({ useAuth: () => mocks.auth }));
+vi.mock('@clerk/clerk-expo', () => ({
+  useAuth: () => {
+    const getToken = mocks.auth.getToken;
+    return mocks.unstableGetToken ? { ...mocks.auth, getToken: () => getToken() } : mocks.auth;
+  },
+}));
 vi.mock('@supabase/supabase-js', () => ({
   REALTIME_SUBSCRIBE_STATES: {
     SUBSCRIBED: 'SUBSCRIBED',
@@ -65,11 +72,18 @@ vi.mock('@supabase/supabase-js', () => ({
     TIMED_OUT: 'TIMED_OUT',
     CLOSED: 'CLOSED',
   },
-  createClient: () => ({
-    channel: () => mocks.channel,
-    removeChannel: mocks.removeChannel,
-    removeAllChannels: mocks.removeAllChannels,
-  }),
+  createClient: (
+    _url: string,
+    _key: string,
+    options: { accessToken: () => Promise<string | null> },
+  ) => {
+    mocks.clientOptions.push(options);
+    return {
+      channel: () => mocks.channel,
+      removeChannel: mocks.removeChannel,
+      removeAllChannels: mocks.removeAllChannels,
+    };
+  },
 }));
 vi.mock('@oasis/domain', () => ({
   REALTIME_DATA_EVENT: 'oasis.data_changed',
@@ -101,11 +115,48 @@ beforeEach(() => {
   mocks.listeners.clear();
   mocks.appState.currentState = 'active';
   mocks.auth.userId = 'account-one';
+  mocks.auth.getToken = () => Promise.resolve('token');
+  mocks.unstableGetToken = false;
+  mocks.clientOptions.length = 0;
   process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
   process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'public-key';
 });
 
 describe('mobile realtime lifecycle', () => {
+  it('keeps one subscription when Clerk recreates getToken and uses the latest token callback', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+    mocks.unstableGetToken = true;
+    const client = new QueryClient();
+    let renderer: MobileTestRenderer | undefined;
+    try {
+      mobileTestRenderer.act(() => {
+        renderer = render(client);
+      });
+      expect(mocks.coordinator).toHaveBeenCalledTimes(1);
+
+      mocks.auth.getToken = () => Promise.resolve('next-token');
+      mobileTestRenderer.act(() => {
+        renderer?.update(
+          createElement(
+            QueryClientProvider,
+            { client },
+            createElement(MobileRealtimeProvider, { children: null }),
+          ),
+        );
+      });
+
+      expect(mocks.coordinator).toHaveBeenCalledTimes(1);
+      expect(mocks.removeChannel).not.toHaveBeenCalled();
+      await expect(mocks.clientOptions[0]?.accessToken()).resolves.toBe('next-token');
+    } finally {
+      mobileTestRenderer.act(() => {
+        renderer?.unmount();
+      });
+      client.clear();
+      now.mockRestore();
+    }
+  });
+
   it('waits for subscription before catch-up, forwards broadcasts, and stops on background and unmount', () => {
     const client = new QueryClient();
     let renderer: MobileTestRenderer | undefined;

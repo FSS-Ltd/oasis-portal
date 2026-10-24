@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PACE_CATALOGUE } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,21 @@ export function PaceGapPlanPanel({
   const reviewPlan = query.data?.plans.find((plan) => plan.reviewRequired);
   const completed = new Set(query.data?.completedPaceNumbers ?? []);
 
+  const draftValues = useRef({ selected, jumpTo });
+  draftValues.current = { selected, jumpTo };
+  const baseline = useRef<{
+    identity: string;
+    selected: number[];
+    jumpTo: string;
+    plan: Plan | undefined;
+    currentPaceNumber: number;
+  } | null>(null);
+  const [resetRevision, setResetRevision] = useState(0);
+  function acceptLatest() {
+    baseline.current = null;
+    setResetRevision((value) => value + 1);
+  }
+
   async function invalidateGapPlanDependencies() {
     await Promise.all([
       query.refetch(),
@@ -48,7 +63,10 @@ export function PaceGapPlanPanel({
   }
 
   const pending = api.academicInventory.createGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
+      if (baseline.current?.identity !== `${variables.studentId}:${variables.subjectId}:new`)
+        return;
+      acceptLatest();
       setConflict(false);
       setMessage('Gap PACEs started.');
       await invalidateGapPlanDependencies();
@@ -59,7 +77,9 @@ export function PaceGapPlanPanel({
     },
   });
   const update = api.academicInventory.updateGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
+      if (baseline.current?.plan?.id !== variables.planId) return;
+      acceptLatest();
       setConflict(false);
       setMessage('Gap plan saved.');
       await invalidateGapPlanDependencies();
@@ -70,7 +90,9 @@ export function PaceGapPlanPanel({
     },
   });
   const cancel = api.academicInventory.cancelGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
+      if (baseline.current?.plan?.id !== variables.planId) return;
+      acceptLatest();
       setCancelTarget(null);
       setMessage('Gap plan cancelled. The student is at its configured destination.');
       await invalidateGapPlanDependencies();
@@ -80,7 +102,9 @@ export function PaceGapPlanPanel({
     },
   });
   const review = api.academicInventory.reviewGapPlan.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
+      if (baseline.current?.plan?.id !== variables.planId) return;
+      acceptLatest();
       setMessage('Gap plan review resolved.');
       await invalidateGapPlanDependencies();
     },
@@ -91,23 +115,41 @@ export function PaceGapPlanPanel({
   const busy = pending.isPending || update.isPending || cancel.isPending || review.isPending;
 
   useEffect(() => {
-    const reviewSource = activePlan ?? reviewPlan;
-    setSelected(
-      reviewSource?.items
+    if (!query.data) return;
+    const plan = activePlan ?? reviewPlan;
+    const identity = `${studentId}:${subjectId}:${plan?.id ?? 'new'}`;
+    const previous = baseline.current;
+    const samePlan = previous?.identity === identity;
+    const selectedDirty =
+      samePlan &&
+      JSON.stringify(draftValues.current.selected) !== JSON.stringify(previous.selected);
+    const jumpDirty = samePlan && draftValues.current.jumpTo !== previous.jumpTo;
+    const nextSelected =
+      plan?.items
         .filter((item) => !item.removed && !item.completed)
-        .map((item) => item.paceNumber) ?? [],
-    );
-    setJumpTo(String(activePlan?.jumpToPaceNumber ?? query.data?.currentPaceNumber ?? ''));
-    setMessage('');
-  }, [
-    studentId,
-    subjectId,
-    query.data?.currentPaceNumber,
-    activePlan?.id,
-    activePlan?.version,
-    reviewPlan?.id,
-    reviewPlan?.version,
-  ]);
+        .map((item) => item.paceNumber) ?? [];
+    const nextJump = String(activePlan?.jumpToPaceNumber ?? query.data.currentPaceNumber);
+    if (!selectedDirty) setSelected(nextSelected);
+    if (!jumpDirty) setJumpTo(nextJump);
+    baseline.current = {
+      identity,
+      selected: selectedDirty ? previous.selected : nextSelected,
+      jumpTo: jumpDirty ? previous.jumpTo : nextJump,
+      // A dirty draft must keep its original concurrency token even after a live refetch.
+      plan: samePlan && (selectedDirty || jumpDirty) ? previous.plan : plan,
+      currentPaceNumber:
+        samePlan && (selectedDirty || jumpDirty)
+          ? previous.currentPaceNumber
+          : query.data.currentPaceNumber,
+    };
+    if (!samePlan) {
+      setMessage('');
+      setConflict(false);
+      setCancelTarget(null);
+      setRangeFrom('');
+      setRangeTo('');
+    }
+  }, [studentId, subjectId, query.data, activePlan, reviewPlan, resetRevision]);
 
   if (!enabled)
     return (
@@ -164,7 +206,7 @@ export function PaceGapPlanPanel({
     if (editablePlan) {
       update.mutate({
         planId: editablePlan.id,
-        expectedVersion: editablePlan.version,
+        expectedVersion: baseline.current?.plan?.version ?? editablePlan.version,
         remainingPaceNumbers: sortedSelected,
         jumpToPaceNumber: jumpNumber,
       });
@@ -174,7 +216,8 @@ export function PaceGapPlanPanel({
         subjectId,
         paceNumbers: sortedSelected,
         jumpToPaceNumber: jumpNumber,
-        expectedCurrentPaceNumber: query.data.currentPaceNumber,
+        expectedCurrentPaceNumber:
+          baseline.current?.currentPaceNumber ?? query.data.currentPaceNumber,
       });
     }
   };
@@ -206,7 +249,7 @@ export function PaceGapPlanPanel({
               onClick={() => {
                 review.mutate({
                   planId: reviewPlan.id,
-                  expectedVersion: reviewPlan.version,
+                  expectedVersion: baseline.current?.plan?.version ?? reviewPlan.version,
                   decision: 'Reopen',
                   jumpToPaceNumber: jumpNumber,
                 });
@@ -241,6 +284,7 @@ export function PaceGapPlanPanel({
           <select
             className="input"
             value={jumpTo}
+            disabled={busy}
             onChange={(event) => {
               setJumpTo(event.target.value);
             }}
@@ -385,6 +429,7 @@ export function PaceGapPlanPanel({
           disabled={query.isFetching}
           onClick={() => {
             void query.refetch().then(() => {
+              acceptLatest();
               setConflict(false);
               setMessage('Latest plan loaded. Review it before saving again.');
             });

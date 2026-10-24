@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ADULT_USER_ACCOUNT_ROLES, PERMISSION_TAGS, type PermissionTag } from '@oasis/domain/rbac';
 import { api } from '../../lib/trpc';
@@ -34,20 +34,27 @@ function permissionTagLabel(tag: PermissionTag): string {
   return tag.replaceAll('-', ' ');
 }
 
-export function UserAccessAccountDetail({
-  account,
-  currentUserId,
-}: {
+interface UserAccessAccountDetailProps {
   account: AccessAccount;
   currentUserId: string;
-}) {
+}
+
+export function UserAccessAccountDetail(props: UserAccessAccountDetailProps) {
+  return <AccountEditor key={props.account.id} {...props} />;
+}
+
+function AccountEditor({ account, currentUserId }: UserAccessAccountDetailProps) {
   const utils = api.useUtils();
-  const [fullName, setFullName] = useState(account.fullName);
-  const [phone, setPhone] = useState(account.phone ?? '');
-  const [address, setAddress] = useState(account.address ?? '');
+  const [draft, setDraft] = useState<
+    Partial<Record<'fullName' | 'phone' | 'address', string | undefined>>
+  >({});
+  const fullName = draft.fullName ?? account.fullName;
+  const phone = draft.phone ?? account.phone ?? '';
+  const address = draft.address ?? account.address ?? '';
   const updateProfile = api.admin.updateUserAccountProfile.useMutation({
     async onSuccess() {
       await utils.admin.listUserAccounts.invalidate();
+      setDraft({});
     },
   });
   const updateRole = api.admin.updateUserRole.useMutation({
@@ -67,12 +74,6 @@ export function UserAccessAccountDetail({
   });
   const isSelf = account.id === currentUserId;
 
-  useEffect(() => {
-    setFullName(account.fullName);
-    setPhone(account.phone ?? '');
-    setAddress(account.address ?? '');
-  }, [account]);
-
   return (
     <>
       <Card>
@@ -85,9 +86,39 @@ export function UserAccessAccountDetail({
             {account.active ? 'Active' : 'Inactive'}
           </Badge>
         </View>
-        <Field label="Full name" onChangeText={setFullName} value={fullName} />
-        <Field label="Phone" onChangeText={setPhone} value={phone} />
-        <Field label="Address" onChangeText={setAddress} value={address} />
+        <Field
+          disabled={updateProfile.isPending}
+          label="Full name"
+          onChangeText={(value) => {
+            setDraft((current) => ({
+              ...current,
+              fullName: value === account.fullName ? undefined : value,
+            }));
+          }}
+          value={fullName}
+        />
+        <Field
+          disabled={updateProfile.isPending}
+          label="Phone"
+          onChangeText={(value) => {
+            setDraft((current) => ({
+              ...current,
+              phone: value === (account.phone ?? '') ? undefined : value,
+            }));
+          }}
+          value={phone}
+        />
+        <Field
+          disabled={updateProfile.isPending}
+          label="Address"
+          onChangeText={(value) => {
+            setDraft((current) => ({
+              ...current,
+              address: value === (account.address ?? '') ? undefined : value,
+            }));
+          }}
+          value={address}
+        />
         <DetailRow label="Email" value={account.email ?? 'No email recorded'} />
         <DetailRow label="Joined" value={formatAccountDate(account.createdAt)} />
         {updateProfile.error ? <ErrorText>{updateProfile.error.message}</ErrorText> : null}

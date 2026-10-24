@@ -1,5 +1,5 @@
 import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   PARENT_EMAIL_NOTIFICATION_CATEGORIES,
@@ -43,11 +43,25 @@ const parentEmailNotificationLabels: Record<ParentEmailNotificationCategory, str
   Report: 'Term reports',
 };
 
+function remainingDraft<T extends object>(current: Partial<T>, saved: Partial<T>): Partial<T> {
+  const remaining: Partial<T> = {};
+  for (const key in current) {
+    const value = current[key];
+    if (value !== undefined && value !== saved[key]) remaining[key] = value;
+  }
+  return remaining;
+}
+
 export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () => Promise<void> }) {
   const utils = api.useUtils();
   const profile = api.profile.me.useQuery(undefined, { retry: false });
   const spouseInviteStatus = api.profile.spouseInviteStatus.useQuery(undefined, { retry: false });
   const registration = api.registration.mine.useQuery(undefined, { retry: false });
+  const identity = useRef({
+    profile: profile.data?.id,
+    registration: registration.data?.registrationId,
+  });
+  identity.current = { profile: profile.data?.id, registration: registration.data?.registrationId };
   const registrationStatus = api.registration.status.useQuery(undefined, { retry: false });
   const linkRequests = api.registration.listMyStudentParentLinkRequests.useQuery(undefined, {
     retry: false,
@@ -60,32 +74,32 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
   const addSiblings = api.registration.addSiblings.useMutation();
   const confirmLink = api.registration.confirmStudentParentLinkRequest.useMutation();
   const rejectLink = api.registration.rejectStudentParentLinkRequest.useMutation();
-  const [profileFields, setProfileFields] = useState<ProfileForm>(profileForm(undefined));
-  const [emailNotificationPreferences, setEmailNotificationPreferences] =
-    useState<EmailNotificationPreferences>({ enabled: true, optedOutCategories: [] });
-  const [registrationFields, setRegistrationFields] = useState<RegistrationForm>(
-    registrationForm(undefined),
-  );
+  const [profileDraft, setProfileFields] = useState<Partial<ProfileForm>>({});
+  const profileFields = { ...profileForm(profile.data), ...profileDraft };
+  const [emailDraft, setEmailNotificationPreferences] = useState<
+    Partial<EmailNotificationPreferences>
+  >({});
+  const emailNotificationPreferences: EmailNotificationPreferences = {
+    enabled: true,
+    optedOutCategories: [],
+    ...profile.data?.emailNotificationPreferences,
+    ...emailDraft,
+  };
+  const [registrationDraft, setRegistrationFields] = useState<Partial<RegistrationForm>>({});
+  const registrationFields = { ...registrationForm(registration.data), ...registrationDraft };
   const [spouseEmail, setSpouseEmail] = useState('');
   const [siblingFields, setSiblingFields] = useState<SiblingForm>(blankSibling());
   const [status, setStatus] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (profile.data) setProfileFields(profileForm(profile.data));
-  }, [profile.data]);
+    setProfileFields({});
+    setEmailNotificationPreferences({});
+  }, [profile.data?.id]);
 
   useEffect(() => {
-    if (!profile.data) return;
-    setEmailNotificationPreferences({
-      enabled: profile.data.emailNotificationPreferences.enabled,
-      optedOutCategories: [...profile.data.emailNotificationPreferences.optedOutCategories],
-    });
-  }, [profile.data]);
-
-  useEffect(() => {
-    if (registration.data) setRegistrationFields(registrationForm(registration.data));
-  }, [registration.data]);
+    setRegistrationFields({});
+  }, [registration.data?.registrationId]);
 
   const refreshing =
     profile.isFetching ||
@@ -143,30 +157,37 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
       return;
     }
     setFormError(null);
-    const saved = await updateProfile.mutateAsync({
+    await updateProfile.mutateAsync({
       address: profileFields.address,
       email: profileFields.email,
       fullName: profileFields.fullName,
       phone: profileFields.phone,
     });
-    setProfileFields(profileForm(saved));
+    if (identity.current.profile !== profile.data?.id) return;
     setStatus('Profile saved.');
     await utils.profile.me.invalidate();
+    if (identity.current.profile === profile.data?.id)
+      setProfileFields((current) => remainingDraft(current, profileDraft));
   }
 
   async function saveEmailNotificationPreferences() {
     setFormError(null);
     await updateEmailNotificationPreferences.mutateAsync(emailNotificationPreferences);
+    if (identity.current.profile !== profile.data?.id) return;
     setStatus('Email notification preferences saved.');
     await utils.profile.me.invalidate();
+    if (identity.current.profile === profile.data?.id)
+      setEmailNotificationPreferences((current) => remainingDraft(current, emailDraft));
   }
 
   function setCategoryEnabled(category: ParentEmailNotificationCategory, enabled: boolean) {
     setEmailNotificationPreferences((current) => ({
       ...current,
       optedOutCategories: enabled
-        ? current.optedOutCategories.filter((currentCategory) => currentCategory !== category)
-        : [...current.optedOutCategories, category],
+        ? emailNotificationPreferences.optedOutCategories.filter(
+            (currentCategory) => currentCategory !== category,
+          )
+        : [...emailNotificationPreferences.optedOutCategories, category],
     }));
   }
 
@@ -196,8 +217,11 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
     await updateRegistration.mutateAsync(
       updateInputFromRegistration(registration.data, registrationFields),
     );
+    if (identity.current.registration !== registration.data.registrationId) return;
     setStatus('Registration maintenance saved.');
     await utils.registration.mine.invalidate();
+    if (identity.current.registration === registration.data.registrationId)
+      setRegistrationFields((current) => remainingDraft(current, registrationDraft));
   }
 
   async function addSibling() {
@@ -342,7 +366,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
           onPress={() => {
             setEmailNotificationPreferences((current) => ({
               ...current,
-              enabled: !current.enabled,
+              enabled: !emailNotificationPreferences.enabled,
             }));
           }}
           style={[

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
@@ -63,9 +63,24 @@ function lastDateForMonth(month: string): string {
 export function MonthlyAvailabilityEditor({
   title = 'Unavailable Dates',
 }: MonthlyAvailabilityEditorProps) {
-  const utils = api.useUtils();
   const [month, setMonth] = useState(currentMonthKey);
-  const [availabilityDraft, setAvailabilityDraft] = useState<MonthlyAvailabilityDraft[]>([]);
+  return (
+    <MonthAvailabilityEditor key={month} month={month} onMonthChange={setMonth} title={title} />
+  );
+}
+
+function MonthAvailabilityEditor({
+  month,
+  onMonthChange,
+  title,
+}: {
+  month: string;
+  onMonthChange: (month: string) => void;
+  title: string;
+}) {
+  const utils = api.useUtils();
+  const [refreshing, setRefreshing] = useState(false);
+  const [draft, setDraft] = useState<MonthlyAvailabilityDraft[] | null>(null);
   const monthBounds = useMemo(
     () => ({ min: firstDateForMonth(month), max: lastDateForMonth(month) }),
     [month],
@@ -74,27 +89,35 @@ export function MonthlyAvailabilityEditor({
   const saveAvailability = api.rota.setMyMonthlyAvailability.useMutation({
     onSuccess: async () => {
       showSuccessToast('Monthly unavailability saved.');
-      await Promise.all([
-        utils.rota.myMonthlyAvailability.invalidate({ month }),
-        utils.rota.staffMonthlyAvailability.invalidate(),
-      ]);
+      setRefreshing(true);
+      try {
+        await Promise.all([
+          utils.rota.myMonthlyAvailability.invalidate({ month }),
+          utils.rota.staffMonthlyAvailability.invalidate(),
+        ]);
+        setDraft(null);
+      } finally {
+        setRefreshing(false);
+      }
     },
     onError(error) {
       showErrorToast(error, 'Monthly unavailability could not be saved.');
     },
   });
 
-  useEffect(() => {
-    if (!availabilityQuery.data) return;
-    setAvailabilityDraft(
-      availabilityQuery.data.map((window) => ({
-        id: window.id,
-        date: window.date,
-        startMinute: window.startMinute,
-        endMinute: window.endMinute,
-      })),
-    );
-  }, [availabilityQuery.data]);
+  const savedAvailability = (availabilityQuery.data ?? []).map((window) => ({
+    id: window.id,
+    date: window.date,
+    startMinute: window.startMinute,
+    endMinute: window.endMinute,
+  }));
+  const availabilityDraft = draft ?? savedAvailability;
+
+  function setAvailabilityDraft(
+    update: (rows: MonthlyAvailabilityDraft[]) => MonthlyAvailabilityDraft[],
+  ) {
+    setDraft((current) => update(current ?? savedAvailability));
+  }
 
   return (
     <section className="panel panel__body">
@@ -104,6 +127,7 @@ export function MonthlyAvailabilityEditor({
           <p className="muted">Select the dates and times you cannot be scheduled.</p>
         </div>
         <Button
+          disabled={refreshing || saveAvailability.isPending || availabilityQuery.isLoading}
           onClick={() => {
             setAvailabilityDraft((rows) => [...rows, emptyAvailabilityRow(month)]);
           }}
@@ -119,7 +143,7 @@ export function MonthlyAvailabilityEditor({
       <Field label="Month">
         <TextInput
           onChange={(event) => {
-            setMonth(event.target.value || currentMonthKey());
+            onMonthChange(event.target.value || currentMonthKey());
           }}
           type="month"
           value={month}
@@ -143,6 +167,7 @@ export function MonthlyAvailabilityEditor({
               <div className="availability-editor__row" key={window.id}>
                 <Field label="Date">
                   <TextInput
+                    disabled={refreshing || saveAvailability.isPending}
                     max={monthBounds.max}
                     min={monthBounds.min}
                     onChange={(event) => {
@@ -162,6 +187,7 @@ export function MonthlyAvailabilityEditor({
                   }`}
                 >
                   <input
+                    disabled={refreshing || saveAvailability.isPending}
                     checked={allDay}
                     onChange={(event) => {
                       setAvailabilityDraft((rows) =>
@@ -183,6 +209,7 @@ export function MonthlyAvailabilityEditor({
                   <div className="monthly-availability-editor__time-fields">
                     <Field label="Start">
                       <TextInput
+                        disabled={refreshing || saveAvailability.isPending}
                         aria-label="Monthly unavailability start time"
                         onChange={(event) => {
                           setAvailabilityDraft((rows) =>
@@ -199,6 +226,7 @@ export function MonthlyAvailabilityEditor({
                     </Field>
                     <Field label="End">
                       <TextInput
+                        disabled={refreshing || saveAvailability.isPending}
                         aria-label="Monthly unavailability end time"
                         onChange={(event) => {
                           setAvailabilityDraft((rows) =>
@@ -216,6 +244,7 @@ export function MonthlyAvailabilityEditor({
                   </div>
                 )}
                 <Button
+                  disabled={refreshing || saveAvailability.isPending || availabilityQuery.isLoading}
                   aria-label="Remove monthly unavailability window"
                   onClick={() => {
                     setAvailabilityDraft((rows) => rows.filter((row) => row.id !== window.id));
@@ -233,6 +262,7 @@ export function MonthlyAvailabilityEditor({
       </div>
 
       <Button
+        disabled={refreshing || saveAvailability.isPending || availabilityQuery.isLoading}
         className="supervisor-submit"
         onClick={() => {
           saveAvailability.mutate({
