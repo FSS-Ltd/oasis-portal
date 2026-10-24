@@ -560,6 +560,11 @@ jobs:
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "Production deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
 
+      # Runtime env (e.g. DATABASE_URL) lives in Vercel and is invisible to the
+      # pre-deploy checks above, so probe the live database connection.
+      - name: Verify production database connection
+        run: curl --fail --silent --show-error --retry 3 --retry-delay 5 --retry-all-errors https://oasisportal.space/api/trpc/health.db
+
   deploy-pwa-production:
     name: Vercel PWA production deploy
     runs-on: ubuntu-latest
