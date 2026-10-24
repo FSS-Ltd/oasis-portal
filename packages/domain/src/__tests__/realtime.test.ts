@@ -16,6 +16,14 @@ const event = {
 afterEach(() => vi.useRealTimers());
 
 describe('private invalidation events', () => {
+  it('accepts the managed broadcast UUID without exposing transport metadata', () => {
+    const transportId = 'd988598b-8254-4d05-a3c5-1fbcd9ce1782';
+    expect(parseDataChangedEvent({ ...event, id: transportId })).toEqual(event);
+    expect(parseDataChangedEvent({ ...event, id: 'record-identifier' })).toBeNull();
+    expect(parseDataChangedEvent({ ...event, id: 123 })).toBeNull();
+    expect(parseDataChangedEvent({ ...event, id: transportId, record: {} })).toBeNull();
+  });
+
   it('accepts metadata and rejects unknown areas, identifiers, timestamps, and record contents', () => {
     expect(parseDataChangedEvent(event)).toEqual(event);
     for (const invalid of [

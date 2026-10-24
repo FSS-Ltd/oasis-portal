@@ -62,6 +62,8 @@ export interface DataChangedEvent {
 
 const dataChangedEventSchema = z
   .object({
+    // Managed realtime.send adds its own message UUID to the application payload.
+    id: z.string().uuid().optional(),
     eventId: z.string().uuid(),
     areas: z
       .array(z.enum(REALTIME_AREAS))
@@ -70,7 +72,8 @@ const dataChangedEventSchema = z
       .refine((areas) => new Set(areas).size === areas.length),
     occurredAt: z.string().datetime({ offset: true }),
   })
-  .strict();
+  .strict()
+  .transform(({ eventId, areas, occurredAt }) => ({ eventId, areas, occurredAt }));
 
 export function parseDataChangedEvent(payload: unknown): DataChangedEvent | null {
   const parsed = dataChangedEventSchema.safeParse(payload);
