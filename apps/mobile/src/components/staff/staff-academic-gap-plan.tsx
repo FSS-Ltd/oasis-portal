@@ -5,6 +5,18 @@ import { api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Card, ErrorText, Field, MobileButton, MutedText, SectionTitle } from '../core/mobile-ui';
 
+const LEVEL_SIZE = 12;
+const LEVELS = Array.from({ length: Math.ceil(PACE_CATALOGUE.length / LEVEL_SIZE) }, (_, i) => i);
+const FIRST_PACE = PACE_CATALOGUE[0] ?? 1001;
+const LAST_PACE = PACE_CATALOGUE[PACE_CATALOGUE.length - 1] ?? 1144;
+
+function levelIndexOf(paceNumber: number): number {
+  return Math.max(
+    0,
+    Math.min(LEVELS.length - 1, Math.floor((paceNumber - FIRST_PACE) / LEVEL_SIZE)),
+  );
+}
+
 export function StaffAcademicGapPlan({
   studentId,
   subjectId,
@@ -28,7 +40,7 @@ export function StaffAcademicGapPlan({
   }>();
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
-  const [page, setPage] = useState(0);
+  const [level, setLevel] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [conflict, setConflict] = useState(false);
   const active = query.data?.plans.find((plan) => plan.status === 'Active');
@@ -132,6 +144,7 @@ export function StaffAcademicGapPlan({
       );
       setRangeFrom('');
       setRangeTo('');
+      setLevel(null);
       setJumpToState(String(plan?.jumpToPaceNumber ?? data?.currentPaceNumber ?? ''));
       setMessage('');
     },
@@ -179,9 +192,23 @@ export function StaffAcademicGapPlan({
       </Card>
     );
 
-  const numbers = PACE_CATALOGUE.slice(page * 12, page * 12 + 12);
   const sorted = [...selected].sort((a, b) => a - b);
   const jump = Number(jumpTo);
+  const activeLevel = level ?? levelIndexOf(query.data.currentPaceNumber);
+  const numbers = PACE_CATALOGUE.slice(
+    activeLevel * LEVEL_SIZE,
+    activeLevel * LEVEL_SIZE + LEVEL_SIZE,
+  );
+  const lastGap = sorted.length ? Math.max(...sorted) : 0;
+  const afterLastGap = lastGap + 1;
+  let jumpProblem = '';
+  if (!Number.isInteger(jump) || jump < FIRST_PACE || jump > LAST_PACE) {
+    jumpProblem = `Enter a PACE between ${String(FIRST_PACE)} and ${String(LAST_PACE)}.`;
+  } else if (sorted.some((pace) => pace >= jump)) {
+    jumpProblem = `Must be higher than the last gap (PACE ${String(lastGap)}).`;
+  } else if (completed.has(jump)) {
+    jumpProblem = `PACE ${String(jump)} is already completed. Choose an incomplete PACE.`;
+  }
   const start = () => {
     if (!Number.isInteger(jump) || sorted.length === 0 || sorted.some((pace) => pace >= jump)) {
       setMessage('Select gap PACEs and a higher destination.');
@@ -258,62 +285,82 @@ export function StaffAcademicGapPlan({
           />
         </View>
       ) : null}
-      <Field
-        label="Jump to PACE"
-        value={jumpTo}
-        onChangeText={setJumpTo}
-        keyboardType="numeric"
-        disabled={busy}
-      />
-      <SectionTitle>
-        Missing PACEs · {String(numbers[0])}–{String(numbers[numbers.length - 1])}
-      </SectionTitle>
-      <View style={styles.row}>
-        <MobileButton
-          compact
-          variant="secondary"
-          label="Previous 12"
-          disabled={page === 0 || busy}
-          onPress={() => {
-            setPage((value) => value - 1);
-          }}
-        />
-        <MobileButton
-          compact
-          variant="secondary"
-          label="Next 12"
-          disabled={(page + 1) * 12 >= PACE_CATALOGUE.length || busy}
-          onPress={() => {
-            setPage((value) => value + 1);
-          }}
-        />
-      </View>
-      <View style={styles.grid}>
-        {numbers.map((pace) => {
-          const locked = completed.has(pace);
-          const checked = locked || selected.includes(pace);
+      <SectionTitle>1 · Missing PACEs</SectionTitle>
+      <View accessibilityRole="tablist" style={styles.levels}>
+        {LEVELS.map((index) => {
+          const count = sorted.filter((pace) => levelIndexOf(pace) === index).length;
           return (
             <Pressable
-              key={pace}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked, disabled: locked || busy }}
-              disabled={locked || busy}
+              key={index}
+              accessibilityRole="tab"
+              accessibilityLabel={`Level ${String(index + 1)}${count ? `, ${String(count)} selected` : ''}`}
+              accessibilityState={{ selected: index === activeLevel }}
               onPress={() => {
-                setSelected((current) =>
-                  checked
-                    ? current.filter((value) => value !== pace)
-                    : [...new Set([...current, pace])].sort((a, b) => a - b),
-                );
+                setLevel(index);
               }}
-              style={[styles.pace, checked ? styles.paceSelected : null]}
+              style={[styles.level, index === activeLevel ? styles.levelActive : null]}
             >
-              <Text style={styles.paceText}>
-                PACE {pace}
-                {locked ? ' · Already completed' : ''}
+              <Text
+                style={[styles.levelText, index === activeLevel ? styles.levelTextActive : null]}
+              >
+                L{String(index + 1)}
+                {count ? ` · ${String(count)}` : ''}
               </Text>
             </Pressable>
           );
         })}
+      </View>
+      <View style={styles.grid}>
+        {numbers.map((pace) => {
+          const locked = completed.has(pace);
+          const picked = !locked && selected.includes(pace);
+          return (
+            <Pressable
+              key={pace}
+              accessibilityRole="button"
+              accessibilityLabel={`PACE ${String(pace)}${locked ? ', already completed' : picked ? ', gap' : ''}`}
+              accessibilityState={{ selected: picked, disabled: locked || busy }}
+              disabled={locked || busy}
+              onPress={() => {
+                setSelected((current) =>
+                  picked
+                    ? current.filter((value) => value !== pace)
+                    : [...new Set([...current, pace])].sort((a, b) => a - b),
+                );
+              }}
+              style={[
+                styles.pace,
+                picked ? styles.paceSelected : null,
+                locked ? styles.paceDone : null,
+              ]}
+            >
+              <Text style={[styles.paceText, picked ? styles.paceTextSelected : null]}>
+                {pace}
+                {locked ? ' ✓' : ''}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.chips}>
+        {sorted.length ? (
+          sorted.map((pace) => (
+            <Pressable
+              key={pace}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove PACE ${String(pace)}`}
+              disabled={busy}
+              onPress={() => {
+                setSelected((current) => current.filter((value) => value !== pace));
+              }}
+              style={styles.chip}
+            >
+              <Text style={styles.chipText}>{pace} ✕</Text>
+            </Pressable>
+          ))
+        ) : (
+          <MutedText>No gaps selected yet.</MutedText>
+        )}
       </View>
       <View style={styles.range}>
         <View style={styles.rangeField}>
@@ -342,6 +389,30 @@ export function StaffAcademicGapPlan({
         </View>
       </View>
       <MobileButton label="Add Range" variant="secondary" disabled={busy} onPress={addRange} />
+      <SectionTitle>2 · Resume at PACE</SectionTitle>
+      <Field
+        label="Jump to PACE"
+        value={jumpTo}
+        onChangeText={setJumpTo}
+        keyboardType="numeric"
+        disabled={busy}
+      />
+      {sorted.length > 0 && jumpProblem ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {jumpProblem}
+        </Text>
+      ) : null}
+      {sorted.length > 0 && afterLastGap <= LAST_PACE && jump !== afterLastGap ? (
+        <MobileButton
+          compact
+          variant="secondary"
+          label={`Use PACE ${String(afterLastGap)} (after last gap)`}
+          disabled={busy}
+          onPress={() => {
+            setJumpTo(String(afterLastGap));
+          }}
+        />
+      ) : null}
       <Text accessibilityLiveRegion="polite" style={styles.preview}>
         {sorted.length
           ? `Complete ${sorted.join(', ')}, then jump to ${jumpTo || '…'}. Saving starts PACE ${String(sorted[0])}.`
@@ -412,19 +483,54 @@ export function StaffAcademicGapPlan({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, marginVertical: 8 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
-  pace: {
-    minHeight: 48,
-    minWidth: '47%',
-    padding: 10,
+  levels: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 8 },
+  level: {
+    flexBasis: '15%',
+    flexGrow: 1,
+    minHeight: 44,
+    alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: C.surface,
   },
-  paceSelected: { borderColor: C.blue, backgroundColor: C.blueLight },
+  levelActive: { borderColor: C.navy, backgroundColor: C.navy },
+  levelText: { color: C.textSecondary, fontSize: 13, fontWeight: '600' },
+  levelTextActive: { color: C.surface },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 8 },
+  pace: {
+    flexBasis: '14%',
+    flexGrow: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 8,
+    backgroundColor: C.surface,
+  },
+  // A selected gap is circled, like the red rings on the printed diagnostic chart.
+  paceSelected: {
+    borderWidth: 2,
+    borderColor: C.crimson,
+    borderRadius: 999,
+    backgroundColor: C.crimsonLight,
+  },
+  paceDone: { borderStyle: 'dashed', backgroundColor: C.bg },
   paceText: { color: C.textPrimary, fontSize: 14 },
+  paceTextSelected: { color: C.crimson, fontWeight: '700' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 8 },
+  chip: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: C.crimson,
+    borderRadius: 999,
+    backgroundColor: C.surface,
+  },
+  chipText: { color: C.crimson, fontSize: 13 },
   range: { flexDirection: 'row', gap: 8 },
   rangeField: { flex: 1 },
   review: {
