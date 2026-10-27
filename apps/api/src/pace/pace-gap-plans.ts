@@ -246,7 +246,8 @@ async function requireAssignment(
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose an active ACE subject.' });
   }
   const assignment = await tx.studentSubject.findUnique({
-    where: { studentId_subjectId: input },
+    // Callers pass wider objects (plan rows, form payloads); Prisma rejects extra compound-key fields.
+    where: { studentId_subjectId: { studentId: input.studentId, subjectId: input.subjectId } },
     select: { id: true, currentPaceNumber: true },
   });
   if (!assignment) {
