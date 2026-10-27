@@ -15,7 +15,6 @@ import {
   InventoryQuickOrderModal,
   InventoryStatusNotice,
   InventorySupplyStatus,
-  type DiagnosticLevel,
   type DiagnosticSubmission,
   type InventoryStatusMessage,
 } from './staff-academic-inventory-components';
@@ -35,7 +34,6 @@ type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
 type InventoryAssignment = InventoryStudent['subjects'][number];
 type InventoryOrder = InventorySummary['orders'][number];
-type DiagnosticOutcome = 'Fail' | 'Pass';
 type InventoryTab = 'attention' | 'planner' | 'orders' | 'diagnostics';
 const inventoryTabs: Array<{ id: InventoryTab; label: string }> = [
   { id: 'attention', label: 'Needs attention' },
@@ -89,8 +87,6 @@ export function StaffAcademicInventoryScreen({
   const [quickOrderError, setQuickOrderError] = useState<string | null>(null);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [diagnosticSubmitted, setDiagnosticSubmitted] = useState(false);
-  const [diagnosticLevel, setDiagnosticLevel] = useState<DiagnosticLevel>(1);
-  const [diagnosticOutcome, setDiagnosticOutcome] = useState<DiagnosticOutcome>('Pass');
   const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
   const [gapPrefill, setGapPrefill] = useState<{
     studentId: string;
@@ -233,9 +229,14 @@ export function StaffAcademicInventoryScreen({
     },
     onSuccess: async (result) => {
       setDiagnosticSubmitted(false);
+      const levelPlacement = result.levelPlacement;
       const summary = result.placement
         ? describePlacement(result.placement)
-        : `Level ${String(result.level)} ${(result.outcome ?? '').toLowerCase()}.`;
+        : levelPlacement
+          ? levelPlacement.recommendedStartPace === null
+            ? 'Every level passed: review manually.'
+            : `First level failed: Level ${String(levelPlacement.firstFailedLevel)}. Recommended start: PACE # ${String(levelPlacement.recommendedStartPace)}.`
+          : 'Result saved.';
       setStatusMessage({
         message: `Diagnostic result recorded. ${summary} This reference does not change PACE placement.`,
         tone: 'success',
@@ -262,14 +263,7 @@ export function StaffAcademicInventoryScreen({
     setStatusMessage(null);
   }
 
-  function changeDiagnosticLevel(level: DiagnosticLevel) {
-    setDiagnosticLevel(level);
-    setDiagnosticSubmitted(false);
-    setStatusMessage(null);
-  }
-
-  function changeDiagnosticOutcome(outcome: DiagnosticOutcome) {
-    setDiagnosticOutcome(outcome);
+  function clearDiagnosticFeedback() {
     setDiagnosticSubmitted(false);
     setStatusMessage(null);
   }
@@ -576,11 +570,8 @@ export function StaffAcademicInventoryScreen({
                 </View>
                 <View style={diagnosticTab === 'results' ? undefined : styles.hidden}>
                   <InventoryDiagnosticCard
-                    level={diagnosticLevel}
-                    onChangeLevel={changeDiagnosticLevel}
-                    onChangeOutcome={changeDiagnosticOutcome}
+                    onEdit={clearDiagnosticFeedback}
                     onSubmit={submitDiagnostic}
-                    outcome={diagnosticOutcome}
                     pending={recordDiagnostic.isPending}
                     student={selectedStudent}
                     submitted={diagnosticSubmitted}

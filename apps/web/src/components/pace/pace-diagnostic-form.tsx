@@ -6,7 +6,7 @@ import {
   diagnosticLevelsFor,
   firstPaceOfLevel,
   isDiagnosticChartTest,
-  recommendedStartPace,
+  placementFromLevels,
   type DiagnosticTest,
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,9 @@ const diagnosticTests: ReadonlyArray<{ value: DiagnosticTest; label: string }> =
   { value: 'WordBuilding', label: 'Word Building' },
   { value: 'Reading', label: 'Reading' },
 ];
-const diagnosticOutcomes = ['Pass', 'Fail'] as const;
 
-type DiagnosticOutcome = (typeof diagnosticOutcomes)[number];
+type DiagnosticOutcome = 'Pass' | 'Fail';
+type LevelOutcomes = Record<number, DiagnosticOutcome>;
 
 export type PaceDiagnosticSubmission =
   | {
@@ -29,7 +29,10 @@ export type PaceDiagnosticSubmission =
       attemptedPaceNumbers: number[];
       circledPaceNumbers: number[];
     }
-  | { test: 'WordBuilding' | 'Reading'; level: number; outcome: DiagnosticOutcome };
+  | {
+      test: 'WordBuilding' | 'Reading';
+      levelResults: Array<{ level: number; outcome: DiagnosticOutcome }>;
+    };
 
 interface PaceDiagnosticFormProps {
   disabled: boolean;
@@ -48,10 +51,6 @@ function isLevelTest(test: DiagnosticTest): test is 'Reading' | 'WordBuilding' {
 
 function levelLabel(test: 'Reading' | 'WordBuilding', level: number): string {
   return test === 'WordBuilding' && level === 9 ? 'Level 9 (Etymology)' : `Level ${String(level)}`;
-}
-
-function isDiagnosticOutcome(value: string): value is DiagnosticOutcome {
-  return diagnosticOutcomes.some((outcome) => outcome === value);
 }
 
 function paceRange(first: string, last: string): { paceNumbers: number[]; error: string } {
@@ -79,16 +78,29 @@ export function PaceDiagnosticForm({
   selectionLabel,
 }: PaceDiagnosticFormProps): ReactElement {
   const [test, setTest] = useState<DiagnosticTest>('Math');
-  const [level, setLevel] = useState(1);
-  const [outcome, setOutcome] = useState<DiagnosticOutcome>('Pass');
+  const [levelOutcomes, setLevelOutcomes] = useState<LevelOutcomes>({});
   const [firstPace, setFirstPace] = useState('1001');
   const [lastPace, setLastPace] = useState('');
   const [circled, setCircled] = useState<number[]>([]);
   const chartTest = isDiagnosticChartTest(test);
-  const startPace = isLevelTest(test) ? recommendedStartPace(test, level, outcome) : null;
+  const levelTest = isLevelTest(test) ? test : null;
   const { paceNumbers: attempted, error: rangeError } = paceRange(firstPace, lastPace);
   const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
   const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
+  const levels = levelTest ? diagnosticLevelsFor(levelTest) : [];
+  const recorded = levels.flatMap((level) => {
+    const outcome = levelOutcomes[level];
+    return outcome ? [{ level, outcome }] : [];
+  });
+  const levelPlacement =
+    levelTest && recorded.length > 0
+      ? placementFromLevels(
+          levelTest,
+          recorded.filter((row) => row.outcome === 'Pass').map((row) => row.level),
+          recorded.filter((row) => row.outcome === 'Fail').map((row) => row.level),
+        )
+      : null;
+  const canSave = chartTest ? attempted.length > 0 : recorded.length > 0;
 
   function toggleCircle(paceNumber: number): void {
     setCircled((current) =>
@@ -98,11 +110,19 @@ export function PaceDiagnosticForm({
     );
   }
 
+  function chooseOutcome(level: number, outcome: DiagnosticOutcome): void {
+    setLevelOutcomes((current) =>
+      // Choosing the active button again clears the level (not tested).
+      current[level] === outcome
+        ? Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== level))
+        : { ...current, [level]: outcome },
+    );
+  }
+
   function submitDiagnostic(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    if (disabled || pending) return;
+    if (disabled || pending || !canSave) return;
     if (test === 'Math' || test === 'English') {
-      if (attempted.length === 0) return;
       onSubmit({
         test,
         attemptedPaceNumbers: attempted,
@@ -110,7 +130,7 @@ export function PaceDiagnosticForm({
       });
       return;
     }
-    onSubmit({ test, level, outcome });
+    onSubmit({ test, levelResults: recorded });
   }
 
   return (
@@ -124,8 +144,8 @@ export function PaceDiagnosticForm({
               const next = event.target.value;
               if (!isDiagnosticTest(next)) return;
               setTest(next);
-              // Each test assesses its own levels, so start from the first one.
-              if (isLevelTest(next)) setLevel(diagnosticLevelsFor(next)[0] ?? 1);
+              // Each test assesses its own levels, so start with a clean sheet.
+              setLevelOutcomes({});
             }}
             value={test}
           >
@@ -136,40 +156,6 @@ export function PaceDiagnosticForm({
             ))}
           </SelectInput>
         </Field>
-        {chartTest ? null : (
-          <>
-            <Field label="Level">
-              <SelectInput
-                disabled={disabled || pending}
-                onChange={(event) => {
-                  setLevel(Number(event.target.value));
-                }}
-                value={level}
-              >
-                {(isLevelTest(test) ? diagnosticLevelsFor(test) : []).map((value) => (
-                  <option key={value} value={value}>
-                    {isLevelTest(test) ? levelLabel(test, value) : `Level ${String(value)}`}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-            <Field label="Outcome">
-              <SelectInput
-                disabled={disabled || pending}
-                onChange={(event) => {
-                  if (isDiagnosticOutcome(event.target.value)) setOutcome(event.target.value);
-                }}
-                value={outcome}
-              >
-                {diagnosticOutcomes.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-          </>
-        )}
       </div>
       {test === 'Reading' ? (
         <p className="field__hint">
@@ -177,25 +163,94 @@ export function PaceDiagnosticForm({
           Literature and Creative Writing.
         </p>
       ) : null}
-      {isLevelTest(test) ? (
-        <div className="pace-diagnostic-form__placement" aria-live="polite">
-          {startPace !== null ? (
-            <span>
-              <strong>Recommended start:</strong> PACE # {String(startPace)} (first PACE of Level{' '}
-              {String(level)}, PACEs {String(firstPaceOfLevel(level))}–
-              {String(firstPaceOfLevel(level) + 11)}). Provisional: review the full diagnostic
-              report.
-            </span>
-          ) : (
-            <span>
-              <strong>Recommended start:</strong> none yet. A pass places nothing; record the first
-              level failed. If every tested level passes or results conflict, review manually.
-            </span>
-          )}
-          {test === 'Reading' && level === 1 && outcome === 'Fail' ? (
-            <span>Level 1 may need ABCs with Ace and Christi or a readiness assessment.</span>
-          ) : null}
-        </div>
+      {levelTest ? (
+        <>
+          <fieldset className="pace-levels">
+            <legend>
+              Mark Pass or Fail for each level tested, then save once. Leave untested levels blank.
+            </legend>
+            {levels.map((level) => {
+              const outcome = levelOutcomes[level];
+              return (
+                <div
+                  aria-label={levelLabel(levelTest, level)}
+                  className="pace-levels__row"
+                  key={level}
+                  role="group"
+                >
+                  <span className="pace-levels__name">{levelLabel(levelTest, level)}</span>
+                  <div className="pace-levels__choices">
+                    {(['Pass', 'Fail'] as const).map((choice) => (
+                      <button
+                        aria-pressed={outcome === choice ? 'true' : 'false'}
+                        className="pace-levels__choice"
+                        data-outcome={choice}
+                        disabled={disabled || pending}
+                        key={choice}
+                        onClick={() => {
+                          chooseOutcome(level, choice);
+                        }}
+                        type="button"
+                      >
+                        {choice}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {recorded.length > 0 ? (
+              <button
+                className="pace-levels__clear"
+                disabled={disabled || pending}
+                onClick={() => {
+                  setLevelOutcomes({});
+                }}
+                type="button"
+              >
+                Clear all levels
+              </button>
+            ) : null}
+          </fieldset>
+          <div className="pace-diagnostic-form__placement" aria-live="polite">
+            {levelPlacement?.firstFailedLevel !== null &&
+            levelPlacement?.firstFailedLevel !== undefined ? (
+              <>
+                <span>
+                  <strong>First level failed:</strong>{' '}
+                  {levelLabel(levelTest, levelPlacement.firstFailedLevel)}
+                </span>
+                <span>
+                  <strong>Recommended start:</strong> PACE #{' '}
+                  {String(levelPlacement.recommendedStartPace)} (first PACE of Level{' '}
+                  {String(levelPlacement.firstFailedLevel)}, PACEs{' '}
+                  {String(firstPaceOfLevel(levelPlacement.firstFailedLevel))}–
+                  {String(firstPaceOfLevel(levelPlacement.firstFailedLevel) + 11)}). Provisional:
+                  review the full diagnostic report.
+                </span>
+              </>
+            ) : levelPlacement ? (
+              <span>
+                <strong>Recommended start:</strong> none. Every level tested passed, so review the
+                full diagnostic report manually.
+              </span>
+            ) : (
+              <span>
+                <strong>Recommended start:</strong> appears here once you mark the levels. It begins
+                at the first PACE of the first level failed.
+              </span>
+            )}
+            {levelPlacement?.review === 'conflict' ? (
+              <span role="alert">
+                A higher level passed after a failed one. Results conflict, so review the full
+                diagnostic report manually.
+              </span>
+            ) : null}
+            {test === 'Reading' && levelPlacement?.firstFailedLevel === 1 ? (
+              <span>Level 1 may need ABCs with Ace and Christi or a readiness assessment.</span>
+            ) : null}
+          </div>
+        </>
       ) : null}
       {chartTest ? (
         <>
@@ -258,11 +313,7 @@ export function PaceDiagnosticForm({
         </>
       ) : null}
       <div className="pace-inventory-actions">
-        <Button
-          disabled={disabled || (chartTest && attempted.length === 0)}
-          pending={pending}
-          type="submit"
-        >
+        <Button disabled={disabled || !canSave} pending={pending} type="submit">
           Record diagnostic
         </Button>
         <span className="field__hint">

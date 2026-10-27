@@ -19,8 +19,10 @@ test('the diagnostic form offers four tests and splits chart entry from level en
     assert.match(form, new RegExp(`label: '${label}'`));
   }
   assert.match(form, /label="Test"/);
-  assert.match(form, /label="Level"/);
-  assert.match(form, /label="Outcome"/);
+  assert.match(form, /<fieldset className="pace-levels">/);
+  assert.match(form, /aria-pressed=/);
+  assert.match(form, /\['Pass', 'Fail'\] as const/);
+  assert.match(form, /levelResults/);
   assert.match(form, /diagnosticLevelsFor\(/);
   assert.match(form, /isDiagnosticChartTest/);
   assert.match(form, /derivePacePlacement\(/);
@@ -49,7 +51,8 @@ test('results show chart rows and offer a one-click Gap PACEs setup', () => {
 });
 
 test('Reading and Word Building show the provisional start PACE from the placement map', () => {
-  assert.match(form, /recommendedStartPace\(/);
+  assert.match(form, /placementFromLevels\(/);
+  assert.match(form, /First level failed/);
   assert.match(form, /Recommended start/);
   assert.match(form, /Etymology/);
   assert.match(form, /review the full\s+diagnostic\s+report/);
@@ -58,4 +61,12 @@ test('Reading and Word Building show the provisional start PACE from the placeme
   assert.match(client, /recommendedStartPace\(/);
   assert.match(client, /Recommended start/);
   assert.match(client, /Older result/);
+  assert.match(client, /levelPlacement/);
+  assert.match(client, /pace-level-chip/);
+});
+
+test('the Math and English chart is always visible in results, not hidden behind a toggle', () => {
+  assert.doesNotMatch(client, /<details>/);
+  assert.doesNotMatch(client, /View chart/);
+  assert.match(client, /<PaceDiagnosticChart/);
 });

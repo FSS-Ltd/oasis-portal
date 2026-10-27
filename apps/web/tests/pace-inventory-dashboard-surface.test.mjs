@@ -122,8 +122,7 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(pickerSource, /Unavailable/);
   assert.match(pickerSource, /Starting after PACE #\$\{String\(currentPaceNumber\)\}/);
   assert.match(diagnosticFormSource, /<form/);
-  assert.match(diagnosticFormSource, /label="Level"/);
-  assert.match(diagnosticFormSource, /label="Outcome"/);
+  assert.match(diagnosticFormSource, /<fieldset className="pace-levels">/);
   assert.match(diagnosticFormSource, /Record diagnostic/);
   assert.match(diagnosticFormSource, /It does not change the student&apos;s current PACE\./);
 });

@@ -36,6 +36,21 @@ describe('diagnostic PACE chart migration', () => {
     expect(sql).toContain('DiagnosticResult_shape_check');
   });
 
+  it('stores a level sitting as passed and failed level lists', () => {
+    expect(sql).toContain(
+      'ADD COLUMN "passedLevels" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[]',
+    );
+    expect(sql).toContain(
+      'ADD COLUMN "failedLevels" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[]',
+    );
+    expect(sql).toContain('DiagnosticResult_levels_check');
+    expect(sql).toContain('1 <= ALL ("passedLevels")');
+    expect(sql).toContain('9 >= ALL ("failedLevels")');
+    expect(sql).toContain('NOT ("passedLevels" && "failedLevels")');
+    // A Reading or Word Building row is either one legacy level result or a sitting.
+    expect(sql).toContain('cardinality("passedLevels") + cardinality("failedLevels") > 0');
+  });
+
   it('keeps Head-only access and matches the Prisma model', () => {
     expect(sql).not.toContain('POLICY');
     expect(schema).toMatch(/enum DiagnosticTest \{\s*Math\s*English\s*WordBuilding\s*Reading\s*\}/);
@@ -43,5 +58,7 @@ describe('diagnostic PACE chart migration', () => {
       /model DiagnosticResult \{[\s\S]*subjectId\s+String\?[\s\S]*test\s+DiagnosticTest\?/,
     );
     expect(schema).toMatch(/attemptedPaceNumbers\s+Int\[\]\s+@default\(\[\]\)/);
+    expect(schema).toMatch(/passedLevels\s+Int\[\]\s+@default\(\[\]\)/);
+    expect(schema).toMatch(/failedLevels\s+Int\[\]\s+@default\(\[\]\)/);
   });
 });

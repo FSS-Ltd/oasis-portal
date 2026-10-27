@@ -1144,6 +1144,8 @@ model DiagnosticResult {
   outcome              DiagnosticOutcome?
   attemptedPaceNumbers Int[]              @default([])
   circledPaceNumbers   Int[]              @default([])
+  passedLevels         Int[]              @default([])
+  failedLevels         Int[]              @default([])
   recordedById         String
   recordedAt           DateTime           @default(now())
   createdAt            DateTime           @default(now())

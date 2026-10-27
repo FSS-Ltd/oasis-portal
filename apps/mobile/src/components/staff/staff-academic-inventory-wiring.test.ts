@@ -113,17 +113,13 @@ describe('staff academic inventory mobile wiring', () => {
     expect(screen).toMatch(/<\/ScrollView>[\s\S]*<View style={styles\.bulkFooter}>/);
   });
 
-  it('clears stale feedback when diagnostic controls change', () => {
+  it('clears stale feedback when the diagnostic sheet is edited', () => {
     const screen = readStaffComponent('staff-academic-inventory-screen.tsx');
 
     expect(screen).toMatch(
-      /function changeDiagnosticLevel[\s\S]*?setDiagnosticLevel[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
+      /function clearDiagnosticFeedback[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
     );
-    expect(screen).toMatch(
-      /function changeDiagnosticOutcome[\s\S]*?setDiagnosticOutcome[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
-    );
-    expect(screen).toMatch(/onChangeLevel={changeDiagnosticLevel}/);
-    expect(screen).toMatch(/onChangeOutcome={changeDiagnosticOutcome}/);
+    expect(screen).toMatch(/onEdit={clearDiagnosticFeedback}/);
   });
 
   it('records chart tests for Math and English and level tests for Word Building and Reading', () => {
@@ -136,7 +132,9 @@ describe('staff academic inventory mobile wiring', () => {
       expect(components).toContain(`label: '${label}'`);
     }
     expect(components).toMatch(/diagnosticLevelsFor\(/);
-    expect(components).toMatch(/recommendedStartPace\(/);
+    expect(components).toMatch(/placementFromLevels\(/);
+    expect(components).toMatch(/levelResults/);
+    expect(components).toMatch(/First level failed/);
     expect(components).toMatch(/Recommended start/);
     expect(components).toMatch(/Level 9 is Etymology/);
     expect(components).toMatch(/derivePacePlacement\(/);
@@ -162,8 +160,8 @@ describe('staff academic inventory mobile wiring', () => {
       components.indexOf('const styles'),
     );
 
-    // Test, first and last PACE, chart, level, outcome and the submit button.
-    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(7);
+    // Test, first and last PACE, chart, each level's Pass/Fail, and the submit button.
+    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(6);
     expect(segmentButton).toMatch(/disabled: boolean/);
     expect(segmentButton).toMatch(/accessibilityState={{ disabled, selected: active }}/);
     expect(segmentButton).toMatch(/disabled={disabled}/);

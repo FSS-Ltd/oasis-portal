@@ -18395,3 +18395,83 @@ button.pace-chart__cell {
   color: var(--oasis-text);
   font-size: 0.9rem;
 }
+
+/* Reading and Word Building sitting: Pass or Fail for every level in one go. */
+.pace-levels {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+  margin: 12px 0;
+  padding: 0;
+  border: 0;
+}
+.pace-levels legend { margin-bottom: 8px; padding: 0; color: var(--oasis-text-secondary); font-size: 0.85rem; }
+.pace-levels__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+}
+.pace-levels__name { color: var(--oasis-navy); font-weight: 650; }
+.pace-levels__choices { display: flex; gap: 6px; }
+.pace-levels__choice {
+  min-width: 72px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pace-levels__choice[aria-pressed='true'][data-outcome='Pass'] {
+  border-color: var(--oasis-success);
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+}
+.pace-levels__choice[aria-pressed='true'][data-outcome='Fail'] {
+  border-color: var(--oasis-crimson);
+  background: var(--oasis-crimson-light);
+  color: var(--oasis-crimson);
+}
+.pace-levels__choice:disabled { cursor: not-allowed; opacity: 0.6; }
+.pace-levels__choice:focus-visible,
+.pace-levels__clear:focus-visible { outline: 3px solid var(--focus-ring, #2563eb); outline-offset: 2px; }
+.pace-levels__clear {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .pace-levels__choice:not(:disabled):hover { border-color: var(--oasis-blue); }
+}
+.pace-level-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.pace-level-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 999px;
+  background: var(--oasis-surface);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.pace-level-chip[data-outcome='Pass'] { border-color: var(--oasis-success); color: var(--oasis-success); }
+.pace-level-chip[data-outcome='Fail'] { border-color: var(--oasis-crimson); background: var(--oasis-crimson-light); color: var(--oasis-crimson); font-weight: 700; }
+@media (max-width: 480px) {
+  .pace-levels__row { flex-wrap: wrap; }
+  .pace-levels__choices { width: 100%; }
+  .pace-levels__choice { flex: 1; min-height: 44px; }
+}

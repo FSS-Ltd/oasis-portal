@@ -5,6 +5,7 @@ import {
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
   derivePacePlacement,
+  placementFromLevels,
   diagnosticResultInput,
   type DiagnosticTest,
   markPaceOrdersInTransitInput,
@@ -71,6 +72,8 @@ const DIAGNOSTIC_SELECT = {
   outcome: true,
   attemptedPaceNumbers: true,
   circledPaceNumbers: true,
+  passedLevels: true,
+  failedLevels: true,
   recordedById: true,
   recordedAt: true,
   createdAt: true,
@@ -90,15 +93,31 @@ const DIAGNOSTIC_TEST_LABELS: Record<DiagnosticTest, string> = {
   Reading: 'Reading',
 };
 
-/** Rows with a chart carry the derived Learning Gaps and Performance Level. */
+/**
+ * Derived placement: chart rows carry Learning Gaps and a Performance Level; Reading and Word
+ * Building sittings carry the first failed level and its recommended start PACE.
+ */
 function withPlacement<
-  Row extends { attemptedPaceNumbers: number[]; circledPaceNumbers: number[] },
+  Row extends {
+    test: DiagnosticTest | null;
+    attemptedPaceNumbers: number[];
+    circledPaceNumbers: number[];
+    passedLevels: number[];
+    failedLevels: number[];
+  },
 >(row: Row) {
+  const sitting =
+    (row.test === 'Reading' || row.test === 'WordBuilding') &&
+    row.passedLevels.length + row.failedLevels.length > 0;
   return {
     ...row,
     placement:
       row.attemptedPaceNumbers.length > 0
         ? derivePacePlacement(row.attemptedPaceNumbers, row.circledPaceNumbers)
+        : null,
+    levelPlacement:
+      sitting && (row.test === 'Reading' || row.test === 'WordBuilding')
+        ? placementFromLevels(row.test, row.passedLevels, row.failedLevels)
         : null,
   };
 }
@@ -877,15 +896,24 @@ export const academicInventoryRouter = router({
         } else {
           subjectId = await resolveDiagnosticSubjectId(tx, input.studentId, input.test);
         }
+        const sortedLevels = (outcome: 'Pass' | 'Fail') =>
+          'levelResults' in input
+            ? input.levelResults
+                .filter((result) => result.outcome === outcome)
+                .map((result) => result.level)
+                .sort((a, b) => a - b)
+            : [];
         const chart = 'attemptedPaceNumbers' in input;
         const data = {
           studentId: input.studentId,
           subjectId,
           test: input.test,
-          level: chart ? null : input.level,
-          outcome: chart ? null : input.outcome,
+          level: null,
+          outcome: null,
           attemptedPaceNumbers: chart ? [...input.attemptedPaceNumbers].sort((a, b) => a - b) : [],
           circledPaceNumbers: chart ? [...input.circledPaceNumbers].sort((a, b) => a - b) : [],
+          passedLevels: sortedLevels('Pass'),
+          failedLevels: sortedLevels('Fail'),
           recordedById: ctx.user.id,
         };
         const diagnostic = await tx.diagnosticResult.create({ data });
@@ -903,6 +931,8 @@ export const academicInventoryRouter = router({
               outcome: data.outcome,
               attemptedPaceNumbers: data.attemptedPaceNumbers,
               circledPaceNumbers: data.circledPaceNumbers,
+              passedLevels: data.passedLevels,
+              failedLevels: data.failedLevels,
             },
           },
         });

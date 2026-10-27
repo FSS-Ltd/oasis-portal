@@ -89,24 +89,71 @@ export function isDiagnosticChartTest(test: DiagnosticTest | null | undefined): 
   return test === 'Math' || test === 'English';
 }
 
+export interface LevelPlacement {
+  /** The lowest level failed in the sitting, or null when nothing was failed. */
+  firstFailedLevel: number | null;
+  /** First PACE of that level; null when there is no failed level to place from. */
+  recommendedStartPace: number | null;
+  /** Why the Head should check the full report: every level passed, or a pass above a fail. */
+  review: 'allPassed' | 'conflict' | null;
+}
+
+/**
+ * Placement for a Reading or Word Building sitting: begin at the first PACE of the first
+ * level failed. If every tested level passes there is nothing to place from, and a pass
+ * above the first fail is inconsistent, so both are flagged for manual review.
+ */
+export function placementFromLevels(
+  test: 'Reading' | 'WordBuilding',
+  passedLevels: readonly number[],
+  failedLevels: readonly number[],
+): LevelPlacement {
+  const firstFailedLevel = failedLevels.length > 0 ? Math.min(...failedLevels) : null;
+  if (firstFailedLevel === null) {
+    return { firstFailedLevel: null, recommendedStartPace: null, review: 'allPassed' };
+  }
+  const conflict = passedLevels.some((level) => level > firstFailedLevel);
+  return {
+    firstFailedLevel,
+    recommendedStartPace: recommendedStartPace(test, firstFailedLevel, 'Fail'),
+    review: conflict ? 'conflict' : null,
+  };
+}
+
 const diagnosticPaceNumber = z.number().int().min(1001).max(1144);
 
+const diagnosticLevelResult = z.object({
+  level: z.number().int().min(1).max(9),
+  outcome: diagnosticOutcome,
+});
+
+/** One sitting: Pass or Fail for each level the student was tested on. */
 const diagnosticLevelInput = z
   .object({
     studentId: z.string().trim().min(1),
     test: z.enum(['WordBuilding', 'Reading']),
-    level: z.number().int().min(1).max(9),
-    outcome: diagnosticOutcome,
+    levelResults: z.array(diagnosticLevelResult).min(1),
   })
-  .superRefine(({ test, level }, ctx) => {
+  .superRefine(({ test, levelResults }, ctx) => {
     const { min, max } = DIAGNOSTIC_LEVEL_RANGE[test];
-    if (level < min || level > max) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `${test === 'Reading' ? 'Reading' : 'Word Building'} assesses Levels ${String(min)}-${String(max)}`,
-        path: ['level'],
-      });
-    }
+    const seen = new Set<number>();
+    levelResults.forEach(({ level }, index) => {
+      if (level < min || level > max) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${test === 'Reading' ? 'Reading' : 'Word Building'} assesses Levels ${String(min)}-${String(max)}`,
+          path: ['levelResults', index, 'level'],
+        });
+      }
+      if (seen.has(level)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Each level can only be recorded once',
+          path: ['levelResults', index, 'level'],
+        });
+      }
+      seen.add(level);
+    });
   });
 
 const diagnosticChartInput = z

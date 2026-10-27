@@ -6,6 +6,7 @@ import {
   deleteDiagnosticResultInput,
   derivePacePlacement,
   diagnosticLevelsFor,
+  placementFromLevels,
   firstPaceOfLevel,
   recommendedStartPace,
   diagnosticResultInput,
@@ -46,23 +47,80 @@ describe('academic inventory', () => {
     expect(requiresPaceReorder(1143, [], 1)).toBe(true);
   });
 
-  it('validates Reading as Levels 1–8 and Word Building as Levels 2–9, Pass/Fail', () => {
-    const base = { studentId: 'student_1', outcome: 'Pass' as const };
-    const accepts = (test: 'Reading' | 'WordBuilding', level: number) =>
-      diagnosticResultInput.safeParse({ ...base, test, level }).success;
-    expect([1, 8].map((level) => accepts('Reading', level))).toEqual([true, true]);
-    expect([0, 9].map((level) => accepts('Reading', level))).toEqual([false, false]);
-    expect([2, 9].map((level) => accepts('WordBuilding', level))).toEqual([true, true]);
-    expect([1, 10].map((level) => accepts('WordBuilding', level))).toEqual([false, false]);
+  it('validates a level sitting: Pass or Fail per level, unique, within the assessed range', () => {
+    const sitting = (test: 'Reading' | 'WordBuilding', levels: Array<[number, string]>) =>
+      diagnosticResultInput.safeParse({
+        studentId: 'student_1',
+        test,
+        levelResults: levels.map(([level, outcome]) => ({ level, outcome })),
+      }).success;
     expect(
-      diagnosticResultInput.safeParse({ ...base, test: 'Reading', level: 2, outcome: 'Maybe' })
-        .success,
+      sitting('Reading', [
+        [1, 'Pass'],
+        [2, 'Pass'],
+        [3, 'Fail'],
+      ]),
+    ).toBe(true);
+    expect(sitting('Reading', [[8, 'Fail']])).toBe(true);
+    expect(
+      sitting('WordBuilding', [
+        [2, 'Pass'],
+        [9, 'Fail'],
+      ]),
+    ).toBe(true);
+    expect(sitting('Reading', [])).toBe(false);
+    expect(sitting('Reading', [[9, 'Pass']])).toBe(false);
+    expect(sitting('Reading', [[0, 'Pass']])).toBe(false);
+    expect(sitting('WordBuilding', [[1, 'Pass']])).toBe(false);
+    expect(sitting('WordBuilding', [[10, 'Pass']])).toBe(false);
+    expect(
+      sitting('Reading', [
+        [2, 'Pass'],
+        [2, 'Fail'],
+      ]),
     ).toBe(false);
+    expect(sitting('Reading', [[2, 'Maybe']])).toBe(false);
   });
 
   it('lists the levels each test assesses', () => {
     expect(diagnosticLevelsFor('Reading')).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(diagnosticLevelsFor('WordBuilding')).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it('places a level sitting at the first PACE of the first level failed', () => {
+    // Worked examples from the placement map.
+    expect(placementFromLevels('Reading', [1, 2, 3], [4])).toEqual({
+      firstFailedLevel: 4,
+      recommendedStartPace: 1037,
+      review: null,
+    });
+    expect(placementFromLevels('WordBuilding', [2], [3])).toEqual({
+      firstFailedLevel: 3,
+      recommendedStartPace: 1025,
+      review: null,
+    });
+    // The lowest failed level wins, whatever order the levels arrive in.
+    expect(placementFromLevels('Reading', [1, 2], [6, 4, 5]).recommendedStartPace).toBe(1037);
+    expect(placementFromLevels('Reading', [], [1]).recommendedStartPace).toBe(1001);
+  });
+
+  it('flags a sitting for manual review when every level passes or results conflict', () => {
+    expect(placementFromLevels('Reading', [1, 2, 3, 4, 5, 6, 7, 8], [])).toEqual({
+      firstFailedLevel: null,
+      recommendedStartPace: null,
+      review: 'allPassed',
+    });
+    // Passing a level above one that was failed is inconsistent: still shows the first fail.
+    expect(placementFromLevels('Reading', [1, 3], [2])).toEqual({
+      firstFailedLevel: 2,
+      recommendedStartPace: 1013,
+      review: 'conflict',
+    });
+    expect(placementFromLevels('WordBuilding', [], [])).toEqual({
+      firstFailedLevel: null,
+      recommendedStartPace: null,
+      review: 'allPassed',
+    });
   });
 
   it('begins at the first PACE of the first level failed', () => {

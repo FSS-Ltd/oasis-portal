@@ -56,6 +56,11 @@ export function InventoryDiagnosticHistory({
         const student = students.find((row) => row.id === result.studentId);
         const assignment = student?.subjects.find((row) => row.subjectId === result.subjectId);
         const placement = result.placement;
+        const levelPlacement = result.levelPlacement;
+        const levelRows = [
+          ...result.passedLevels.map((level) => ({ level, outcome: 'Pass' as const })),
+          ...result.failedLevels.map((level) => ({ level, outcome: 'Fail' as const })),
+        ].sort((left, right) => left.level - right.level);
         const startPace =
           result.test === 'Reading' || result.test === 'WordBuilding'
             ? recommendedStartPace(result.test, result.level ?? 0, result.outcome)
@@ -71,9 +76,9 @@ export function InventoryDiagnosticHistory({
             <View style={styles.heading}>
               <Text style={styles.name}>
                 {student?.fullName ?? 'Student'} · {testLabel}
-                {placement ? '' : ` · Level ${String(result.level)}`}
+                {placement || levelPlacement ? '' : ` · Level ${String(result.level)}`}
               </Text>
-              {placement ? null : (
+              {placement || levelPlacement ? null : (
                 <Badge variant={result.outcome === 'Pass' ? 'success' : 'warning'}>
                   {result.outcome}
                 </Badge>
@@ -96,6 +101,23 @@ export function InventoryDiagnosticHistory({
                     }}
                     variant="secondary"
                   />
+                ) : null}
+              </>
+            ) : null}
+            {levelPlacement ? (
+              <>
+                <Text style={styles.summary}>
+                  {levelRows
+                    .map((row) => `L${String(row.level)} ${row.outcome === 'Pass' ? '✓' : '✗'}`)
+                    .join('  ')}
+                </Text>
+                <Text style={styles.summary}>
+                  {levelPlacement.firstFailedLevel !== null
+                    ? `First level failed: Level ${String(levelPlacement.firstFailedLevel)}. Recommended start: PACE # ${String(levelPlacement.recommendedStartPace)} (provisional)`
+                    : 'Every level passed: review the full diagnostic report manually.'}
+                </Text>
+                {levelPlacement.review === 'conflict' ? (
+                  <MutedText>Results conflict: review the full diagnostic report.</MutedText>
                 ) : null}
               </>
             ) : null}

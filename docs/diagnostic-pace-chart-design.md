@@ -14,8 +14,8 @@ starts Science and Social Studies.
 | Test | Entry | Stored against |
 | --- | --- | --- |
 | Math, English | PACE chart: attempted PACEs, circled PACEs | the student's Math / English assignment |
-| Word Building | Level 2-9 + Pass/Fail (Level 9 is Etymology) | the student's Word Building assignment |
-| Reading | Level 1-8 + Pass/Fail | the student only (no subject) |
+| Word Building | one sitting: Pass/Fail for each level tested, Levels 2-9 (Level 9 is Etymology) | the student's Word Building assignment |
+| Reading | one sitting: Pass/Fail for each level tested, Levels 1-8 | the student only (no subject) |
 
 - Diagnostics stay reference records. They do not move `currentPaceNumber`.
 - A chart result with gaps offers **Set up Gap PACEs**, which opens the existing gap plan
@@ -32,6 +32,15 @@ report decides, and it never overrides the chronological-level cap automatically
 placement informs Science, Social Studies, Bible Reading and Literature and Creative Writing.
 Reading Level 1 may need a readiness assessment. If every tested level passes or results
 conflict, the Head reviews manually (no recommendation is shown).
+
+### Level sittings
+
+Reading and Word Building are entered as one sitting: Pass or Fail against every level
+tested, then a single save. They are stored as `passedLevels` and `failedLevels` on one row.
+The recommendation uses the **lowest failed level** (`placementFromLevels`). If every tested
+level passed there is nothing to place from, and a pass above the first fail is a conflict;
+both are flagged for manual review. Older single-level rows (`level` and `outcome`) still
+display and still get a recommendation.
 
 ## Derivation (`derivePacePlacement`, pure, `packages/domain`)
 
@@ -50,7 +59,7 @@ Check against the PDF: attempted 1001-1017, circled 1008, 1015, 1016, 1017 gives
 
 - New enum `DiagnosticTest { Math English WordBuilding Reading }`.
 - `DiagnosticResult.test DiagnosticTest?` (null only for legacy rows).
-- `subjectId`, `level`, `outcome` become nullable. Reading rows have no subject; chart rows
+- `subjectId`, `level`, `outcome` become nullable; new `passedLevels` and `failedLevels` int arrays hold a sitting. Reading rows have no subject; chart rows
   have no level or outcome.
 - New `attemptedPaceNumbers Int[]` and `circledPaceNumbers Int[]`, default `{}`.
 - Level check widens from 1-5 to `level IS NULL OR 1-9`; zod narrows it to each test's assessed levels. Row shape is enforced by zod,

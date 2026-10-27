@@ -426,13 +426,58 @@ export function PaceInventoryClient() {
                   ? 'Passed every PACE'
                   : `PACE # ${String(placement.performanceLevelPace)}`}
               </span>
-              <details>
-                <summary>View chart</summary>
-                <PaceDiagnosticChart
-                  attempted={diagnostic.attemptedPaceNumbers}
-                  circled={diagnostic.circledPaceNumbers}
-                />
-              </details>
+              <PaceDiagnosticChart
+                attempted={diagnostic.attemptedPaceNumbers}
+                circled={diagnostic.circledPaceNumbers}
+              />
+            </div>
+          );
+        }
+        const levelPlacement = diagnostic.levelPlacement;
+        if (
+          levelPlacement &&
+          (diagnostic.test === 'Reading' || diagnostic.test === 'WordBuilding')
+        ) {
+          const levelRows = [
+            ...diagnostic.passedLevels.map((level) => ({ level, outcome: 'Pass' as const })),
+            ...diagnostic.failedLevels.map((level) => ({ level, outcome: 'Fail' as const })),
+          ].sort((left, right) => left.level - right.level);
+          return (
+            <div className="pace-diagnostic-result">
+              <div aria-label="Level results" className="pace-level-chips" role="group">
+                {levelRows.map((row) => (
+                  <span
+                    aria-label={`Level ${String(row.level)} ${row.outcome === 'Pass' ? 'passed' : 'failed'}`}
+                    className="pace-level-chip"
+                    data-outcome={row.outcome}
+                    key={row.level}
+                  >
+                    L{String(row.level)} {row.outcome === 'Pass' ? '✓' : '✗'}
+                  </span>
+                ))}
+              </div>
+              {levelPlacement.firstFailedLevel !== null ? (
+                <span>
+                  <strong>First level failed:</strong> Level{' '}
+                  {String(levelPlacement.firstFailedLevel)}
+                  {' · '}
+                  <strong>Recommended start:</strong> PACE #{' '}
+                  {String(levelPlacement.recommendedStartPace)} (provisional)
+                </span>
+              ) : (
+                <span>
+                  <strong>Recommended start:</strong> none. Every level passed, review manually.
+                </span>
+              )}
+              {levelPlacement.review === 'conflict' ? (
+                <span className="muted">Results conflict: review the full diagnostic report.</span>
+              ) : null}
+              {diagnostic.test === 'Reading' ? (
+                <span className="muted">
+                  Informs Science, Social Studies, Bible Reading and Literature and Creative
+                  Writing.
+                </span>
+              ) : null}
             </div>
           );
         }
