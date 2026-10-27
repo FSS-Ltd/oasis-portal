@@ -4,6 +4,7 @@ import {
   bulkPaceInventoryOrderInput,
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
+  derivePacePlacement,
   diagnosticResultInput,
   markPaceOrdersInTransitInput,
   markPaceOrdersDeliveredInput,
@@ -33,14 +34,98 @@ describe('academic inventory', () => {
     expect(requiresPaceReorder(1144, [])).toBe(false);
   });
 
-  it('keeps diagnostics as validated Level 1–5 Pass/Fail reference records', () => {
-    const base = { studentId: 'student_1', subjectId: 'subject_1', outcome: 'Pass' as const };
-    expect(diagnosticResultInput.parse({ ...base, level: 2 }).outcome).toBe('Pass');
-    expect(diagnosticResultInput.safeParse({ ...base, level: 0 }).success).toBe(false);
-    expect(diagnosticResultInput.safeParse({ ...base, level: 6 }).success).toBe(false);
-    expect(diagnosticResultInput.safeParse({ ...base, level: 2, outcome: 'Unknown' }).success).toBe(
+  it('validates Word Building and Reading as Level 1–10 Pass/Fail records', () => {
+    const base = { studentId: 'student_1', outcome: 'Pass' as const };
+    for (const test of ['WordBuilding', 'Reading'] as const) {
+      expect(diagnosticResultInput.parse({ ...base, test, level: 10 }).test).toBe(test);
+      expect(diagnosticResultInput.safeParse({ ...base, test, level: 0 }).success).toBe(false);
+      expect(diagnosticResultInput.safeParse({ ...base, test, level: 11 }).success).toBe(false);
+      expect(
+        diagnosticResultInput.safeParse({ ...base, test, level: 2, outcome: 'Maybe' }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('validates Math and English as PACE charts with circled PACEs among the attempted', () => {
+    const chart = {
+      studentId: 'student_1',
+      test: 'Math' as const,
+      attemptedPaceNumbers: [1001, 1002, 1003],
+      circledPaceNumbers: [1002],
+    };
+    expect(diagnosticResultInput.parse(chart).test).toBe('Math');
+    expect(diagnosticResultInput.safeParse({ ...chart, test: 'English' }).success).toBe(true);
+    expect(diagnosticResultInput.safeParse({ ...chart, circledPaceNumbers: [] }).success).toBe(
+      true,
+    );
+    expect(diagnosticResultInput.safeParse({ ...chart, circledPaceNumbers: [1004] }).success).toBe(
       false,
     );
+    expect(diagnosticResultInput.safeParse({ ...chart, attemptedPaceNumbers: [] }).success).toBe(
+      false,
+    );
+    expect(
+      diagnosticResultInput.safeParse({ ...chart, attemptedPaceNumbers: [1001, 1001] }).success,
+    ).toBe(false);
+    expect(
+      diagnosticResultInput.safeParse({ ...chart, attemptedPaceNumbers: [1000] }).success,
+    ).toBe(false);
+    expect(diagnosticResultInput.safeParse({ ...chart, level: 3, outcome: 'Pass' }).success).toBe(
+      true,
+    );
+  });
+
+  it('derives gaps and performance level from the PDF example chart', () => {
+    const attempted = Array.from({ length: 17 }, (_, index) => 1001 + index);
+    expect(derivePacePlacement(attempted, [1008, 1015, 1016, 1017])).toEqual({
+      learningGaps: [1008],
+      performanceLevelPace: 1015,
+    });
+  });
+
+  it('starts after the last passed PACE when testing stops without three circled in a row', () => {
+    const attempted = Array.from({ length: 26 }, (_, index) => 1001 + index);
+    expect(derivePacePlacement(attempted, [])).toEqual({
+      learningGaps: [],
+      performanceLevelPace: 1027,
+    });
+    expect(derivePacePlacement(attempted, [1005, 1010])).toEqual({
+      learningGaps: [1005, 1010],
+      performanceLevelPace: 1027,
+    });
+    // Two trailing circles are not a run: the student restarts after the last pass.
+    expect(derivePacePlacement([1001, 1002, 1003, 1004], [1003, 1004])).toEqual({
+      learningGaps: [],
+      performanceLevelPace: 1003,
+    });
+  });
+
+  it('only counts adjacent circled attempts as a run and handles edge cases', () => {
+    // 1004 is not attempted, so 1003, 1005, 1006 are adjacent attempts: a run from 1003.
+    expect(derivePacePlacement([1001, 1002, 1003, 1005, 1006], [1003, 1005, 1006])).toEqual({
+      learningGaps: [],
+      performanceLevelPace: 1003,
+    });
+    // Circles broken by a pass do not form a run.
+    expect(derivePacePlacement([1001, 1002, 1003, 1004, 1005], [1001, 1002, 1004, 1005])).toEqual({
+      learningGaps: [1001, 1002],
+      performanceLevelPace: 1004,
+    });
+    // Nothing passed: start from the first attempted PACE.
+    expect(derivePacePlacement([1001, 1002], [1001, 1002])).toEqual({
+      learningGaps: [],
+      performanceLevelPace: 1001,
+    });
+    // Passing the last PACE completes the catalogue.
+    expect(derivePacePlacement([1143, 1144], [])).toEqual({
+      learningGaps: [],
+      performanceLevelPace: null,
+    });
+    // Unsorted input is sorted first.
+    expect(derivePacePlacement([1003, 1001, 1002], [1002])).toEqual({
+      learningGaps: [1002],
+      performanceLevelPace: 1004,
+    });
   });
 
   it('validates bounded, non-duplicate student-specific supply and bulk order PACEs', () => {

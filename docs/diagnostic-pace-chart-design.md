@@ -39,14 +39,16 @@ Check against the PDF: attempted 1001-1017, circled 1008, 1015, 1016, 1017 gives
 ## Data model (additive migration)
 
 - New enum `DiagnosticTest { Math English WordBuilding Reading }`.
-- `DiagnosticResult.test DiagnosticTest?` (null only for legacy rows we cannot map).
+- `DiagnosticResult.test DiagnosticTest?` (null only for legacy rows).
 - `subjectId`, `level`, `outcome` become nullable. Reading rows have no subject; chart rows
   have no level or outcome.
 - New `attemptedPaceNumbers Int[]` and `circledPaceNumbers Int[]`, default `{}`.
 - Level check widens from 1-5 to `level IS NULL OR 1-10`. Row shape is enforced by zod,
   not by SQL, so legacy Math/English level rows stay valid.
-- Backfill `test` from the subject code: MATH/MA, ENG/EN, WB/CUSTOM-WORD-BUILDING.
-  Other legacy rows keep `test = NULL` and still display as `Level N Pass/Fail`.
+- No backfill. Existing rows are not touched (updates would fire realtime change capture per
+  row); `test IS NULL` marks a legacy level result and it renders as `Level N Pass/Fail`.
+- A `shape` check enforces complete chart or level rows for new tests, and a `pace_numbers`
+  check keeps PACEs in 1001-1144 with circled a subset of attempted.
 - Same table, so no new realtime coverage entry. The Head-only RLS policy is unchanged.
 
 ## API
