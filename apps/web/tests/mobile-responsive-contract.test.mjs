@@ -51,8 +51,12 @@ test('student mobile web bottom nav is fixed to five approved destinations', () 
     /const studentBottomNavHrefs = \[[\s\S]*'\/student'[\s\S]*'\/student\/community'[\s\S]*'\/student\/faith'[\s\S]*'\/student\/wallet'[\s\S]*'\/student\/shop'[\s\S]*\] as const/,
   );
   assert.doesNotMatch(studentNavSource, /bottomNav: true/);
-  assert.doesNotMatch(studentNavSource, /studentBottomNavHrefs[\s\S]*\/student\/messages/);
-  assert.doesNotMatch(studentNavSource, /studentBottomNavHrefs[\s\S]*\/student\/homework/);
+  // Check the bottom nav list itself: the file also mentions homework in the visibility filter.
+  const bottomNavHrefs =
+    studentNavSource.match(/const studentBottomNavHrefs = \[([\s\S]*?)\] as const/)?.[1] ?? '';
+  assert.notEqual(bottomNavHrefs, '');
+  assert.doesNotMatch(bottomNavHrefs, /\/student\/messages/);
+  assert.doesNotMatch(bottomNavHrefs, /\/student\/homework/);
 });
 
 test('student messages route redirects to Community and contacts open direct messages', () => {
