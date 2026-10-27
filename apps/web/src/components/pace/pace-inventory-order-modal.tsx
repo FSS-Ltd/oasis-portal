@@ -14,6 +14,31 @@ export interface PaceInventoryOrderSubjectChoice {
   availablePaceNumbers: readonly number[];
 }
 
+export interface PaceInventoryOrderRequest {
+  subjectId: string;
+  paceNumbers: number[];
+}
+
+/** Thrown when some subjects were ordered before one failed, so the modal keeps only the rest. */
+export class PartialOrderError extends Error {
+  readonly completedSubjectIds: readonly string[];
+
+  constructor(completedSubjectIds: readonly string[], message: string) {
+    super(message);
+    this.name = 'PartialOrderError';
+    this.completedSubjectIds = completedSubjectIds;
+  }
+}
+
+function subjectOptionLabel(
+  choice: PaceInventoryOrderSubjectChoice,
+  selectedCount: number,
+): string {
+  return selectedCount > 0
+    ? `${choice.subjectLabel} (${String(selectedCount)} selected)`
+    : choice.subjectLabel;
+}
+
 export function PaceInventoryOrderModal({
   onClose,
   onSubmit,
@@ -22,7 +47,7 @@ export function PaceInventoryOrderModal({
   subjects,
 }: {
   onClose: () => void;
-  onSubmit: (subjectId: string, paceNumbers: number[]) => Promise<void>;
+  onSubmit: (orders: PaceInventoryOrderRequest[]) => Promise<void>;
   pending: boolean;
   studentName: string;
   subjects: readonly PaceInventoryOrderSubjectChoice[];
@@ -31,12 +56,26 @@ export function PaceInventoryOrderModal({
   const submittingRef = useRef(false);
   const subjectSelectId = `pace-order-subject-${useId()}`;
   const [subjectId, setSubjectId] = useState(subjects[0]?.subjectId ?? '');
-  const [paceNumbers, setPaceNumbers] = useState<number[]>([]);
+  // Picks are kept per subject so a student's subjects can be ordered in one go.
+  const [selections, setSelections] = useState<Record<string, number[]>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const subject = subjects.find((choice) => choice.subjectId === subjectId) ?? null;
-  const hasUnavailableSelection = paceNumbers.some(
-    (paceNumber) => !subject?.availablePaceNumbers.includes(paceNumber),
+  const paceNumbers = selections[subjectId] ?? [];
+  const orders: PaceInventoryOrderRequest[] = subjects.flatMap((choice) => {
+    const picked = selections[choice.subjectId] ?? [];
+    return picked.length > 0 ? [{ subjectId: choice.subjectId, paceNumbers: picked }] : [];
+  });
+  const unavailableSubjects = subjects.filter((choice) =>
+    (selections[choice.subjectId] ?? []).some(
+      (paceNumber) => !choice.availablePaceNumbers.includes(paceNumber),
+    ),
   );
+  const hasUnavailableSelection = unavailableSubjects.length > 0;
+  const totalPaces = orders.reduce((total, order) => total + order.paceNumbers.length, 0);
+  const submitLabel =
+    orders.length > 1
+      ? `Order ${String(totalPaces)} PACEs for ${String(orders.length)} subjects`
+      : 'Create order';
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -51,26 +90,24 @@ export function PaceInventoryOrderModal({
     };
   }, []);
 
-  useEffect(() => {
-    setPaceNumbers([]);
-    setSubmitError(null);
-  }, [subjectId]);
-
   async function submitOrder(): Promise<void> {
-    if (
-      !subject ||
-      paceNumbers.length === 0 ||
-      hasUnavailableSelection ||
-      pending ||
-      submittingRef.current
-    ) {
+    if (orders.length === 0 || hasUnavailableSelection || pending || submittingRef.current) {
       return;
     }
     submittingRef.current = true;
     setSubmitError(null);
     try {
-      await onSubmit(subject.subjectId, paceNumbers);
+      await onSubmit(orders);
     } catch (error) {
+      if (error instanceof PartialOrderError) {
+        // Drop what was ordered and keep the rest, so the user can retry just the failed subjects.
+        const done = new Set(error.completedSubjectIds);
+        const remaining = orders.filter((order) => !done.has(order.subjectId));
+        setSelections(
+          Object.fromEntries(remaining.map((order) => [order.subjectId, order.paceNumbers])),
+        );
+        if (remaining[0]) setSubjectId(remaining[0].subjectId);
+      }
       setSubmitError(friendlyErrorMessage(error));
     } finally {
       submittingRef.current = false;
@@ -111,6 +148,7 @@ export function PaceInventoryOrderModal({
               id={subjectSelectId}
               onChange={(event) => {
                 setSubjectId(event.currentTarget.value);
+                setSubmitError(null);
               }}
               value={subjectId}
             >
@@ -122,7 +160,7 @@ export function PaceInventoryOrderModal({
               ) : null}
               {subjects.map((choice) => (
                 <option key={choice.subjectId} value={choice.subjectId}>
-                  {choice.subjectLabel}
+                  {subjectOptionLabel(choice, (selections[choice.subjectId] ?? []).length)}
                 </option>
               ))}
             </SelectInput>
@@ -143,7 +181,9 @@ export function PaceInventoryOrderModal({
                 availablePaceNumbers={subject.availablePaceNumbers}
                 currentPaceNumber={subject.currentPaceNumber}
                 disabled={pending}
-                onChange={setPaceNumbers}
+                onChange={(next) => {
+                  setSelections((current) => ({ ...current, [subjectId]: next }));
+                }}
                 selectedPaceNumbers={paceNumbers}
                 subjectLabel=""
                 title="Choose PACEs to order"
@@ -153,8 +193,9 @@ export function PaceInventoryOrderModal({
           )}
           {hasUnavailableSelection ? (
             <p className="status--error" role="alert">
-              One or more selected PACEs are now supplied or already on order. Update your selection
-              to continue.
+              Some selected PACEs are now supplied or already on order (
+              {unavailableSubjects.map((choice) => choice.subjectLabel).join(', ')}). Update your
+              selection to continue.
             </p>
           ) : null}
           {submitError ? (
@@ -165,12 +206,12 @@ export function PaceInventoryOrderModal({
         </div>
         <footer className="pace-modal__footer">
           <Button
-            disabled={pending || !subject || paceNumbers.length === 0 || hasUnavailableSelection}
+            disabled={pending || orders.length === 0 || hasUnavailableSelection}
             pending={pending}
             type="submit"
           >
             <PackagePlus aria-hidden="true" size={16} />
-            Create order
+            {submitLabel}
           </Button>
         </footer>
       </form>
