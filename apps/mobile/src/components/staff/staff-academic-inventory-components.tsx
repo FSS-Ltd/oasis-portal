@@ -10,11 +10,22 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { availablePacesAhead } from '@oasis/domain';
+import {
+  availablePacesAhead,
+  DIAGNOSTIC_LEVEL_MAX,
+  derivePacePlacement,
+  isDiagnosticChartTest,
+  type DiagnosticTest,
+} from '@oasis/domain';
 import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, Field, MobileButton, MutedText } from '../core/mobile-ui';
-import { diagnosticPlacementLabel, paceNumberValue } from './staff-academic-inventory-utils';
+import { StaffDiagnosticChart } from './staff-academic-diagnostic-chart';
+import {
+  attemptedPaceRange,
+  describePlacement,
+  paceNumberValue,
+} from './staff-academic-inventory-utils';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
@@ -23,8 +34,20 @@ type InventoryAlert = InventorySummary['alerts'][number];
 type DiagnosticOutcome = 'Fail' | 'Pass';
 export type InventoryStatusMessage = { message: string; tone: 'error' | 'success' };
 
-export const diagnosticLevels = [1, 2, 3, 4, 5] as const;
-export type DiagnosticLevel = (typeof diagnosticLevels)[number];
+export const diagnosticLevels = Array.from(
+  { length: DIAGNOSTIC_LEVEL_MAX },
+  (_, index) => index + 1,
+);
+export type DiagnosticLevel = number;
+const diagnosticTestOptions: ReadonlyArray<{ value: DiagnosticTest; label: string }> = [
+  { value: 'Math', label: 'Math' },
+  { value: 'English', label: 'English' },
+  { value: 'WordBuilding', label: 'Word Building' },
+  { value: 'Reading', label: 'Reading' },
+];
+export type DiagnosticSubmission =
+  | { test: 'Math' | 'English'; attemptedPaceNumbers: number[]; circledPaceNumbers: number[] }
+  | { test: 'WordBuilding' | 'Reading'; level: number; outcome: DiagnosticOutcome };
 const diagnosticOutcomes: DiagnosticOutcome[] = ['Pass', 'Fail'];
 
 function assignmentLabel(assignment: InventoryAssignment): string {
@@ -376,7 +399,6 @@ export function InventoryQuickOrderModal({
 }
 
 export function InventoryDiagnosticCard({
-  assignment,
   level,
   onChangeLevel,
   onChangeOutcome,
@@ -386,62 +408,150 @@ export function InventoryDiagnosticCard({
   student,
   submitted,
 }: {
-  assignment: InventoryAssignment | null;
   level: DiagnosticLevel;
   onChangeLevel: (level: DiagnosticLevel) => void;
   onChangeOutcome: (outcome: DiagnosticOutcome) => void;
-  onSubmit: () => void;
+  onSubmit: (submission: DiagnosticSubmission | null) => void;
   outcome: DiagnosticOutcome;
   pending: boolean;
   student: InventoryStudent | null;
   submitted: boolean;
 }) {
+  const [test, setTest] = useState<DiagnosticTest>('Math');
+  const [firstPace, setFirstPace] = useState('1001');
+  const [lastPace, setLastPace] = useState('');
+  const [circled, setCircled] = useState<number[]>([]);
+  const chartTest = isDiagnosticChartTest(test);
+  const attempted = attemptedPaceRange(firstPace, lastPace) ?? [];
+  const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
+  const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
+  const rangeInvalid = chartTest && lastPace.trim() !== '' && attempted.length === 0;
   const validation = !student
     ? 'Select a student.'
-    : !assignment
-      ? 'Select an assigned subject.'
+    : chartTest && attempted.length === 0
+      ? 'Enter the first and last PACE attempted (1001 to 1144).'
       : null;
+
+  function submit() {
+    // A null submission lets the screen show the validation message.
+    if (validation) {
+      onSubmit(null);
+      return;
+    }
+    if (test === 'Math' || test === 'English') {
+      onSubmit({
+        test,
+        attemptedPaceNumbers: attempted,
+        circledPaceNumbers: [...circledInRange].sort((a, b) => a - b),
+      });
+      return;
+    }
+    onSubmit({ test, level, outcome });
+  }
+
   return (
     <Card style={styles.compactCard}>
-      <Text style={styles.cardTitle}>Diagnostic placement</Text>
-      <MutedText>
-        Uses {student?.fullName ?? 'the selected student'} and{' '}
-        {assignment ? assignmentLabel(assignment) : 'the selected subject'}.
-      </MutedText>
-      <Text style={styles.fieldLabel}>Level</Text>
+      <Text style={styles.cardTitle}>Diagnostic test</Text>
+      <MutedText>Records a result for {student?.fullName ?? 'the selected student'}.</MutedText>
+      <Text style={styles.fieldLabel}>Test</Text>
       <View style={styles.segmentedRow}>
-        {diagnosticLevels.map((value) => (
+        {diagnosticTestOptions.map((option) => (
           <SegmentButton
-            active={level === value}
+            active={test === option.value}
             disabled={pending}
-            key={value}
-            label={String(value)}
+            key={option.value}
+            label={option.label}
             onPress={() => {
-              onChangeLevel(value);
+              setTest(option.value);
             }}
           />
         ))}
       </View>
-      <MutedText>{diagnosticPlacementLabel(level)}</MutedText>
-      <Text style={styles.fieldLabel}>Outcome</Text>
-      <View style={styles.segmentedRow}>
-        {diagnosticOutcomes.map((value) => (
-          <SegmentButton
-            active={outcome === value}
+      {chartTest ? (
+        <>
+          <Field
             disabled={pending}
-            key={value}
-            label={value}
-            onPress={() => {
-              onChangeOutcome(value);
-            }}
+            keyboardType="numeric"
+            label="First PACE"
+            onChangeText={setFirstPace}
+            value={firstPace}
           />
-        ))}
-      </View>
+          <Field
+            disabled={pending}
+            keyboardType="numeric"
+            label="Last PACE attempted"
+            onChangeText={setLastPace}
+            value={lastPace}
+          />
+          {rangeInvalid ? (
+            <ErrorText>Use PACEs from 1001 to 1144, with the last at or after the first.</ErrorText>
+          ) : null}
+          {attempted.length > 0 ? (
+            <>
+              <MutedText>Tap every PACE scored below the minimum to circle it.</MutedText>
+              <StaffDiagnosticChart
+                attempted={attempted}
+                circled={circledInRange}
+                disabled={pending}
+                onToggle={(paceNumber) => {
+                  setCircled((current) =>
+                    current.includes(paceNumber)
+                      ? current.filter((value) => value !== paceNumber)
+                      : [...current, paceNumber],
+                  );
+                }}
+              />
+              {placement ? (
+                <Text accessibilityLiveRegion="polite" style={styles.fieldLabel}>
+                  {describePlacement(placement)}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {test === 'Reading' ? (
+            <MutedText>
+              Reading is not a subject. Its level sets where this student starts Science and Social
+              Studies.
+            </MutedText>
+          ) : null}
+          <Text style={styles.fieldLabel}>Level</Text>
+          <View style={styles.segmentedRow}>
+            {diagnosticLevels.map((value) => (
+              <SegmentButton
+                active={level === value}
+                disabled={pending}
+                key={value}
+                label={String(value)}
+                onPress={() => {
+                  onChangeLevel(value);
+                }}
+              />
+            ))}
+          </View>
+          <Text style={styles.fieldLabel}>Outcome</Text>
+          <View style={styles.segmentedRow}>
+            {diagnosticOutcomes.map((value) => (
+              <SegmentButton
+                active={outcome === value}
+                disabled={pending}
+                key={value}
+                label={value}
+                onPress={() => {
+                  onChangeOutcome(value);
+                }}
+              />
+            ))}
+          </View>
+        </>
+      )}
       {submitted && validation ? <ErrorText>{validation}</ErrorText> : null}
       <MobileButton
         disabled={pending}
         label={pending ? 'Recording diagnostic...' : 'Record diagnostic'}
-        onPress={onSubmit}
+        onPress={submit}
         variant="navy"
       />
     </Card>

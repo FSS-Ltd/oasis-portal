@@ -20,9 +20,14 @@ function levelIndexOf(paceNumber: number): number {
 export function StaffAcademicGapPlan({
   studentId,
   subjectId,
+  initialGaps,
+  initialJumpTo,
 }: {
   studentId: string;
   subjectId: string;
+  /** Prefill for a new plan, e.g. from a diagnostic result. Ignored when a plan exists. */
+  initialGaps?: readonly number[] | undefined;
+  initialJumpTo?: number | undefined;
 }) {
   const utils = api.useUtils();
   const query = api.academicInventory.gapPlansForAssignment.useQuery(
@@ -127,6 +132,9 @@ export function StaffAcademicGapPlan({
   });
   const busy = create.isPending || update.isPending || cancel.isPending || review.isPending;
 
+  const prefill = useRef({ initialGaps, initialJumpTo });
+  prefill.current = { initialGaps, initialJumpTo };
+  const prefillKey = JSON.stringify([initialGaps ?? null, initialJumpTo ?? null]);
   const resetDraft = useCallback(
     (data: typeof query.data) => {
       const plan = data?.plans.find((entry) => entry.status === 'Active');
@@ -137,15 +145,18 @@ export function StaffAcademicGapPlan({
       };
       dirty.current = false;
       setConflict(false);
+      const seed = plan ? undefined : prefill.current;
       setSelectedState(
         plan?.items
           .filter((item) => !item.removed && !item.completed)
-          .map((item) => item.paceNumber) ?? [],
+          .map((item) => item.paceNumber) ?? [...(seed?.initialGaps ?? [])].sort((a, b) => a - b),
       );
       setRangeFrom('');
       setRangeTo('');
       setLevel(null);
-      setJumpToState(String(plan?.jumpToPaceNumber ?? data?.currentPaceNumber ?? ''));
+      setJumpToState(
+        String(plan?.jumpToPaceNumber ?? seed?.initialJumpTo ?? data?.currentPaceNumber ?? ''),
+      );
       setMessage('');
     },
     [studentId, subjectId],
@@ -154,7 +165,7 @@ export function StaffAcademicGapPlan({
   useEffect(() => {
     if (baseline.current?.identity === draftIdentity && dirty.current) return;
     resetDraft(query.data);
-  }, [draftIdentity, query.data, resetDraft]);
+  }, [draftIdentity, prefillKey, query.data, resetDraft]);
 
   function setSelected(value: SetStateAction<number[]>) {
     dirty.current = true;
