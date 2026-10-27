@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppContext, RlsTx } from '../context.js';
-import { reopenGapPlan } from '../pace/pace-gap-plans.js';
+import { createGapPlan, reopenGapPlan } from '../pace/pace-gap-plans.js';
 
 const HEAD = { id: 'head_1', role: 'Head', tags: [], requires2fa: false } as const;
 
@@ -23,6 +23,9 @@ describe('PACE gap plan review', () => {
     };
     const updatePlan = vi.fn().mockResolvedValue({});
     const updateAssignment = vi.fn().mockResolvedValue({});
+    const findAssignment = vi
+      .fn()
+      .mockResolvedValue({ id: 'assignment_1', currentPaceNumber: 1044 });
     const tx = {
       $executeRaw: vi.fn().mockResolvedValue(1),
       paceGapPlan: {
@@ -45,7 +48,7 @@ describe('PACE gap plan review', () => {
       student: { findUnique: vi.fn().mockResolvedValue({ id: plan.studentId, active: true }) },
       subject: { findUnique: vi.fn().mockResolvedValue({ active: true, code: 'ENG' }) },
       studentSubject: {
-        findUnique: vi.fn().mockResolvedValue({ id: 'assignment_1', currentPaceNumber: 1044 }),
+        findUnique: findAssignment,
         update: updateAssignment,
       },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -81,6 +84,63 @@ describe('PACE gap plan review', () => {
     expect(updateAssignment).toHaveBeenCalledWith({
       where: { studentId_subjectId: { studentId: plan.studentId, subjectId: plan.subjectId } },
       data: { currentPaceNumber: 1024 },
+    });
+    // Prisma rejects extra fields inside a compound unique key.
+    expect(findAssignment).toHaveBeenCalledWith({
+      where: { studentId_subjectId: { studentId: plan.studentId, subjectId: plan.subjectId } },
+      select: { id: true, currentPaceNumber: true },
+    });
+  });
+
+  it('looks up the assignment by student and subject only when starting a gap plan', async () => {
+    const findAssignment = vi
+      .fn()
+      .mockResolvedValue({ id: 'assignment_1', currentPaceNumber: 1015 });
+    const tx = {
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      paceGapPlan: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'gap_plan_new', version: 1 }),
+      },
+      pacePolicy: { findUnique: vi.fn().mockResolvedValue({ passThreshold: 80 }) },
+      paceProgress: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi.fn().mockResolvedValue(null),
+        upsert: vi.fn().mockResolvedValue({}),
+      },
+      paceRecord: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      student: { findUnique: vi.fn().mockResolvedValue({ id: 'student_1', active: true }) },
+      subject: { findUnique: vi.fn().mockResolvedValue({ active: true, code: 'MATH' }) },
+      studentSubject: { findUnique: findAssignment, update: vi.fn().mockResolvedValue({}) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    } as unknown as RlsTx;
+    const ctx: AppContext = {
+      db: {
+        $transaction: vi.fn(async (operation: (transaction: RlsTx) => Promise<unknown>) =>
+          operation(tx),
+        ),
+      } as unknown as AppContext['db'],
+      user: HEAD,
+      accountAccessState: 'active',
+      requestId: 'request_1',
+      withRls: async (operation) => operation(tx),
+    };
+
+    await createGapPlan(ctx, {
+      studentId: 'student_1',
+      subjectId: 'subject_1',
+      paceNumbers: [1008],
+      jumpToPaceNumber: 1015,
+      expectedCurrentPaceNumber: 1015,
+    });
+
+    expect(findAssignment).toHaveBeenCalledWith({
+      where: { studentId_subjectId: { studentId: 'student_1', subjectId: 'subject_1' } },
+      select: { id: true, currentPaceNumber: true },
     });
   });
 });
