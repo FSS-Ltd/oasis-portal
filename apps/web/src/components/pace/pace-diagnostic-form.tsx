@@ -2,9 +2,11 @@
 
 import { useState, type FormEvent, type ReactElement } from 'react';
 import {
-  DIAGNOSTIC_LEVEL_MAX,
   derivePacePlacement,
+  diagnosticLevelsFor,
+  firstPaceOfLevel,
   isDiagnosticChartTest,
+  recommendedStartPace,
   type DiagnosticTest,
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
@@ -17,7 +19,6 @@ const diagnosticTests: ReadonlyArray<{ value: DiagnosticTest; label: string }> =
   { value: 'WordBuilding', label: 'Word Building' },
   { value: 'Reading', label: 'Reading' },
 ];
-const diagnosticLevels = Array.from({ length: DIAGNOSTIC_LEVEL_MAX }, (_, index) => index + 1);
 const diagnosticOutcomes = ['Pass', 'Fail'] as const;
 
 type DiagnosticOutcome = (typeof diagnosticOutcomes)[number];
@@ -39,6 +40,14 @@ interface PaceDiagnosticFormProps {
 
 function isDiagnosticTest(value: string): value is DiagnosticTest {
   return diagnosticTests.some((test) => test.value === value);
+}
+
+function isLevelTest(test: DiagnosticTest): test is 'Reading' | 'WordBuilding' {
+  return test === 'Reading' || test === 'WordBuilding';
+}
+
+function levelLabel(test: 'Reading' | 'WordBuilding', level: number): string {
+  return test === 'WordBuilding' && level === 9 ? 'Level 9 (Etymology)' : `Level ${String(level)}`;
 }
 
 function isDiagnosticOutcome(value: string): value is DiagnosticOutcome {
@@ -76,6 +85,7 @@ export function PaceDiagnosticForm({
   const [lastPace, setLastPace] = useState('');
   const [circled, setCircled] = useState<number[]>([]);
   const chartTest = isDiagnosticChartTest(test);
+  const startPace = isLevelTest(test) ? recommendedStartPace(test, level, outcome) : null;
   const { paceNumbers: attempted, error: rangeError } = paceRange(firstPace, lastPace);
   const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
   const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
@@ -111,7 +121,11 @@ export function PaceDiagnosticForm({
           <SelectInput
             disabled={disabled || pending}
             onChange={(event) => {
-              if (isDiagnosticTest(event.target.value)) setTest(event.target.value);
+              const next = event.target.value;
+              if (!isDiagnosticTest(next)) return;
+              setTest(next);
+              // Each test assesses its own levels, so start from the first one.
+              if (isLevelTest(next)) setLevel(diagnosticLevelsFor(next)[0] ?? 1);
             }}
             value={test}
           >
@@ -132,9 +146,9 @@ export function PaceDiagnosticForm({
                 }}
                 value={level}
               >
-                {diagnosticLevels.map((value) => (
+                {(isLevelTest(test) ? diagnosticLevelsFor(test) : []).map((value) => (
                   <option key={value} value={value}>
-                    Level {String(value)}
+                    {isLevelTest(test) ? levelLabel(test, value) : `Level ${String(value)}`}
                   </option>
                 ))}
               </SelectInput>
@@ -159,9 +173,29 @@ export function PaceDiagnosticForm({
       </div>
       {test === 'Reading' ? (
         <p className="field__hint">
-          Reading is not a subject. Its level sets where this student starts Science and Social
-          Studies.
+          Reading is not a subject. Its result informs Science, Social Studies, Bible Reading and
+          Literature and Creative Writing.
         </p>
+      ) : null}
+      {isLevelTest(test) ? (
+        <div className="pace-diagnostic-form__placement" aria-live="polite">
+          {startPace !== null ? (
+            <span>
+              <strong>Recommended start:</strong> PACE # {String(startPace)} (first PACE of Level{' '}
+              {String(level)}, PACEs {String(firstPaceOfLevel(level))}–
+              {String(firstPaceOfLevel(level) + 11)}). Provisional: review the full diagnostic
+              report.
+            </span>
+          ) : (
+            <span>
+              <strong>Recommended start:</strong> none yet. A pass places nothing; record the first
+              level failed. If every tested level passes or results conflict, review manually.
+            </span>
+          )}
+          {test === 'Reading' && level === 1 && outcome === 'Fail' ? (
+            <span>Level 1 may need ABCs with Ace and Christi or a readiness assessment.</span>
+          ) : null}
+        </div>
       ) : null}
       {chartTest ? (
         <>

@@ -12,9 +12,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   availablePacesAhead,
-  DIAGNOSTIC_LEVEL_MAX,
   derivePacePlacement,
+  diagnosticLevelsFor,
+  firstPaceOfLevel,
   isDiagnosticChartTest,
+  recommendedStartPace,
   type DiagnosticTest,
 } from '@oasis/domain';
 import { type RouterOutputs } from '../../lib/trpc';
@@ -34,10 +36,6 @@ type InventoryAlert = InventorySummary['alerts'][number];
 type DiagnosticOutcome = 'Fail' | 'Pass';
 export type InventoryStatusMessage = { message: string; tone: 'error' | 'success' };
 
-export const diagnosticLevels = Array.from(
-  { length: DIAGNOSTIC_LEVEL_MAX },
-  (_, index) => index + 1,
-);
 export type DiagnosticLevel = number;
 const diagnosticTestOptions: ReadonlyArray<{ value: DiagnosticTest; label: string }> = [
   { value: 'Math', label: 'Math' },
@@ -422,6 +420,8 @@ export function InventoryDiagnosticCard({
   const [lastPace, setLastPace] = useState('');
   const [circled, setCircled] = useState<number[]>([]);
   const chartTest = isDiagnosticChartTest(test);
+  const levelTest = test === 'Reading' || test === 'WordBuilding' ? test : null;
+  const startPace = levelTest ? recommendedStartPace(levelTest, level, outcome) : null;
   const attempted = attemptedPaceRange(firstPace, lastPace) ?? [];
   const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
   const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
@@ -463,6 +463,10 @@ export function InventoryDiagnosticCard({
             label={option.label}
             onPress={() => {
               setTest(option.value);
+              // Each test assesses its own levels, so start from the first one.
+              if (option.value === 'Reading' || option.value === 'WordBuilding') {
+                onChangeLevel(diagnosticLevelsFor(option.value)[0] ?? 1);
+              }
             }}
           />
         ))}
@@ -513,13 +517,14 @@ export function InventoryDiagnosticCard({
         <>
           {test === 'Reading' ? (
             <MutedText>
-              Reading is not a subject. Its level sets where this student starts Science and Social
-              Studies.
+              Reading is not a subject. Its result informs Science, Social Studies, Bible Reading
+              and Literature and Creative Writing.
             </MutedText>
           ) : null}
+          {test === 'WordBuilding' ? <MutedText>Level 9 is Etymology.</MutedText> : null}
           <Text style={styles.fieldLabel}>Level</Text>
           <View style={styles.segmentedRow}>
-            {diagnosticLevels.map((value) => (
+            {(levelTest ? diagnosticLevelsFor(levelTest) : []).map((value) => (
               <SegmentButton
                 active={level === value}
                 disabled={pending}
@@ -545,6 +550,16 @@ export function InventoryDiagnosticCard({
               />
             ))}
           </View>
+          <Text accessibilityLiveRegion="polite" style={styles.fieldLabel}>
+            {startPace !== null
+              ? `Recommended start: PACE # ${String(startPace)} (first PACE of Level ${String(level)}, ${String(firstPaceOfLevel(level))}–${String(firstPaceOfLevel(level) + 11)}). Provisional: review the full diagnostic report.`
+              : 'Recommended start: none yet. A pass places nothing; record the first level failed. If every tested level passes or results conflict, review manually.'}
+          </Text>
+          {test === 'Reading' && level === 1 && outcome === 'Fail' ? (
+            <MutedText>
+              Level 1 may need ABCs with Ace and Christi or a readiness assessment.
+            </MutedText>
+          ) : null}
         </>
       )}
       {submitted && validation ? <ErrorText>{validation}</ErrorText> : null}

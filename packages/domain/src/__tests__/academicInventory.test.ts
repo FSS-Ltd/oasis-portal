@@ -5,6 +5,9 @@ import {
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
   derivePacePlacement,
+  diagnosticLevelsFor,
+  firstPaceOfLevel,
+  recommendedStartPace,
   diagnosticResultInput,
   markPaceOrdersInTransitInput,
   markPaceOrdersDeliveredInput,
@@ -34,16 +37,37 @@ describe('academic inventory', () => {
     expect(requiresPaceReorder(1144, [])).toBe(false);
   });
 
-  it('validates Word Building and Reading as Level 1–10 Pass/Fail records', () => {
+  it('validates Reading as Levels 1–8 and Word Building as Levels 2–9, Pass/Fail', () => {
     const base = { studentId: 'student_1', outcome: 'Pass' as const };
-    for (const test of ['WordBuilding', 'Reading'] as const) {
-      expect(diagnosticResultInput.parse({ ...base, test, level: 10 }).test).toBe(test);
-      expect(diagnosticResultInput.safeParse({ ...base, test, level: 0 }).success).toBe(false);
-      expect(diagnosticResultInput.safeParse({ ...base, test, level: 11 }).success).toBe(false);
-      expect(
-        diagnosticResultInput.safeParse({ ...base, test, level: 2, outcome: 'Maybe' }).success,
-      ).toBe(false);
-    }
+    const accepts = (test: 'Reading' | 'WordBuilding', level: number) =>
+      diagnosticResultInput.safeParse({ ...base, test, level }).success;
+    expect([1, 8].map((level) => accepts('Reading', level))).toEqual([true, true]);
+    expect([0, 9].map((level) => accepts('Reading', level))).toEqual([false, false]);
+    expect([2, 9].map((level) => accepts('WordBuilding', level))).toEqual([true, true]);
+    expect([1, 10].map((level) => accepts('WordBuilding', level))).toEqual([false, false]);
+    expect(
+      diagnosticResultInput.safeParse({ ...base, test: 'Reading', level: 2, outcome: 'Maybe' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('lists the levels each test assesses', () => {
+    expect(diagnosticLevelsFor('Reading')).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(diagnosticLevelsFor('WordBuilding')).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it('begins at the first PACE of the first level failed', () => {
+    expect(firstPaceOfLevel(1)).toBe(1001);
+    expect(firstPaceOfLevel(9)).toBe(1097);
+    // Worked examples from the placement map: pass 3 / fail 4 begins at 1037, not 1040.
+    expect(recommendedStartPace('Reading', 4, 'Fail')).toBe(1037);
+    expect(recommendedStartPace('WordBuilding', 3, 'Fail')).toBe(1025);
+    expect(recommendedStartPace('WordBuilding', 9, 'Fail')).toBe(1097);
+    // A pass does not place the student; the first failed level does.
+    expect(recommendedStartPace('Reading', 3, 'Pass')).toBeNull();
+    // Levels a test does not assess never produce a recommendation.
+    expect(recommendedStartPace('WordBuilding', 1, 'Fail')).toBeNull();
+    expect(recommendedStartPace('Reading', 9, 'Fail')).toBeNull();
   });
 
   it('validates Math and English as PACE charts with circled PACEs among the attempted', () => {

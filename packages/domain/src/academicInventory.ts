@@ -50,7 +50,40 @@ export type DiagnosticTest = z.infer<typeof diagnosticTest>;
 
 /** Math and English are scored on the PACE chart; the other tests use Level 1-10 Pass/Fail. */
 export const DIAGNOSTIC_CHART_TESTS = ['Math', 'English'] as const;
-export const DIAGNOSTIC_LEVEL_MAX = 10;
+
+/**
+ * Levels each Level 1-9 test actually assesses (Oasis A.C.E. placement map): Reading covers
+ * Levels 1-8; Word Building covers Levels 2-9, where Level 9 is Etymology.
+ */
+export const DIAGNOSTIC_LEVEL_RANGE = {
+  Reading: { min: 1, max: 8 },
+  WordBuilding: { min: 2, max: 9 },
+} as const;
+
+export function diagnosticLevelsFor(test: 'Reading' | 'WordBuilding'): number[] {
+  const { min, max } = DIAGNOSTIC_LEVEL_RANGE[test];
+  return Array.from({ length: max - min + 1 }, (_, index) => min + index);
+}
+
+/** Each level holds twelve PACEs, so Level 1 starts at 1001, Level 2 at 1013, and so on. */
+export function firstPaceOfLevel(level: number): number {
+  return 1001 + (level - 1) * 12;
+}
+
+/**
+ * Provisional start PACE: the first level failed begins at the first PACE of that level.
+ * A pass places nothing by itself. Returns null for a pass or for a level the test does
+ * not assess. Reference only; the full diagnostic report decides.
+ */
+export function recommendedStartPace(
+  test: 'Reading' | 'WordBuilding',
+  level: number,
+  outcome: 'Pass' | 'Fail' | null,
+): number | null {
+  if (outcome !== 'Fail') return null;
+  const { min, max } = DIAGNOSTIC_LEVEL_RANGE[test];
+  return level >= min && level <= max ? firstPaceOfLevel(level) : null;
+}
 
 export function isDiagnosticChartTest(test: DiagnosticTest | null | undefined): boolean {
   return test === 'Math' || test === 'English';
@@ -58,12 +91,23 @@ export function isDiagnosticChartTest(test: DiagnosticTest | null | undefined): 
 
 const diagnosticPaceNumber = z.number().int().min(1001).max(1144);
 
-const diagnosticLevelInput = z.object({
-  studentId: z.string().trim().min(1),
-  test: z.enum(['WordBuilding', 'Reading']),
-  level: z.number().int().min(1).max(DIAGNOSTIC_LEVEL_MAX),
-  outcome: diagnosticOutcome,
-});
+const diagnosticLevelInput = z
+  .object({
+    studentId: z.string().trim().min(1),
+    test: z.enum(['WordBuilding', 'Reading']),
+    level: z.number().int().min(1).max(9),
+    outcome: diagnosticOutcome,
+  })
+  .superRefine(({ test, level }, ctx) => {
+    const { min, max } = DIAGNOSTIC_LEVEL_RANGE[test];
+    if (level < min || level > max) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${test === 'Reading' ? 'Reading' : 'Word Building'} assesses Levels ${String(min)}-${String(max)}`,
+        path: ['level'],
+      });
+    }
+  });
 
 const diagnosticChartInput = z
   .object({

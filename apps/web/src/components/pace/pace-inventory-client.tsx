@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PackagePlus, Truck } from 'lucide-react';
-import { availablePacesAhead, PACE_CATALOGUE } from '@oasis/domain';
+import { availablePacesAhead, PACE_CATALOGUE, recommendedStartPace } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 import { api } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -423,13 +423,30 @@ export function PaceInventoryClient() {
             </div>
           );
         }
+        const startPace =
+          diagnostic.test === 'Reading' || diagnostic.test === 'WordBuilding'
+            ? recommendedStartPace(diagnostic.test, diagnostic.level ?? 0, diagnostic.outcome)
+            : null;
         return (
-          <>
-            {`Level ${String(diagnostic.level)} `}
-            <Badge tone={diagnostic.outcome === 'Pass' ? 'green' : 'red'}>
-              {diagnostic.outcome}
-            </Badge>
-          </>
+          <div className="pace-diagnostic-result">
+            <span>
+              {`Level ${String(diagnostic.level)} `}
+              <Badge tone={diagnostic.outcome === 'Pass' ? 'green' : 'red'}>
+                {diagnostic.outcome}
+              </Badge>
+            </span>
+            {startPace !== null ? (
+              <span>
+                <strong>Recommended start:</strong> PACE # {String(startPace)} (provisional)
+              </span>
+            ) : null}
+            {diagnostic.test === 'Reading' ? (
+              <span className="muted">
+                Informs Science, Social Studies, Bible Reading and Literature and Creative Writing.
+              </span>
+            ) : null}
+            {diagnostic.test ? null : <span className="muted">Older result</span>}
+          </div>
         );
       },
     },

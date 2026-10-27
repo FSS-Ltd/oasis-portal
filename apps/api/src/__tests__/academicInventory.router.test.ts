@@ -1967,7 +1967,7 @@ describe('academic inventory router', () => {
     expect(diagnostics).toHaveLength(0);
   });
 
-  it('records Word Building against its assigned subject as Level 1–10', async () => {
+  it('records Word Building against its assigned subject as Level 2–9', async () => {
     const students = cloneStudents(defaultStudents);
     students[0]?.subjects.push({
       id: 'assignment_wb',
@@ -1981,14 +1981,14 @@ describe('academic inventory router', () => {
     const result = await caller.academicInventory.recordDiagnostic({
       studentId: STUDENT_ID,
       test: 'WordBuilding',
-      level: 10,
+      level: 9,
       outcome: 'Pass',
     });
 
     expect(result).toMatchObject({
       test: 'WordBuilding',
       subjectId: SUBJECT_2_ID,
-      level: 10,
+      level: 9,
       outcome: 'Pass',
       placement: null,
     });
@@ -1997,8 +1997,17 @@ describe('academic inventory router', () => {
       caller.academicInventory.recordDiagnostic({
         studentId: STUDENT_ID,
         test: 'WordBuilding',
-        level: 11,
+        level: 1,
         outcome: 'Pass',
+      }),
+      'BAD_REQUEST',
+    );
+    await expectCode(
+      caller.academicInventory.recordDiagnostic({
+        studentId: STUDENT_ID,
+        test: 'Reading',
+        level: 9,
+        outcome: 'Fail',
       }),
       'BAD_REQUEST',
     );

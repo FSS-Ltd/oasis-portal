@@ -21,7 +21,7 @@ test('the diagnostic form offers four tests and splits chart entry from level en
   assert.match(form, /label="Test"/);
   assert.match(form, /label="Level"/);
   assert.match(form, /label="Outcome"/);
-  assert.match(form, /DIAGNOSTIC_LEVEL_MAX/);
+  assert.match(form, /diagnosticLevelsFor\(/);
   assert.match(form, /isDiagnosticChartTest/);
   assert.match(form, /derivePacePlacement\(/);
   assert.match(form, /label="First PACE"/);
@@ -46,4 +46,16 @@ test('results show chart rows and offer a one-click Gap PACEs setup', () => {
   assert.match(client, /initialJumpTo=/);
   assert.match(client, /diagnostic\.placement/);
   assert.match(gapPanel, /initialGaps\?: readonly number\[\]/);
+});
+
+test('Reading and Word Building show the provisional start PACE from the placement map', () => {
+  assert.match(form, /recommendedStartPace\(/);
+  assert.match(form, /Recommended start/);
+  assert.match(form, /Etymology/);
+  assert.match(form, /review the full\s+diagnostic\s+report/);
+  assert.match(form, /Bible Reading and\s+Literature and Creative Writing/);
+  assert.match(form, /readiness\s+assessment/);
+  assert.match(client, /recommendedStartPace\(/);
+  assert.match(client, /Recommended start/);
+  assert.match(client, /Older result/);
 });

@@ -27,9 +27,9 @@ describe('diagnostic PACE chart migration', () => {
     expect(sql).not.toMatch(/\bUPDATE\b/);
   });
 
-  it('widens the level range to 10 and constrains the chart arrays', () => {
+  it('widens the level range to 9 and constrains the chart arrays', () => {
     expect(sql).toContain('DROP CONSTRAINT "DiagnosticResult_level_check"');
-    expect(sql).toContain(`"level" IS NULL OR ("level" >= 1 AND "level" <= 10)`);
+    expect(sql).toContain(`"level" IS NULL OR ("level" >= 1 AND "level" <= 9)`);
     expect(sql).toContain(`1001 <= ALL ("attemptedPaceNumbers")`);
     expect(sql).toContain(`1144 >= ALL ("attemptedPaceNumbers")`);
     expect(sql).toContain(`"circledPaceNumbers" <@ "attemptedPaceNumbers"`);

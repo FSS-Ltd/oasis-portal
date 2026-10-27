@@ -6,6 +6,7 @@ import { Badge, Card, MobileButton, MutedText } from '../core/mobile-ui';
 import { StaffDiagnosticChart } from './staff-academic-diagnostic-chart';
 import { InventoryMobilePagination } from './staff-academic-inventory-pagination';
 import { describePlacement } from './staff-academic-inventory-utils';
+import { recommendedStartPace } from '@oasis/domain';
 
 type Student = RouterOutputs['academicInventory']['summary']['students'][number];
 export type DiagnosticRow =
@@ -55,6 +56,10 @@ export function InventoryDiagnosticHistory({
         const student = students.find((row) => row.id === result.studentId);
         const assignment = student?.subjects.find((row) => row.subjectId === result.subjectId);
         const placement = result.placement;
+        const startPace =
+          result.test === 'Reading' || result.test === 'WordBuilding'
+            ? recommendedStartPace(result.test, result.level ?? 0, result.outcome)
+            : null;
         // Legacy rows predate the test field and are identified by their subject.
         const testLabel = result.test
           ? testLabels[result.test]
@@ -94,7 +99,20 @@ export function InventoryDiagnosticHistory({
                 ) : null}
               </>
             ) : null}
-            <MutedText>{dateFormatter.format(new Date(result.recordedAt))}</MutedText>
+            {startPace !== null ? (
+              <Text style={styles.summary}>
+                Recommended start: PACE # {String(startPace)} (provisional)
+              </Text>
+            ) : null}
+            {result.test === 'Reading' ? (
+              <MutedText>
+                Informs Science, Social Studies, Bible Reading and Literature and Creative Writing.
+              </MutedText>
+            ) : null}
+            <MutedText>
+              {dateFormatter.format(new Date(result.recordedAt))}
+              {result.test ? '' : ' · Older result'}
+            </MutedText>
           </View>
         );
       })}

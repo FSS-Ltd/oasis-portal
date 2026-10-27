@@ -135,7 +135,10 @@ describe('staff academic inventory mobile wiring', () => {
     for (const label of ['Math', 'English', 'Word Building', 'Reading']) {
       expect(components).toContain(`label: '${label}'`);
     }
-    expect(components).toMatch(/DIAGNOSTIC_LEVEL_MAX/);
+    expect(components).toMatch(/diagnosticLevelsFor\(/);
+    expect(components).toMatch(/recommendedStartPace\(/);
+    expect(components).toMatch(/Recommended start/);
+    expect(components).toMatch(/Level 9 is Etymology/);
     expect(components).toMatch(/derivePacePlacement\(/);
     expect(components).toMatch(/label="First PACE"/);
     expect(components).toMatch(/label="Last PACE attempted"/);

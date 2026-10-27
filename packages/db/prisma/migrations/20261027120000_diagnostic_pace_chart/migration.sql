@@ -1,5 +1,5 @@
 -- Diagnostics: Math and English record a PACE chart (attempted and circled PACEs);
--- Word Building and Reading record Level 1-10 Pass/Fail. Reading has no subject.
+-- Word Building and Reading record Level 1-9 Pass/Fail. Reading has no subject.
 -- Additive only: existing rows keep their values and a NULL "test" marks a legacy
 -- level result, so nothing is rewritten and no realtime change events fire.
 CREATE TYPE "DiagnosticTest" AS ENUM ('Math', 'English', 'WordBuilding', 'Reading');
@@ -17,7 +17,7 @@ ALTER TABLE "DiagnosticResult"
 
 ALTER TABLE "DiagnosticResult"
   ADD CONSTRAINT "DiagnosticResult_level_check"
-  CHECK ("level" IS NULL OR ("level" >= 1 AND "level" <= 10));
+  CHECK ("level" IS NULL OR ("level" >= 1 AND "level" <= 9));
 
 ALTER TABLE "DiagnosticResult"
   ADD CONSTRAINT "DiagnosticResult_pace_numbers_check"
