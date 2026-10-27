@@ -33,6 +33,15 @@ describe('academic inventory', () => {
     expect(requiresPaceReorder(1144, [])).toBe(false);
   });
 
+  it('stops alerting once every PACE left to order is covered', () => {
+    expect(requiresPaceReorder(1010, [1011, 1012, 1013], 134)).toBe(false);
+    expect(requiresPaceReorder(1010, [1011, 1012], 134)).toBe(true);
+    expect(requiresPaceReorder(1142, [1143], 2)).toBe(true);
+    expect(requiresPaceReorder(1142, [1143, 1144], 2)).toBe(false);
+    expect(requiresPaceReorder(1143, [1144], 1)).toBe(false);
+    expect(requiresPaceReorder(1143, [], 1)).toBe(true);
+  });
+
   it('keeps diagnostics as validated Level 1–5 Pass/Fail reference records', () => {
     const base = { studentId: 'student_1', subjectId: 'subject_1', outcome: 'Pass' as const };
     expect(diagnosticResultInput.parse({ ...base, level: 2 }).outcome).toBe('Pass');

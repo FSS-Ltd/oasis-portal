@@ -66,12 +66,23 @@ export function availablePacesAhead(
     .sort((left, right) => left - right);
 }
 
+export const PACE_REORDER_THRESHOLD = 3;
+
+/**
+ * True while fewer than three PACEs ahead of the current one are covered. Pass every
+ * supplied or on-order PACE as `coveredPaceNumbers`. `remainingInCatalogue` caps the
+ * threshold near the end of the catalogue, where fewer than three PACEs are left to order.
+ */
 export function requiresPaceReorder(
   currentPaceNumber: number,
-  availablePaceNumbers: readonly number[],
+  coveredPaceNumbers: readonly number[],
+  remainingInCatalogue: number = PACE_REORDER_THRESHOLD,
 ): boolean {
-  const remainingCount = availablePacesAhead(currentPaceNumber, availablePaceNumbers).length;
-  return currentPaceNumber < 1144 && remainingCount <= 2;
+  const coveredCount = availablePacesAhead(currentPaceNumber, coveredPaceNumbers).length;
+  return (
+    currentPaceNumber < 1144 &&
+    coveredCount < Math.min(PACE_REORDER_THRESHOLD, remainingInCatalogue)
+  );
 }
 
 const studentPaceNumbersInput = z

@@ -372,7 +372,18 @@ export const academicInventoryRouter = router({
           const availablePaceNumbers = gapPlan
             ? supplied.filter((paceNumber) => allowedPaces?.has(paceNumber))
             : availablePacesAhead(assignment.currentPaceNumber, supplied);
-          if (!requiresPaceReorder(assignment.currentPaceNumber, availablePaceNumbers)) {
+          // PACEs already ordered or in transit count as covered, so the student drops off
+          // the list once everything they still need has been ordered.
+          const remainingInCatalogue = (allowedPaces ? [...allowedPaces] : PACE_CATALOGUE).filter(
+            (paceNumber) => paceNumber > assignment.currentPaceNumber,
+          ).length;
+          if (
+            !requiresPaceReorder(
+              assignment.currentPaceNumber,
+              [...availablePaceNumbers, ...pendingOrders.map(({ paceNumber }) => paceNumber)],
+              remainingInCatalogue,
+            )
+          ) {
             return [];
           }
           return [

@@ -430,8 +430,8 @@ export function PaceInventoryClient() {
                 <div>
                   <h2 id="pace-inventory-alerts-title">Needs attention</h2>
                   <p className="muted">
-                    Subjects with two or fewer future PACEs recorded in supply, including those
-                    awaiting delivery.
+                    Subjects with fewer than three future PACEs in supply or on order. A student
+                    leaves this list once everything they still need has been ordered.
                   </p>
                 </div>
                 <Badge tone="amber">

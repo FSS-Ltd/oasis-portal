@@ -1482,7 +1482,7 @@ describe('academic inventory router', () => {
     ]);
   });
 
-  it('keeps low supply visible while PACEs are ordered or in transit', async () => {
+  it('hides a student once their remaining PACEs are all supplied or ordered', async () => {
     const students = cloneStudents(defaultStudents);
     const assignment = students[0]?.subjects[0];
     if (!assignment) throw new Error('expected assignment fixture');
@@ -1500,20 +1500,55 @@ describe('academic inventory router', () => {
       },
     ]);
 
+    // 1142-1144 are all that is left in the catalogue, so ordering 1144 covers everything.
     const outstandingOrder = await createOrder(caller, { paceNumber: 1144 });
-    const orderedSummary = await caller.academicInventory.summary();
-    expect(orderedSummary.alerts[0]?.pendingOrders).toMatchObject([
-      { id: outstandingOrder.id, paceNumber: 1144, status: 'Ordered' },
-    ]);
-    expect(orderedSummary.alerts[0]?.pendingOrders[0]?.orderedAt).toBeInstanceOf(Date);
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
     await caller.academicInventory.updateOrderStatus({
       orderId: outstandingOrder.id,
       status: 'InTransit',
     });
     summary = await caller.academicInventory.summary();
-    expect(summary.alerts[0]?.pendingOrders).toMatchObject([
-      { id: outstandingOrder.id, paceNumber: 1144, status: 'InTransit' },
+    expect(summary.alerts).toEqual([]);
+  });
+
+  it('hides a student once three future PACEs are ordered and keeps them listed at two', async () => {
+    const students = cloneStudents(defaultStudents);
+    const { caller } = makeCaller(HEAD, students);
+
+    const first = await createOrder(caller, { paceNumber: 1012 });
+    await createOrder(caller, { paceNumber: 1013 });
+    let summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toMatchObject([{ studentId: STUDENT_ID, remainingPaceCount: 0 }]);
+    expect(summary.alerts[0]?.pendingOrders.map(({ paceNumber }) => paceNumber).sort()).toEqual([
+      1012, 1013,
     ]);
+
+    await createOrder(caller, { paceNumber: 1014 });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
+
+    // Delivery moves an order into supply; coverage is unchanged.
+    await caller.academicInventory.updateOrderStatus({ orderId: first.id, status: 'InTransit' });
+    await caller.academicInventory.updateOrderStatus({ orderId: first.id, status: 'Delivered' });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
+  });
+
+  it('hides a student at the end of the catalogue once the last PACEs are ordered', async () => {
+    const students = cloneStudents(defaultStudents);
+    const assignment = students[0]?.subjects[0];
+    if (!assignment) throw new Error('expected assignment fixture');
+    assignment.currentPaceNumber = 1142;
+    const { caller } = makeCaller(HEAD, students);
+
+    await createOrder(caller, { paceNumber: 1143 });
+    let summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toHaveLength(1);
+
+    await createOrder(caller, { paceNumber: 1144 });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
   });
 
   it('returns every outstanding order while bounding delivered history', async () => {
