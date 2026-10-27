@@ -18315,3 +18315,90 @@ button.library-book-card:focus-visible {
     grid-template-columns: repeat(12, minmax(0, 1fr));
   }
 }
+
+/* Diagnostic PACE chart: rows of twelve, circled in red like the printed result sheet. */
+.pace-chart {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  max-width: 720px;
+  margin: 12px 0;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--oasis-surface);
+}
+
+.pace-chart__cell {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--oasis-border-light);
+  border-bottom: 1px solid var(--oasis-border-light);
+  background: transparent;
+  color: var(--oasis-text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+button.pace-chart__cell {
+  cursor: pointer;
+}
+
+.pace-chart__cell[data-circled='true'] {
+  position: relative;
+  color: var(--oasis-crimson);
+  font-weight: 700;
+}
+
+.pace-chart__cell[data-circled='true']::after {
+  content: '';
+  position: absolute;
+  inset: 6px 4px;
+  border: 2px solid var(--oasis-crimson);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.pace-chart button.pace-chart__cell:focus-visible {
+  outline: 3px solid var(--focus-ring, #2563eb);
+  outline-offset: -3px;
+}
+
+@media (hover: hover) {
+  button.pace-chart__cell:not(:disabled):hover {
+    background: var(--oasis-bg);
+  }
+}
+
+@media (min-width: 640px) {
+  .pace-chart {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}
+
+.pace-diagnostic-result {
+  display: grid;
+  gap: 4px;
+}
+
+.pace-diagnostic-result details > summary {
+  cursor: pointer;
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+}
+
+.pace-diagnostic-form__placement {
+  display: grid;
+  gap: 6px;
+  max-width: 720px;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+  color: var(--oasis-text);
+  font-size: 0.9rem;
+}

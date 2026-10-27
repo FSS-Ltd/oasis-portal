@@ -30,8 +30,8 @@ export function PaceGapPlanPanel({
   studentId: string;
   subjectId: string;
   /** Prefill for a new plan, e.g. from a diagnostic result. Ignored when a plan exists. */
-  initialGaps?: readonly number[];
-  initialJumpTo?: number;
+  initialGaps?: readonly number[] | undefined;
+  initialJumpTo?: number | undefined;
 }) {
   const utils = api.useUtils();
   const enabled = Boolean(studentId && subjectId);

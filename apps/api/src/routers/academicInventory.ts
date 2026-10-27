@@ -476,7 +476,7 @@ export const academicInventoryRouter = router({
       return {
         students: decryptedStudents,
         orders,
-        diagnostics: diagnostics.map(withPlacement),
+        diagnostics: diagnostics.map((row) => withPlacement(row)),
         supply,
         alerts,
         orderCountsByStudent: orderCounts,
@@ -532,7 +532,7 @@ export const academicInventoryRouter = router({
           }),
         ]);
         return {
-          rows: rows.map(withPlacement),
+          rows: rows.map((row) => withPlacement(row)),
           totalRows,
           page: input.page,
           pageSize: input.pageSize,
