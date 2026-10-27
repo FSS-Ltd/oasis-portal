@@ -2,17 +2,30 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, MutedText } from '../core/mobile-ui';
+import { Badge, Card, MobileButton, MutedText } from '../core/mobile-ui';
+import { StaffDiagnosticChart } from './staff-academic-diagnostic-chart';
 import { InventoryMobilePagination } from './staff-academic-inventory-pagination';
+import { describePlacement } from './staff-academic-inventory-utils';
+import { recommendedStartPace } from '@oasis/domain';
 
 type Student = RouterOutputs['academicInventory']['summary']['students'][number];
+export type DiagnosticRow =
+  RouterOutputs['academicInventory']['diagnosticsHistory']['rows'][number];
+const testLabels = {
+  Math: 'Math',
+  English: 'English',
+  WordBuilding: 'Word Building',
+  Reading: 'Reading',
+} as const;
 const dateFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' });
 
 export function InventoryDiagnosticHistory({
   enabled,
+  onSetUpGaps,
   students,
 }: {
   enabled: boolean;
+  onSetUpGaps: (result: DiagnosticRow) => void;
   students: Student[];
 }) {
   const [page, setPage] = useState(1);
@@ -42,21 +55,63 @@ export function InventoryDiagnosticHistory({
       {history.data?.rows.map((result) => {
         const student = students.find((row) => row.id === result.studentId);
         const assignment = student?.subjects.find((row) => row.subjectId === result.subjectId);
+        const placement = result.placement;
+        const startPace =
+          result.test === 'Reading' || result.test === 'WordBuilding'
+            ? recommendedStartPace(result.test, result.level ?? 0, result.outcome)
+            : null;
+        // Legacy rows predate the test field and are identified by their subject.
+        const testLabel = result.test
+          ? testLabels[result.test]
+          : assignment
+            ? `${assignment.subject.code} · ${assignment.subject.name}`
+            : 'Assigned subject';
         return (
           <View key={result.id} style={styles.result}>
             <View style={styles.heading}>
               <Text style={styles.name}>
-                {student?.fullName ?? 'Student'} · Level {String(result.level)}
+                {student?.fullName ?? 'Student'} · {testLabel}
+                {placement ? '' : ` · Level ${String(result.level)}`}
               </Text>
-              <Badge variant={result.outcome === 'Pass' ? 'success' : 'warning'}>
-                {result.outcome}
-              </Badge>
+              {placement ? null : (
+                <Badge variant={result.outcome === 'Pass' ? 'success' : 'warning'}>
+                  {result.outcome}
+                </Badge>
+              )}
             </View>
+            {placement ? (
+              <>
+                <Text style={styles.summary}>{describePlacement(placement)}</Text>
+                <StaffDiagnosticChart
+                  attempted={result.attemptedPaceNumbers}
+                  circled={result.circledPaceNumbers}
+                />
+                {placement.learningGaps.length > 0 &&
+                placement.performanceLevelPace !== null &&
+                result.subjectId ? (
+                  <MobileButton
+                    label="Set up Gap PACEs"
+                    onPress={() => {
+                      onSetUpGaps(result);
+                    }}
+                    variant="secondary"
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {startPace !== null ? (
+              <Text style={styles.summary}>
+                Recommended start: PACE # {String(startPace)} (provisional)
+              </Text>
+            ) : null}
+            {result.test === 'Reading' ? (
+              <MutedText>
+                Informs Science, Social Studies, Bible Reading and Literature and Creative Writing.
+              </MutedText>
+            ) : null}
             <MutedText>
-              {assignment
-                ? `${assignment.subject.code} · ${assignment.subject.name}`
-                : 'Assigned subject'}{' '}
-              · {dateFormatter.format(new Date(result.recordedAt))}
+              {dateFormatter.format(new Date(result.recordedAt))}
+              {result.test ? '' : ' · Older result'}
             </MutedText>
           </View>
         );
@@ -90,5 +145,6 @@ const styles = StyleSheet.create({
   },
   name: { color: C.navy, flexShrink: 1, fontSize: 14, fontWeight: '700' },
   result: { borderColor: C.border, borderRadius: 8, borderWidth: 1, gap: 6, padding: 12 },
+  summary: { color: C.textPrimary, fontSize: 14, lineHeight: 20 },
   title: { color: C.navy, fontSize: 16, fontWeight: '800' },
 });

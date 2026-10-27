@@ -1,33 +1,75 @@
 'use client';
 
 import { useState, type FormEvent, type ReactElement } from 'react';
+import {
+  derivePacePlacement,
+  diagnosticLevelsFor,
+  firstPaceOfLevel,
+  isDiagnosticChartTest,
+  recommendedStartPace,
+  type DiagnosticTest,
+} from '@oasis/domain';
 import { Button } from '@/components/ui/button';
-import { Field, SelectInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { PaceDiagnosticChart } from './pace-diagnostic-chart';
 
-const diagnosticLevels = [1, 2, 3, 4, 5] as const;
+const diagnosticTests: ReadonlyArray<{ value: DiagnosticTest; label: string }> = [
+  { value: 'Math', label: 'Math' },
+  { value: 'English', label: 'English' },
+  { value: 'WordBuilding', label: 'Word Building' },
+  { value: 'Reading', label: 'Reading' },
+];
 const diagnosticOutcomes = ['Pass', 'Fail'] as const;
 
-type DiagnosticLevel = (typeof diagnosticLevels)[number];
 type DiagnosticOutcome = (typeof diagnosticOutcomes)[number];
 
-export interface PaceDiagnosticSelection {
-  level: DiagnosticLevel;
-  outcome: DiagnosticOutcome;
-}
+export type PaceDiagnosticSubmission =
+  | {
+      test: 'Math' | 'English';
+      attemptedPaceNumbers: number[];
+      circledPaceNumbers: number[];
+    }
+  | { test: 'WordBuilding' | 'Reading'; level: number; outcome: DiagnosticOutcome };
 
 interface PaceDiagnosticFormProps {
   disabled: boolean;
-  onSubmit: (selection: PaceDiagnosticSelection) => void;
+  onSubmit: (submission: PaceDiagnosticSubmission) => void;
   pending: boolean;
   selectionLabel: string;
 }
 
-function isDiagnosticLevel(value: number): value is DiagnosticLevel {
-  return diagnosticLevels.some((level) => level === value);
+function isDiagnosticTest(value: string): value is DiagnosticTest {
+  return diagnosticTests.some((test) => test.value === value);
+}
+
+function isLevelTest(test: DiagnosticTest): test is 'Reading' | 'WordBuilding' {
+  return test === 'Reading' || test === 'WordBuilding';
+}
+
+function levelLabel(test: 'Reading' | 'WordBuilding', level: number): string {
+  return test === 'WordBuilding' && level === 9 ? 'Level 9 (Etymology)' : `Level ${String(level)}`;
 }
 
 function isDiagnosticOutcome(value: string): value is DiagnosticOutcome {
   return diagnosticOutcomes.some((outcome) => outcome === value);
+}
+
+function paceRange(first: string, last: string): { paceNumbers: number[]; error: string } {
+  const from = Number(first);
+  const to = Number(last);
+  if (!Number.isInteger(from) || !Number.isInteger(to) || first === '' || last === '') {
+    return { paceNumbers: [], error: 'Enter the first and last PACE attempted.' };
+  }
+  if (from < 1001 || to > 1144 || from > to) {
+    return {
+      paceNumbers: [],
+      error: 'Use PACEs from 1001 to 1144, with the last at or after the first.',
+    };
+  }
+  return {
+    paceNumbers: Array.from({ length: to - from + 1 }, (_, index) => from + index),
+    error: '',
+  };
 }
 
 export function PaceDiagnosticForm({
@@ -36,53 +78,191 @@ export function PaceDiagnosticForm({
   pending,
   selectionLabel,
 }: PaceDiagnosticFormProps): ReactElement {
-  const [level, setLevel] = useState<DiagnosticLevel>(1);
+  const [test, setTest] = useState<DiagnosticTest>('Math');
+  const [level, setLevel] = useState(1);
   const [outcome, setOutcome] = useState<DiagnosticOutcome>('Pass');
+  const [firstPace, setFirstPace] = useState('1001');
+  const [lastPace, setLastPace] = useState('');
+  const [circled, setCircled] = useState<number[]>([]);
+  const chartTest = isDiagnosticChartTest(test);
+  const startPace = isLevelTest(test) ? recommendedStartPace(test, level, outcome) : null;
+  const { paceNumbers: attempted, error: rangeError } = paceRange(firstPace, lastPace);
+  const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
+  const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
+
+  function toggleCircle(paceNumber: number): void {
+    setCircled((current) =>
+      current.includes(paceNumber)
+        ? current.filter((value) => value !== paceNumber)
+        : [...current, paceNumber],
+    );
+  }
 
   function submitDiagnostic(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     if (disabled || pending) return;
-    onSubmit({ level, outcome });
+    if (test === 'Math' || test === 'English') {
+      if (attempted.length === 0) return;
+      onSubmit({
+        test,
+        attemptedPaceNumbers: attempted,
+        circledPaceNumbers: [...circledInRange].sort((a, b) => a - b),
+      });
+      return;
+    }
+    onSubmit({ test, level, outcome });
   }
 
   return (
     <form onSubmit={submitDiagnostic}>
       <p className="muted">{selectionLabel}</p>
       <div className="form-grid form-grid--two">
-        <Field label="Level">
+        <Field label="Test">
           <SelectInput
             disabled={disabled || pending}
             onChange={(event) => {
-              const nextLevel = Number(event.target.value);
-              if (isDiagnosticLevel(nextLevel)) setLevel(nextLevel);
+              const next = event.target.value;
+              if (!isDiagnosticTest(next)) return;
+              setTest(next);
+              // Each test assesses its own levels, so start from the first one.
+              if (isLevelTest(next)) setLevel(diagnosticLevelsFor(next)[0] ?? 1);
             }}
-            value={level}
+            value={test}
           >
-            {diagnosticLevels.map((value) => (
-              <option key={value} value={value}>
-                Level {String(value)}
+            {diagnosticTests.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </SelectInput>
         </Field>
-        <Field label="Outcome">
-          <SelectInput
-            disabled={disabled || pending}
-            onChange={(event) => {
-              if (isDiagnosticOutcome(event.target.value)) setOutcome(event.target.value);
-            }}
-            value={outcome}
-          >
-            {diagnosticOutcomes.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </SelectInput>
-        </Field>
+        {chartTest ? null : (
+          <>
+            <Field label="Level">
+              <SelectInput
+                disabled={disabled || pending}
+                onChange={(event) => {
+                  setLevel(Number(event.target.value));
+                }}
+                value={level}
+              >
+                {(isLevelTest(test) ? diagnosticLevelsFor(test) : []).map((value) => (
+                  <option key={value} value={value}>
+                    {isLevelTest(test) ? levelLabel(test, value) : `Level ${String(value)}`}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <Field label="Outcome">
+              <SelectInput
+                disabled={disabled || pending}
+                onChange={(event) => {
+                  if (isDiagnosticOutcome(event.target.value)) setOutcome(event.target.value);
+                }}
+                value={outcome}
+              >
+                {diagnosticOutcomes.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+          </>
+        )}
       </div>
+      {test === 'Reading' ? (
+        <p className="field__hint">
+          Reading is not a subject. Its result informs Science, Social Studies, Bible Reading and
+          Literature and Creative Writing.
+        </p>
+      ) : null}
+      {isLevelTest(test) ? (
+        <div className="pace-diagnostic-form__placement" aria-live="polite">
+          {startPace !== null ? (
+            <span>
+              <strong>Recommended start:</strong> PACE # {String(startPace)} (first PACE of Level{' '}
+              {String(level)}, PACEs {String(firstPaceOfLevel(level))}–
+              {String(firstPaceOfLevel(level) + 11)}). Provisional: review the full diagnostic
+              report.
+            </span>
+          ) : (
+            <span>
+              <strong>Recommended start:</strong> none yet. A pass places nothing; record the first
+              level failed. If every tested level passes or results conflict, review manually.
+            </span>
+          )}
+          {test === 'Reading' && level === 1 && outcome === 'Fail' ? (
+            <span>Level 1 may need ABCs with Ace and Christi or a readiness assessment.</span>
+          ) : null}
+        </div>
+      ) : null}
+      {chartTest ? (
+        <>
+          <div className="form-grid form-grid--two">
+            <Field label="First PACE">
+              <TextInput
+                disabled={disabled || pending}
+                inputMode="numeric"
+                onChange={(event) => {
+                  setFirstPace(event.target.value);
+                }}
+                value={firstPace}
+              />
+            </Field>
+            <Field label="Last PACE attempted">
+              <TextInput
+                disabled={disabled || pending}
+                inputMode="numeric"
+                onChange={(event) => {
+                  setLastPace(event.target.value);
+                }}
+                value={lastPace}
+              />
+            </Field>
+          </div>
+          {rangeError && lastPace !== '' ? (
+            <p className="field__error" role="alert">
+              {rangeError}
+            </p>
+          ) : null}
+          {attempted.length > 0 ? (
+            <>
+              <p className="field__hint">
+                Tap every PACE scored below the minimum requirement to circle it.
+              </p>
+              <PaceDiagnosticChart
+                attempted={attempted}
+                circled={circledInRange}
+                disabled={disabled || pending}
+                onToggle={toggleCircle}
+              />
+              {placement ? (
+                <div className="pace-diagnostic-form__placement" aria-live="polite">
+                  <span>
+                    <strong>Learning Gaps:</strong>{' '}
+                    {placement.learningGaps.length > 0
+                      ? `PACEs # ${placement.learningGaps.join(', ')}`
+                      : 'None'}
+                  </span>
+                  <span>
+                    <strong>Performance Level:</strong>{' '}
+                    {placement.performanceLevelPace === null
+                      ? 'The student has passed every PACE.'
+                      : `After completing any learning gaps, the student is ready to advance from PACE # ${String(placement.performanceLevelPace)}.`}
+                  </span>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      ) : null}
       <div className="pace-inventory-actions">
-        <Button disabled={disabled} pending={pending} type="submit">
+        <Button
+          disabled={disabled || (chartTest && attempted.length === 0)}
+          pending={pending}
+          type="submit"
+        >
           Record diagnostic
         </Button>
         <span className="field__hint">

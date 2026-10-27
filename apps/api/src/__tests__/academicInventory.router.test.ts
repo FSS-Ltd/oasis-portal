@@ -56,9 +56,12 @@ interface OrderRow {
 interface DiagnosticRow {
   id: string;
   studentId: string;
-  subjectId: string;
-  level: number;
-  outcome: 'Pass' | 'Fail';
+  subjectId: string | null;
+  test: 'Math' | 'English' | 'WordBuilding' | 'Reading' | null;
+  level: number | null;
+  outcome: 'Pass' | 'Fail' | null;
+  attemptedPaceNumbers: number[];
+  circledPaceNumbers: number[];
   recordedById: string;
   recordedAt: Date;
   createdAt: Date;
@@ -79,8 +82,24 @@ interface SupplyRow {
 
 type DiagnosticCreateData = Pick<
   DiagnosticRow,
-  'studentId' | 'subjectId' | 'level' | 'outcome' | 'recordedById'
+  | 'studentId'
+  | 'subjectId'
+  | 'test'
+  | 'level'
+  | 'outcome'
+  | 'attemptedPaceNumbers'
+  | 'circledPaceNumbers'
+  | 'recordedById'
 >;
+type DiagnosticOrClause = { studentId: string | { in: string[] }; subjectId?: string | null };
+
+function matchesDiagnosticClause(row: DiagnosticRow, clause: DiagnosticOrClause): boolean {
+  const studentMatches =
+    typeof clause.studentId === 'string'
+      ? row.studentId === clause.studentId
+      : clause.studentId.in.includes(row.studentId);
+  return studentMatches && (clause.subjectId === undefined || row.subjectId === clause.subjectId);
+}
 type OrderCreateData = Pick<OrderRow, 'studentId' | 'subjectId' | 'paceNumber' | 'createdById'> & {
   status: 'Ordered';
 };
@@ -180,6 +199,17 @@ const defaultStudents: StudentRow[] = [
   },
 ];
 
+/** The printed example chart: gaps 1008, advance from PACE 1015. */
+function englishChart(overrides: Record<string, unknown> = {}) {
+  return {
+    studentId: STUDENT_ID,
+    test: 'English' as const,
+    attemptedPaceNumbers: Array.from({ length: 17 }, (_, index) => 1001 + index),
+    circledPaceNumbers: [1008, 1015, 1016, 1017],
+    ...overrides,
+  };
+}
+
 function cloneStudents(students: StudentRow[]): StudentRow[] {
   return students.map((student) => ({
     ...student,
@@ -268,23 +298,13 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
       }),
     },
     diagnosticResult: {
-      count: vi.fn(
-        ({
-          where,
-        }: {
-          where: { deletedAt: null; OR: Array<{ studentId: string; subjectId: string }> };
-        }) =>
-          Promise.resolve(
-            diagnostics.filter(
-              (row) =>
-                !row.deletedAt &&
-                where.OR.some(
-                  (assignment) =>
-                    row.studentId === assignment.studentId &&
-                    row.subjectId === assignment.subjectId,
-                ),
-            ).length,
-          ),
+      count: vi.fn(({ where }: { where: { deletedAt: null; OR: DiagnosticOrClause[] } }) =>
+        Promise.resolve(
+          diagnostics.filter(
+            (row) =>
+              !row.deletedAt && where.OR.some((clause) => matchesDiagnosticClause(row, clause)),
+          ).length,
+        ),
       ),
       create: vi.fn(({ data }: { data: DiagnosticCreateData }) => {
         const now = new Date();
@@ -311,7 +331,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
           skip?: number;
           where?: {
             deletedAt?: null;
-            OR?: Array<{ studentId: string; subjectId: string }>;
+            OR?: DiagnosticOrClause[];
           };
         } = {}) => {
           const rows = sortDiagnosticRows(
@@ -320,11 +340,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
                 if (where?.deletedAt !== undefined && diagnostic.deletedAt) return false;
                 return (
                   !where?.OR ||
-                  where.OR.some(
-                    (assignment) =>
-                      diagnostic.studentId === assignment.studentId &&
-                      diagnostic.subjectId === assignment.subjectId,
-                  )
+                  where.OR.some((clause) => matchesDiagnosticClause(diagnostic, clause))
                 );
               })
               .reverse(),
@@ -645,12 +661,18 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         }: {
           where: {
             studentId: string;
-            subjectId: string;
+            subjectId?: string;
             subject?: { code?: { in: string[] } };
           };
         }) => {
           const student = students.find((candidate) => candidate.id === where.studentId);
-          const assignment = findAssignment(where.studentId, where.subjectId);
+          const assignment = where.subjectId
+            ? findAssignment(where.studentId, where.subjectId)
+            : student?.subjects.find(
+                (candidate) =>
+                  candidate.subject.active &&
+                  (where.subject?.code?.in.includes(candidate.subject.code) ?? true),
+              );
           return Promise.resolve(
             student?.active &&
               assignment?.subject.active &&
@@ -920,15 +942,7 @@ describe('academic inventory router', () => {
       caller.academicInventory.markOrdersInTransit({ orderIds: ['order_1'] }),
       'FORBIDDEN',
     );
-    await expectCode(
-      caller.academicInventory.recordDiagnostic({
-        studentId: STUDENT_ID,
-        subjectId: SUBJECT_ID,
-        level: 2,
-        outcome: 'Fail',
-      }),
-      'FORBIDDEN',
-    );
+    await expectCode(caller.academicInventory.recordDiagnostic(englishChart()), 'FORBIDDEN');
     await expectCode(
       caller.academicInventory.deleteDiagnostic({ diagnosticId: 'diagnostic_1' }),
       'FORBIDDEN',
@@ -965,15 +979,7 @@ describe('academic inventory router', () => {
     assignment.subject.active = false;
     const { caller, diagnostics } = makeCaller(HEAD, students);
 
-    await expectCode(
-      caller.academicInventory.recordDiagnostic({
-        studentId: STUDENT_ID,
-        subjectId: SUBJECT_ID,
-        level: 2,
-        outcome: 'Fail',
-      }),
-      'BAD_REQUEST',
-    );
+    await expectCode(caller.academicInventory.recordDiagnostic(englishChart()), 'BAD_REQUEST');
 
     expect(diagnostics).toHaveLength(0);
   });
@@ -1603,8 +1609,11 @@ describe('academic inventory router', () => {
         id: `diagnostic-${String(index).padStart(3, '0')}`,
         studentId: STUDENT_ID,
         subjectId: SUBJECT_ID,
+        test: null,
         level: (index % 5) + 1,
         outcome: index % 2 === 0 ? 'Pass' : 'Fail',
+        attemptedPaceNumbers: [],
+        circledPaceNumbers: [],
         recordedById: HEAD.id,
         recordedAt,
         createdAt: recordedAt,
@@ -1757,8 +1766,11 @@ describe('academic inventory router', () => {
       id: 'custom-diagnostic',
       studentId: STUDENT_ID,
       subjectId: 'subject_custom',
+      test: null,
       level: 1,
       outcome: 'Pass',
+      attemptedPaceNumbers: [],
+      circledPaceNumbers: [],
       recordedById: HEAD.id,
       recordedAt: now,
       createdAt: now,
@@ -1850,8 +1862,11 @@ describe('academic inventory router', () => {
       id: 'historic-diagnostic',
       studentId: STUDENT_ID,
       subjectId: SUBJECT_2_ID,
+      test: null,
       level: 2,
       outcome: 'Pass',
+      attemptedPaceNumbers: [],
+      circledPaceNumbers: [],
       recordedById: HEAD.id,
       recordedAt: now,
       createdAt: now,
@@ -1907,18 +1922,20 @@ describe('academic inventory router', () => {
     ]);
   });
 
-  it('records a diagnostic without changing the assignment PACE', async () => {
+  it('records a PACE chart without changing the assignment PACE', async () => {
     const { auditInsideRls, caller, db, diagnostics, rejectDirectProtectedAccess, withRls } =
       makeCaller(HEAD);
 
-    const result = await caller.academicInventory.recordDiagnostic({
-      studentId: STUDENT_ID,
-      subjectId: SUBJECT_ID,
-      level: 2,
-      outcome: 'Fail',
-    });
+    const result = await caller.academicInventory.recordDiagnostic(englishChart());
 
-    expect(result).toMatchObject({ level: 2, outcome: 'Fail' });
+    expect(result).toMatchObject({
+      test: 'English',
+      subjectId: SUBJECT_ID,
+      level: null,
+      outcome: null,
+      circledPaceNumbers: [1008, 1015, 1016, 1017],
+      placement: { learningGaps: [1008], performanceLevelPace: 1015 },
+    });
     expect(diagnostics).toHaveLength(1);
     expect(withRls).toHaveBeenCalledOnce();
     expect(rejectDirectProtectedAccess).not.toHaveBeenCalled();
@@ -1929,19 +1946,122 @@ describe('academic inventory router', () => {
         action: 'Create',
         entity: 'DiagnosticResult',
         entityId: 'diagnostic_1',
+        meta: {
+          test: 'English',
+          subjectId: SUBJECT_ID,
+          circledPaceNumbers: [1008, 1015, 1016, 1017],
+        },
       },
     });
     expect(auditInsideRls).toEqual([true]);
   });
 
+  it('rejects a chart for a subject the student is not assigned', async () => {
+    const { caller, diagnostics } = makeCaller(HEAD);
+
+    await expectCode(
+      caller.academicInventory.recordDiagnostic(englishChart({ test: 'Math' })),
+      'BAD_REQUEST',
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('records Word Building against its assigned subject as Level 2–9', async () => {
+    const students = cloneStudents(defaultStudents);
+    students[0]?.subjects.push({
+      id: 'assignment_wb',
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_2_ID,
+      currentPaceNumber: 1001,
+      subject: { id: SUBJECT_2_ID, code: 'WB', name: 'Word Building', active: true },
+    });
+    const { caller, diagnostics } = makeCaller(HEAD, students);
+
+    const result = await caller.academicInventory.recordDiagnostic({
+      studentId: STUDENT_ID,
+      test: 'WordBuilding',
+      level: 9,
+      outcome: 'Pass',
+    });
+
+    expect(result).toMatchObject({
+      test: 'WordBuilding',
+      subjectId: SUBJECT_2_ID,
+      level: 9,
+      outcome: 'Pass',
+      placement: null,
+    });
+    expect(diagnostics).toHaveLength(1);
+    await expectCode(
+      caller.academicInventory.recordDiagnostic({
+        studentId: STUDENT_ID,
+        test: 'WordBuilding',
+        level: 1,
+        outcome: 'Pass',
+      }),
+      'BAD_REQUEST',
+    );
+    await expectCode(
+      caller.academicInventory.recordDiagnostic({
+        studentId: STUDENT_ID,
+        test: 'Reading',
+        level: 9,
+        outcome: 'Fail',
+      }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('rejects Word Building when the student is not assigned it', async () => {
+    const { caller, diagnostics } = makeCaller(HEAD);
+
+    await expectCode(
+      caller.academicInventory.recordDiagnostic({
+        studentId: STUDENT_ID,
+        test: 'WordBuilding',
+        level: 3,
+        outcome: 'Fail',
+      }),
+      'BAD_REQUEST',
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('records Reading without a subject and still lists it in the summary and history', async () => {
+    const { caller, diagnostics } = makeCaller(HEAD);
+
+    const result = await caller.academicInventory.recordDiagnostic({
+      studentId: STUDENT_ID,
+      test: 'Reading',
+      level: 7,
+      outcome: 'Pass',
+    });
+
+    expect(result).toMatchObject({ test: 'Reading', subjectId: null, level: 7, outcome: 'Pass' });
+    expect(diagnostics).toHaveLength(1);
+    const summary = await caller.academicInventory.summary();
+    expect(summary.diagnostics).toMatchObject([{ test: 'Reading', subjectId: null, level: 7 }]);
+    const history = await caller.academicInventory.diagnosticsHistory({ page: 1, pageSize: 10 });
+    expect(history.rows).toMatchObject([{ test: 'Reading', level: 7 }]);
+    expect(history.totalRows).toBe(1);
+  });
+
+  it('returns the derived placement for chart rows in history', async () => {
+    const { caller } = makeCaller(HEAD);
+    await caller.academicInventory.recordDiagnostic(englishChart());
+
+    const history = await caller.academicInventory.diagnosticsHistory({ page: 1, pageSize: 10 });
+
+    expect(history.rows).toMatchObject([
+      { test: 'English', placement: { learningGaps: [1008], performanceLevelPace: 1015 } },
+    ]);
+  });
+
   it('soft-deletes a recorded diagnostic without touching the assignment', async () => {
     const { auditInsideRls, caller, db, diagnostics } = makeCaller(HEAD);
-    const diagnostic = await caller.academicInventory.recordDiagnostic({
-      studentId: STUDENT_ID,
-      subjectId: SUBJECT_ID,
-      level: 2,
-      outcome: 'Fail',
-    });
+    const diagnostic = await caller.academicInventory.recordDiagnostic(englishChart());
 
     const result = await caller.academicInventory.deleteDiagnostic({ diagnosticId: diagnostic.id });
 
@@ -1960,12 +2080,7 @@ describe('academic inventory router', () => {
 
   it('does not audit when another Head deletes a diagnostic first', async () => {
     const { caller, db } = makeCaller(HEAD);
-    const diagnostic = await caller.academicInventory.recordDiagnostic({
-      studentId: STUDENT_ID,
-      subjectId: SUBJECT_ID,
-      level: 2,
-      outcome: 'Fail',
-    });
+    const diagnostic = await caller.academicInventory.recordDiagnostic(englishChart());
     db.auditLog.create.mockClear();
     db.diagnosticResult.updateMany.mockResolvedValueOnce({ count: 0 });
 

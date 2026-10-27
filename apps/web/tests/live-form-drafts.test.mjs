@@ -302,10 +302,10 @@ test('gap plan keeps edited selections but refreshes untouched destination', () 
     subjectId: 'math',
   });
   try {
-    const checkbox = panel.root
-      .findAllByType('input')
-      .find((node) => node.props.type === 'checkbox' && !node.props.checked);
-    act(() => checkbox.props.onChange({ target: { checked: true } }));
+    const tile = panel.root.findAll(
+      (node) => node.props['aria-pressed'] === false && typeof node.props.onClick === 'function',
+    )[0];
+    act(() => tile.props.onClick({ shiftKey: false }));
     panel.update({ ...gap, plans: [{ ...plan, version: 2, jumpToPaceNumber: 1011 }] });
     assert.ok(valueNode(panel, '1011'));
     click(panel, 'Save Changes');

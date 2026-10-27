@@ -126,6 +126,31 @@ describe('staff academic inventory mobile wiring', () => {
     expect(screen).toMatch(/onChangeOutcome={changeDiagnosticOutcome}/);
   });
 
+  it('records chart tests for Math and English and level tests for Word Building and Reading', () => {
+    const components = readStaffComponent('staff-academic-inventory-components.tsx');
+    const screen = readStaffComponent('staff-academic-inventory-screen.tsx');
+    const history = readStaffComponent('staff-academic-inventory-history.tsx');
+    const gapPlan = readStaffComponent('staff-academic-gap-plan.tsx');
+
+    for (const label of ['Math', 'English', 'Word Building', 'Reading']) {
+      expect(components).toContain(`label: '${label}'`);
+    }
+    expect(components).toMatch(/diagnosticLevelsFor\(/);
+    expect(components).toMatch(/recommendedStartPace\(/);
+    expect(components).toMatch(/Recommended start/);
+    expect(components).toMatch(/Level 9 is Etymology/);
+    expect(components).toMatch(/derivePacePlacement\(/);
+    expect(components).toMatch(/label="First PACE"/);
+    expect(components).toMatch(/label="Last PACE attempted"/);
+    expect(components).toMatch(/Reading is not a subject/);
+    expect(screen).toMatch(
+      /recordDiagnostic\.mutate\(\{ studentId: selectedStudent\.id, \.\.\.submission \}\)/,
+    );
+    expect(history).toMatch(/Set up Gap PACEs/);
+    expect(screen).toMatch(/initialGaps={gapPrefillMatch\?\.gaps}/);
+    expect(gapPlan).toMatch(/initialGaps\?: readonly number\[\] \| undefined/);
+  });
+
   it('locks diagnostic choices while a result is pending', () => {
     const components = readStaffComponent('staff-academic-inventory-components.tsx');
     const diagnosticCard = components.slice(
@@ -137,7 +162,8 @@ describe('staff academic inventory mobile wiring', () => {
       components.indexOf('const styles'),
     );
 
-    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(3);
+    // Test, first and last PACE, chart, level, outcome and the submit button.
+    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(7);
     expect(segmentButton).toMatch(/disabled: boolean/);
     expect(segmentButton).toMatch(/accessibilityState={{ disabled, selected: active }}/);
     expect(segmentButton).toMatch(/disabled={disabled}/);

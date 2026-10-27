@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PackagePlus, Truck } from 'lucide-react';
-import { availablePacesAhead, PACE_CATALOGUE } from '@oasis/domain';
+import { availablePacesAhead, PACE_CATALOGUE, recommendedStartPace } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 import { api } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -13,7 +13,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput } from '@/components/ui/field';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
-import { PaceDiagnosticForm, type PaceDiagnosticSelection } from './pace-diagnostic-form';
+import { PaceDiagnosticChart } from './pace-diagnostic-chart';
+import { PaceDiagnosticForm, type PaceDiagnosticSubmission } from './pace-diagnostic-form';
 import { PaceGapPlanPanel } from './pace-gap-plan-panel';
 import {
   InventoryPagination,
@@ -52,6 +53,13 @@ function selectedAssignment(
   if (!subjectId) return student.subjects[0] ?? null;
   return student.subjects.find((assignment) => assignment.subjectId === subjectId) ?? null;
 }
+
+const diagnosticTestLabels = {
+  Math: 'Math',
+  English: 'English',
+  WordBuilding: 'Word Building',
+  Reading: 'Reading',
+} as const;
 
 function formatAssignment(assignment: InventoryAssignment | null): string {
   if (!assignment) return 'No assigned subject';
@@ -121,6 +129,12 @@ export function PaceInventoryClient() {
   const [diagnosticPage, setDiagnosticPage] = useState(1);
   const [diagnosticPageSize, setDiagnosticPageSize] = useState(10);
   const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
+  const [gapPrefill, setGapPrefill] = useState<{
+    studentId: string;
+    subjectId: string;
+    gaps: number[];
+    jumpTo: number;
+  } | null>(null);
   const [quickOrderTarget, setQuickOrderTarget] = useState<{ studentId: string } | null>(null);
   const quickOrderTriggerRef = useRef<HTMLButtonElement | null>(null);
   const diagnosticHistory = api.academicInventory.diagnosticsHistory.useQuery(
@@ -173,6 +187,10 @@ export function PaceInventoryClient() {
   }, [alertPage, alertPageSize, groupedAlerts.length]);
   const selectedStudentId = student?.id ?? '';
   const selectedSubjectId = assignment?.subjectId ?? '';
+  const prefillForGaps =
+    gapPrefill?.studentId === selectedStudentId && gapPrefill.subjectId === selectedSubjectId
+      ? gapPrefill
+      : undefined;
   const selectionContextKey = `${selectedStudentId}:${selectedSubjectId}:${String(
     assignment?.currentPaceNumber ?? '',
   )}`;
@@ -336,13 +354,24 @@ export function PaceInventoryClient() {
     closeQuickOrder();
   }
 
-  function recordSelectedDiagnostic(selection: PaceDiagnosticSelection): void {
-    if (!student || !assignment || recordDiagnostic.isPending) return;
-    recordDiagnostic.mutate({
-      studentId: student.id,
-      subjectId: assignment.subjectId,
-      ...selection,
+  function recordSelectedDiagnostic(submission: PaceDiagnosticSubmission): void {
+    if (!student || recordDiagnostic.isPending) return;
+    recordDiagnostic.mutate({ studentId: student.id, ...submission });
+  }
+
+  function openGapSetup(diagnostic: InventoryDiagnostic): void {
+    const placement = diagnostic.placement;
+    if (!diagnostic.subjectId || !placement || placement.performanceLevelPace === null) return;
+    setStudentId(diagnostic.studentId);
+    setSubjectId(diagnostic.subjectId);
+    setPaceSelection((current) => ({ ...current, paceNumbers: [] }));
+    setGapPrefill({
+      studentId: diagnostic.studentId,
+      subjectId: diagnostic.subjectId,
+      gaps: placement.learningGaps,
+      jumpTo: placement.performanceLevelPace,
     });
+    setDiagnosticTab('gaps');
   }
 
   const diagnosticColumns: readonly DataTableColumn<InventoryDiagnostic>[] = [
@@ -353,22 +382,73 @@ export function PaceInventoryClient() {
         students.find((row) => row.id === diagnostic.studentId)?.fullName ?? 'Unknown student',
     },
     {
-      id: 'subject',
-      header: 'Subject',
+      id: 'test',
+      header: 'Test',
       render: (diagnostic) => {
+        if (diagnostic.test) return diagnosticTestLabels[diagnostic.test];
+        // Legacy rows predate the test field and are identified by their subject.
         const diagnosticStudent = students.find((row) => row.id === diagnostic.studentId);
         return formatAssignment(
           diagnosticStudent?.subjects.find((row) => row.subjectId === diagnostic.subjectId) ?? null,
         );
       },
     },
-    { id: 'level', header: 'Level', render: (diagnostic) => `Level ${String(diagnostic.level)}` },
     {
-      id: 'outcome',
+      id: 'result',
       header: 'Result',
-      render: (diagnostic) => (
-        <Badge tone={diagnostic.outcome === 'Pass' ? 'green' : 'red'}>{diagnostic.outcome}</Badge>
-      ),
+      render: (diagnostic) => {
+        const placement = diagnostic.placement;
+        if (placement) {
+          return (
+            <div className="pace-diagnostic-result">
+              <span>
+                <strong>Learning gaps:</strong>{' '}
+                {placement.learningGaps.length > 0
+                  ? `PACEs # ${placement.learningGaps.join(', ')}`
+                  : 'None'}
+              </span>
+              <span>
+                <strong>Advance from:</strong>{' '}
+                {placement.performanceLevelPace === null
+                  ? 'Passed every PACE'
+                  : `PACE # ${String(placement.performanceLevelPace)}`}
+              </span>
+              <details>
+                <summary>View chart</summary>
+                <PaceDiagnosticChart
+                  attempted={diagnostic.attemptedPaceNumbers}
+                  circled={diagnostic.circledPaceNumbers}
+                />
+              </details>
+            </div>
+          );
+        }
+        const startPace =
+          diagnostic.test === 'Reading' || diagnostic.test === 'WordBuilding'
+            ? recommendedStartPace(diagnostic.test, diagnostic.level ?? 0, diagnostic.outcome)
+            : null;
+        return (
+          <div className="pace-diagnostic-result">
+            <span>
+              {`Level ${String(diagnostic.level)} `}
+              <Badge tone={diagnostic.outcome === 'Pass' ? 'green' : 'red'}>
+                {diagnostic.outcome}
+              </Badge>
+            </span>
+            {startPace !== null ? (
+              <span>
+                <strong>Recommended start:</strong> PACE # {String(startPace)} (provisional)
+              </span>
+            ) : null}
+            {diagnostic.test === 'Reading' ? (
+              <span className="muted">
+                Informs Science, Social Studies, Bible Reading and Literature and Creative Writing.
+              </span>
+            ) : null}
+            {diagnostic.test ? null : <span className="muted">Older result</span>}
+          </div>
+        );
+      },
     },
     {
       id: 'recorded',
@@ -379,18 +459,34 @@ export function PaceInventoryClient() {
       id: 'action',
       header: 'Action',
       render: (diagnostic) => (
-        <Button
-          disabled={deleteDiagnostic.isPending}
-          onClick={() => {
-            deleteDiagnostic.reset();
-            setPendingDiagnosticId(diagnostic.id);
-          }}
-          size="sm"
-          type="button"
-          variant="danger"
-        >
-          Delete diagnostic
-        </Button>
+        <>
+          {diagnostic.placement &&
+          diagnostic.placement.learningGaps.length > 0 &&
+          diagnostic.placement.performanceLevelPace !== null ? (
+            <Button
+              onClick={() => {
+                openGapSetup(diagnostic);
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Set up Gap PACEs
+            </Button>
+          ) : null}
+          <Button
+            disabled={deleteDiagnostic.isPending}
+            onClick={() => {
+              deleteDiagnostic.reset();
+              setPendingDiagnosticId(diagnostic.id);
+            }}
+            size="sm"
+            type="button"
+            variant="danger"
+          >
+            Delete diagnostic
+          </Button>
+        </>
       ),
     },
   ];
@@ -751,42 +847,25 @@ export function PaceInventoryClient() {
               tabIndex={0}
               hidden={diagnosticTab !== 'results'}
             >
-              <div className="form-grid form-grid--two">
-                <Field label="Student">
-                  <SelectInput
-                    value={selectedStudentId}
-                    onChange={(event) => {
-                      chooseStudent(event.target.value);
-                    }}
-                  >
-                    {students.map((row) => (
-                      <option key={row.id} value={row.id}>
-                        {row.fullName} · {row.yearGroup}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <Field label="Assigned subject">
-                  <SelectInput
-                    value={selectedSubjectId}
-                    disabled={!student || student.subjects.length === 0}
-                    onChange={(event) => {
-                      chooseSubject(event.target.value);
-                    }}
-                  >
-                    {student?.subjects.map((row) => (
-                      <option key={row.subjectId} value={row.subjectId}>
-                        {formatAssignment(row)} · Current {paceLabel(row.currentPaceNumber)}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
-              </div>
+              <Field label="Student">
+                <SelectInput
+                  value={selectedStudentId}
+                  onChange={(event) => {
+                    chooseStudent(event.target.value);
+                  }}
+                >
+                  {students.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.fullName} · {row.yearGroup}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
               <PaceDiagnosticForm
-                disabled={!student || !assignment}
+                disabled={!student}
                 onSubmit={recordSelectedDiagnostic}
                 pending={recordDiagnostic.isPending}
-                selectionLabel={`${student?.fullName ?? 'Select a student'} · ${formatAssignment(assignment)}`}
+                selectionLabel={student?.fullName ?? 'Select a student'}
               />
               <DataTable
                 columns={diagnosticColumns}
@@ -853,7 +932,12 @@ export function PaceInventoryClient() {
                 </Field>
               </div>
               {activeTab === 'diagnostics' && diagnosticTab === 'gaps' ? (
-                <PaceGapPlanPanel studentId={selectedStudentId} subjectId={selectedSubjectId} />
+                <PaceGapPlanPanel
+                  initialGaps={prefillForGaps?.gaps}
+                  initialJumpTo={prefillForGaps?.jumpTo}
+                  studentId={selectedStudentId}
+                  subjectId={selectedSubjectId}
+                />
               ) : null}
             </div>
           </div>
