@@ -138,6 +138,13 @@ enum DiagnosticOutcome {
   Fail
 }
 
+enum DiagnosticTest {
+  Math
+  English
+  WordBuilding
+  Reading
+}
+
 model User {
   id                                String                        @id @default(cuid())
   clerkId                           String                        @unique
@@ -1128,23 +1135,30 @@ model StudentPaceSupply {
 }
 
 model DiagnosticResult {
-  id           String            @id @default(cuid())
-  studentId    String
-  subjectId    String
-  level        Int
-  outcome      DiagnosticOutcome
-  recordedById String
-  recordedAt   DateTime          @default(now())
-  createdAt    DateTime          @default(now())
-  deletedAt    DateTime?
-  deletedById  String?
+  id                   String             @id @default(cuid())
+  studentId            String
+  // Null only for Reading, which is not a subject. Null `test` marks a legacy level result.
+  subjectId            String?
+  test                 DiagnosticTest?
+  level                Int?
+  outcome              DiagnosticOutcome?
+  attemptedPaceNumbers Int[]              @default([])
+  circledPaceNumbers   Int[]              @default([])
+  passedLevels         Int[]              @default([])
+  failedLevels         Int[]              @default([])
+  recordedById         String
+  recordedAt           DateTime           @default(now())
+  createdAt            DateTime           @default(now())
+  deletedAt            DateTime?
+  deletedById          String?
 
-  student     Student @relation(fields: [studentId], references: [id])
-  subject     Subject @relation(fields: [subjectId], references: [id])
+  student     Student  @relation(fields: [studentId], references: [id])
+  subject     Subject? @relation(fields: [subjectId], references: [id])
   recordedBy  User    @relation("DiagnosticResultsRecorded", fields: [recordedById], references: [id])
   deletedBy   User?   @relation("DiagnosticResultsDeleted", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([studentId, subjectId, recordedAt])
+  @@index([studentId, test, recordedAt])
   @@index([deletedAt])
   @@index([deletedById])
 }

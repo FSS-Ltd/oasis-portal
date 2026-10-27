@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canOpenAcademicInventory,
-  diagnosticPlacementLabel,
+  describePlacement,
   nextOrderStatus,
 } from './staff-academic-inventory-utils';
 
@@ -13,8 +13,16 @@ describe('staff academic inventory helpers', () => {
     expect(canOpenAcademicInventory(undefined)).toBe(false);
   });
 
-  it('formats diagnostic placement labels', () => {
-    expect(diagnosticPlacementLabel(2)).toBe('Level 2 starts at PACE #1013');
+  it('describes the derived placement in the printed sheet wording', () => {
+    expect(describePlacement({ learningGaps: [1008], performanceLevelPace: 1015 })).toBe(
+      'Learning gaps: PACEs # 1008. Advance from PACE # 1015.',
+    );
+    expect(describePlacement({ learningGaps: [], performanceLevelPace: 1027 })).toBe(
+      'Learning gaps: none. Advance from PACE # 1027.',
+    );
+    expect(describePlacement({ learningGaps: [1008, 1010], performanceLevelPace: null })).toBe(
+      'Learning gaps: PACEs # 1008, 1010. Passed every PACE.',
+    );
   });
 
   it('advances order status until delivery', () => {

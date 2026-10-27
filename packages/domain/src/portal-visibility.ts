@@ -2,3 +2,4 @@
 // Stored records and role permissions remain unchanged.
 export const CLUBS_VISIBLE: boolean = false;
 export const ROTA_VISIBLE: boolean = false;
+export const HOMEWORK_VISIBLE: boolean = false;

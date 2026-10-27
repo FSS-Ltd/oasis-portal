@@ -15,15 +15,15 @@ import {
   InventoryQuickOrderModal,
   InventoryStatusNotice,
   InventorySupplyStatus,
-  type DiagnosticLevel,
+  type DiagnosticSubmission,
   type InventoryStatusMessage,
 } from './staff-academic-inventory-components';
 import { InventoryStudentPicker, InventorySubjectPicker } from './staff-academic-inventory-pickers';
 import { InventoryOrderList } from './staff-academic-inventory-order-list';
-import { InventoryDiagnosticHistory } from './staff-academic-inventory-history';
+import { InventoryDiagnosticHistory, type DiagnosticRow } from './staff-academic-inventory-history';
 import {
   canOpenAcademicInventory,
-  diagnosticPlacementLabel,
+  describePlacement,
   nextOrderStatus,
   paceNumberValue,
 } from './staff-academic-inventory-utils';
@@ -34,7 +34,6 @@ type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
 type InventoryAssignment = InventoryStudent['subjects'][number];
 type InventoryOrder = InventorySummary['orders'][number];
-type DiagnosticOutcome = 'Fail' | 'Pass';
 type InventoryTab = 'attention' | 'planner' | 'orders' | 'diagnostics';
 const inventoryTabs: Array<{ id: InventoryTab; label: string }> = [
   { id: 'attention', label: 'Needs attention' },
@@ -88,9 +87,13 @@ export function StaffAcademicInventoryScreen({
   const [quickOrderError, setQuickOrderError] = useState<string | null>(null);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [diagnosticSubmitted, setDiagnosticSubmitted] = useState(false);
-  const [diagnosticLevel, setDiagnosticLevel] = useState<DiagnosticLevel>(1);
-  const [diagnosticOutcome, setDiagnosticOutcome] = useState<DiagnosticOutcome>('Pass');
   const [diagnosticTab, setDiagnosticTab] = useState<'results' | 'gaps'>('results');
+  const [gapPrefill, setGapPrefill] = useState<{
+    studentId: string;
+    subjectId: string;
+    gaps: number[];
+    jumpTo: number;
+  } | null>(null);
   const [activeTab, setActiveTab] = useState<InventoryTab>('attention');
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<InventoryStatusMessage | null>(null);
@@ -117,6 +120,11 @@ export function StaffAcademicInventoryScreen({
   );
   const selectedStudent = findStudent(students, selectedStudentId);
   const selectedAssignment = findAssignment(selectedStudent, selectedSubjectId);
+  const gapPrefillMatch =
+    gapPrefill?.studentId === selectedStudent?.id &&
+    gapPrefill?.subjectId === selectedAssignment?.subjectId
+      ? gapPrefill
+      : undefined;
   const quickOrderStudent = quickOrderTarget
     ? (students.find((student) => student.id === quickOrderTarget.studentId) ?? null)
     : null;
@@ -219,10 +227,18 @@ export function StaffAcademicInventoryScreen({
         tone: 'error',
       });
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (result) => {
       setDiagnosticSubmitted(false);
+      const levelPlacement = result.levelPlacement;
+      const summary = result.placement
+        ? describePlacement(result.placement)
+        : levelPlacement
+          ? levelPlacement.recommendedStartPace === null
+            ? 'Every level passed: review manually.'
+            : `First level failed: Level ${String(levelPlacement.firstFailedLevel)}. Recommended start: PACE # ${String(levelPlacement.recommendedStartPace)}.`
+          : 'Result saved.';
       setStatusMessage({
-        message: `Diagnostic result recorded (${diagnosticPlacementLabel(variables.level)}, ${variables.outcome.toLowerCase()}). This reference does not change PACE placement.`,
+        message: `Diagnostic result recorded. ${summary} This reference does not change PACE placement.`,
         tone: 'success',
       });
       await invalidateAcademicInventory();
@@ -247,14 +263,7 @@ export function StaffAcademicInventoryScreen({
     setStatusMessage(null);
   }
 
-  function changeDiagnosticLevel(level: DiagnosticLevel) {
-    setDiagnosticLevel(level);
-    setDiagnosticSubmitted(false);
-    setStatusMessage(null);
-  }
-
-  function changeDiagnosticOutcome(outcome: DiagnosticOutcome) {
-    setDiagnosticOutcome(outcome);
+  function clearDiagnosticFeedback() {
     setDiagnosticSubmitted(false);
     setStatusMessage(null);
   }
@@ -326,16 +335,25 @@ export function StaffAcademicInventoryScreen({
     );
   }
 
-  function submitDiagnostic() {
+  function submitDiagnostic(submission: DiagnosticSubmission | null) {
     setDiagnosticSubmitted(true);
     setStatusMessage(null);
-    if (!selectedStudent || !selectedAssignment) return;
-    recordDiagnostic.mutate({
-      level: diagnosticLevel,
-      outcome: diagnosticOutcome,
-      studentId: selectedStudent.id,
-      subjectId: selectedAssignment.subjectId,
+    if (!selectedStudent || !submission) return;
+    recordDiagnostic.mutate({ studentId: selectedStudent.id, ...submission });
+  }
+
+  function setUpGapPaces(result: DiagnosticRow) {
+    const placement = result.placement;
+    if (!result.subjectId || !placement || placement.performanceLevelPace === null) return;
+    setSelectedStudentId(result.studentId);
+    setSelectedSubjectId(result.subjectId);
+    setGapPrefill({
+      studentId: result.studentId,
+      subjectId: result.subjectId,
+      gaps: placement.learningGaps,
+      jumpTo: placement.performanceLevelPace,
     });
+    setDiagnosticTab('gaps');
   }
 
   function advanceOrder(order: InventoryOrder) {
@@ -552,23 +570,22 @@ export function StaffAcademicInventoryScreen({
                 </View>
                 <View style={diagnosticTab === 'results' ? undefined : styles.hidden}>
                   <InventoryDiagnosticCard
-                    assignment={selectedAssignment}
-                    level={diagnosticLevel}
-                    onChangeLevel={changeDiagnosticLevel}
-                    onChangeOutcome={changeDiagnosticOutcome}
+                    onEdit={clearDiagnosticFeedback}
                     onSubmit={submitDiagnostic}
-                    outcome={diagnosticOutcome}
                     pending={recordDiagnostic.isPending}
                     student={selectedStudent}
                     submitted={diagnosticSubmitted}
                   />
                   <InventoryDiagnosticHistory
                     enabled={diagnosticTab === 'results'}
+                    onSetUpGaps={setUpGapPaces}
                     students={students}
                   />
                 </View>
                 <View style={diagnosticTab === 'gaps' ? undefined : styles.hidden}>
                   <StaffAcademicGapPlan
+                    initialGaps={gapPrefillMatch?.gaps}
+                    initialJumpTo={gapPrefillMatch?.jumpTo}
                     studentId={selectedStudent?.id ?? ''}
                     subjectId={selectedAssignment?.subjectId ?? ''}
                   />

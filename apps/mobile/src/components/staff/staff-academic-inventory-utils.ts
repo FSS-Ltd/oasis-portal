@@ -2,8 +2,18 @@ export function canOpenAcademicInventory(user: { role?: string } | undefined): b
   return user?.role === 'Head';
 }
 
-export function diagnosticPlacementLabel(level: number): string {
-  return `Level ${String(level)} starts at PACE #${String(1001 + (level - 1) * 12)}`;
+export function describePlacement(placement: {
+  learningGaps: readonly number[];
+  performanceLevelPace: number | null;
+}): string {
+  const gaps = placement.learningGaps.length
+    ? `PACEs # ${placement.learningGaps.join(', ')}`
+    : 'none';
+  const advance =
+    placement.performanceLevelPace === null
+      ? 'Passed every PACE.'
+      : `Advance from PACE # ${String(placement.performanceLevelPace)}.`;
+  return `Learning gaps: ${gaps}. ${advance}`;
 }
 
 export function paceNumberValue(value: string): number | null {

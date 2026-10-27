@@ -56,9 +56,14 @@ interface OrderRow {
 interface DiagnosticRow {
   id: string;
   studentId: string;
-  subjectId: string;
-  level: number;
-  outcome: 'Pass' | 'Fail';
+  subjectId: string | null;
+  test: 'Math' | 'English' | 'WordBuilding' | 'Reading' | null;
+  level: number | null;
+  outcome: 'Pass' | 'Fail' | null;
+  attemptedPaceNumbers: number[];
+  circledPaceNumbers: number[];
+  passedLevels: number[];
+  failedLevels: number[];
   recordedById: string;
   recordedAt: Date;
   createdAt: Date;
@@ -79,8 +84,26 @@ interface SupplyRow {
 
 type DiagnosticCreateData = Pick<
   DiagnosticRow,
-  'studentId' | 'subjectId' | 'level' | 'outcome' | 'recordedById'
+  | 'studentId'
+  | 'subjectId'
+  | 'test'
+  | 'level'
+  | 'outcome'
+  | 'attemptedPaceNumbers'
+  | 'circledPaceNumbers'
+  | 'passedLevels'
+  | 'failedLevels'
+  | 'recordedById'
 >;
+type DiagnosticOrClause = { studentId: string | { in: string[] }; subjectId?: string | null };
+
+function matchesDiagnosticClause(row: DiagnosticRow, clause: DiagnosticOrClause): boolean {
+  const studentMatches =
+    typeof clause.studentId === 'string'
+      ? row.studentId === clause.studentId
+      : clause.studentId.in.includes(row.studentId);
+  return studentMatches && (clause.subjectId === undefined || row.subjectId === clause.subjectId);
+}
 type OrderCreateData = Pick<OrderRow, 'studentId' | 'subjectId' | 'paceNumber' | 'createdById'> & {
   status: 'Ordered';
 };
@@ -180,6 +203,17 @@ const defaultStudents: StudentRow[] = [
   },
 ];
 
+/** The printed example chart: gaps 1008, advance from PACE 1015. */
+function englishChart(overrides: Record<string, unknown> = {}) {
+  return {
+    studentId: STUDENT_ID,
+    test: 'English' as const,
+    attemptedPaceNumbers: Array.from({ length: 17 }, (_, index) => 1001 + index),
+    circledPaceNumbers: [1008, 1015, 1016, 1017],
+    ...overrides,
+  };
+}
+
 function cloneStudents(students: StudentRow[]): StudentRow[] {
   return students.map((student) => ({
     ...student,
@@ -268,23 +302,13 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
       }),
     },
     diagnosticResult: {
-      count: vi.fn(
-        ({
-          where,
-        }: {
-          where: { deletedAt: null; OR: Array<{ studentId: string; subjectId: string }> };
-        }) =>
-          Promise.resolve(
-            diagnostics.filter(
-              (row) =>
-                !row.deletedAt &&
-                where.OR.some(
-                  (assignment) =>
-                    row.studentId === assignment.studentId &&
-                    row.subjectId === assignment.subjectId,
-                ),
-            ).length,
-          ),
+      count: vi.fn(({ where }: { where: { deletedAt: null; OR: DiagnosticOrClause[] } }) =>
+        Promise.resolve(
+          diagnostics.filter(
+            (row) =>
+              !row.deletedAt && where.OR.some((clause) => matchesDiagnosticClause(row, clause)),
+          ).length,
+        ),
       ),
       create: vi.fn(({ data }: { data: DiagnosticCreateData }) => {
         const now = new Date();
@@ -311,7 +335,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
           skip?: number;
           where?: {
             deletedAt?: null;
-            OR?: Array<{ studentId: string; subjectId: string }>;
+            OR?: DiagnosticOrClause[];
           };
         } = {}) => {
           const rows = sortDiagnosticRows(
@@ -320,11 +344,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
                 if (where?.deletedAt !== undefined && diagnostic.deletedAt) return false;
                 return (
                   !where?.OR ||
-                  where.OR.some(
-                    (assignment) =>
-                      diagnostic.studentId === assignment.studentId &&
-                      diagnostic.subjectId === assignment.subjectId,
-                  )
+                  where.OR.some((clause) => matchesDiagnosticClause(diagnostic, clause))
                 );
               })
               .reverse(),
@@ -645,12 +665,18 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         }: {
           where: {
             studentId: string;
-            subjectId: string;
+            subjectId?: string;
             subject?: { code?: { in: string[] } };
           };
         }) => {
           const student = students.find((candidate) => candidate.id === where.studentId);
-          const assignment = findAssignment(where.studentId, where.subjectId);
+          const assignment = where.subjectId
+            ? findAssignment(where.studentId, where.subjectId)
+            : student?.subjects.find(
+                (candidate) =>
+                  candidate.subject.active &&
+                  (where.subject?.code?.in.includes(candidate.subject.code) ?? true),
+              );
           return Promise.resolve(
             student?.active &&
               assignment?.subject.active &&
@@ -920,15 +946,7 @@ describe('academic inventory router', () => {
       caller.academicInventory.markOrdersInTransit({ orderIds: ['order_1'] }),
       'FORBIDDEN',
     );
-    await expectCode(
-      caller.academicInventory.recordDiagnostic({
-        studentId: STUDENT_ID,
-        subjectId: SUBJECT_ID,
-        level: 2,
-        outcome: 'Fail',
-      }),
-      'FORBIDDEN',
-    );
+    await expectCode(caller.academicInventory.recordDiagnostic(englishChart()), 'FORBIDDEN');
     await expectCode(
       caller.academicInventory.deleteDiagnostic({ diagnosticId: 'diagnostic_1' }),
       'FORBIDDEN',
@@ -965,15 +983,7 @@ describe('academic inventory router', () => {
     assignment.subject.active = false;
     const { caller, diagnostics } = makeCaller(HEAD, students);
 
-    await expectCode(
-      caller.academicInventory.recordDiagnostic({
-        studentId: STUDENT_ID,
-        subjectId: SUBJECT_ID,
-        level: 2,
-        outcome: 'Fail',
-      }),
-      'BAD_REQUEST',
-    );
+    await expectCode(caller.academicInventory.recordDiagnostic(englishChart()), 'BAD_REQUEST');
 
     expect(diagnostics).toHaveLength(0);
   });
@@ -1482,7 +1492,7 @@ describe('academic inventory router', () => {
     ]);
   });
 
-  it('keeps low supply visible while PACEs are ordered or in transit', async () => {
+  it('hides a student once their remaining PACEs are all supplied or ordered', async () => {
     const students = cloneStudents(defaultStudents);
     const assignment = students[0]?.subjects[0];
     if (!assignment) throw new Error('expected assignment fixture');
@@ -1500,20 +1510,55 @@ describe('academic inventory router', () => {
       },
     ]);
 
+    // 1142-1144 are all that is left in the catalogue, so ordering 1144 covers everything.
     const outstandingOrder = await createOrder(caller, { paceNumber: 1144 });
-    const orderedSummary = await caller.academicInventory.summary();
-    expect(orderedSummary.alerts[0]?.pendingOrders).toMatchObject([
-      { id: outstandingOrder.id, paceNumber: 1144, status: 'Ordered' },
-    ]);
-    expect(orderedSummary.alerts[0]?.pendingOrders[0]?.orderedAt).toBeInstanceOf(Date);
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
     await caller.academicInventory.updateOrderStatus({
       orderId: outstandingOrder.id,
       status: 'InTransit',
     });
     summary = await caller.academicInventory.summary();
-    expect(summary.alerts[0]?.pendingOrders).toMatchObject([
-      { id: outstandingOrder.id, paceNumber: 1144, status: 'InTransit' },
+    expect(summary.alerts).toEqual([]);
+  });
+
+  it('hides a student once three future PACEs are ordered and keeps them listed at two', async () => {
+    const students = cloneStudents(defaultStudents);
+    const { caller } = makeCaller(HEAD, students);
+
+    const first = await createOrder(caller, { paceNumber: 1012 });
+    await createOrder(caller, { paceNumber: 1013 });
+    let summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toMatchObject([{ studentId: STUDENT_ID, remainingPaceCount: 0 }]);
+    expect(summary.alerts[0]?.pendingOrders.map(({ paceNumber }) => paceNumber).sort()).toEqual([
+      1012, 1013,
     ]);
+
+    await createOrder(caller, { paceNumber: 1014 });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
+
+    // Delivery moves an order into supply; coverage is unchanged.
+    await caller.academicInventory.updateOrderStatus({ orderId: first.id, status: 'InTransit' });
+    await caller.academicInventory.updateOrderStatus({ orderId: first.id, status: 'Delivered' });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
+  });
+
+  it('hides a student at the end of the catalogue once the last PACEs are ordered', async () => {
+    const students = cloneStudents(defaultStudents);
+    const assignment = students[0]?.subjects[0];
+    if (!assignment) throw new Error('expected assignment fixture');
+    assignment.currentPaceNumber = 1142;
+    const { caller } = makeCaller(HEAD, students);
+
+    await createOrder(caller, { paceNumber: 1143 });
+    let summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toHaveLength(1);
+
+    await createOrder(caller, { paceNumber: 1144 });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
   });
 
   it('returns every outstanding order while bounding delivered history', async () => {
@@ -1603,8 +1648,13 @@ describe('academic inventory router', () => {
         id: `diagnostic-${String(index).padStart(3, '0')}`,
         studentId: STUDENT_ID,
         subjectId: SUBJECT_ID,
+        test: null,
         level: (index % 5) + 1,
         outcome: index % 2 === 0 ? 'Pass' : 'Fail',
+        attemptedPaceNumbers: [],
+        circledPaceNumbers: [],
+        passedLevels: [],
+        failedLevels: [],
         recordedById: HEAD.id,
         recordedAt,
         createdAt: recordedAt,
@@ -1757,8 +1807,13 @@ describe('academic inventory router', () => {
       id: 'custom-diagnostic',
       studentId: STUDENT_ID,
       subjectId: 'subject_custom',
+      test: null,
       level: 1,
       outcome: 'Pass',
+      attemptedPaceNumbers: [],
+      circledPaceNumbers: [],
+      passedLevels: [],
+      failedLevels: [],
       recordedById: HEAD.id,
       recordedAt: now,
       createdAt: now,
@@ -1850,8 +1905,13 @@ describe('academic inventory router', () => {
       id: 'historic-diagnostic',
       studentId: STUDENT_ID,
       subjectId: SUBJECT_2_ID,
+      test: null,
       level: 2,
       outcome: 'Pass',
+      attemptedPaceNumbers: [],
+      circledPaceNumbers: [],
+      passedLevels: [],
+      failedLevels: [],
       recordedById: HEAD.id,
       recordedAt: now,
       createdAt: now,
@@ -1907,18 +1967,20 @@ describe('academic inventory router', () => {
     ]);
   });
 
-  it('records a diagnostic without changing the assignment PACE', async () => {
+  it('records a PACE chart without changing the assignment PACE', async () => {
     const { auditInsideRls, caller, db, diagnostics, rejectDirectProtectedAccess, withRls } =
       makeCaller(HEAD);
 
-    const result = await caller.academicInventory.recordDiagnostic({
-      studentId: STUDENT_ID,
-      subjectId: SUBJECT_ID,
-      level: 2,
-      outcome: 'Fail',
-    });
+    const result = await caller.academicInventory.recordDiagnostic(englishChart());
 
-    expect(result).toMatchObject({ level: 2, outcome: 'Fail' });
+    expect(result).toMatchObject({
+      test: 'English',
+      subjectId: SUBJECT_ID,
+      level: null,
+      outcome: null,
+      circledPaceNumbers: [1008, 1015, 1016, 1017],
+      placement: { learningGaps: [1008], performanceLevelPace: 1015 },
+    });
     expect(diagnostics).toHaveLength(1);
     expect(withRls).toHaveBeenCalledOnce();
     expect(rejectDirectProtectedAccess).not.toHaveBeenCalled();
@@ -1929,19 +1991,165 @@ describe('academic inventory router', () => {
         action: 'Create',
         entity: 'DiagnosticResult',
         entityId: 'diagnostic_1',
+        meta: {
+          test: 'English',
+          subjectId: SUBJECT_ID,
+          circledPaceNumbers: [1008, 1015, 1016, 1017],
+        },
       },
     });
     expect(auditInsideRls).toEqual([true]);
   });
 
+  it('rejects a chart for a subject the student is not assigned', async () => {
+    const { caller, diagnostics } = makeCaller(HEAD);
+
+    await expectCode(
+      caller.academicInventory.recordDiagnostic(englishChart({ test: 'Math' })),
+      'BAD_REQUEST',
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  const sitting = (
+    test: 'Reading' | 'WordBuilding',
+    results: Array<[number, 'Pass' | 'Fail']>,
+  ) => ({
+    studentId: STUDENT_ID,
+    test,
+    levelResults: results.map(([level, outcome]) => ({ level, outcome })),
+  });
+
+  it('records a Word Building sitting against its assigned subject in one save', async () => {
+    const students = cloneStudents(defaultStudents);
+    students[0]?.subjects.push({
+      id: 'assignment_wb',
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_2_ID,
+      currentPaceNumber: 1001,
+      subject: { id: SUBJECT_2_ID, code: 'WB', name: 'Word Building', active: true },
+    });
+    const { caller, db, diagnostics } = makeCaller(HEAD, students);
+
+    const result = await caller.academicInventory.recordDiagnostic(
+      sitting('WordBuilding', [
+        [2, 'Pass'],
+        [3, 'Fail'],
+        [4, 'Fail'],
+      ]),
+    );
+
+    expect(result).toMatchObject({
+      test: 'WordBuilding',
+      subjectId: SUBJECT_2_ID,
+      level: null,
+      outcome: null,
+      passedLevels: [2],
+      failedLevels: [3, 4],
+      placement: null,
+      levelPlacement: { firstFailedLevel: 3, recommendedStartPace: 1025, review: null },
+    });
+    expect(diagnostics).toHaveLength(1);
+    expect(callArgs(db.auditLog.create)).toMatchObject({
+      data: { meta: { test: 'WordBuilding', passedLevels: [2], failedLevels: [3, 4] } },
+    });
+  });
+
+  it('rejects levels a test does not assess and repeated levels', async () => {
+    const { caller, diagnostics } = makeCaller(HEAD);
+
+    await expectCode(
+      caller.academicInventory.recordDiagnostic(sitting('WordBuilding', [[1, 'Pass']])),
+      'BAD_REQUEST',
+    );
+    await expectCode(
+      caller.academicInventory.recordDiagnostic(sitting('Reading', [[9, 'Fail']])),
+      'BAD_REQUEST',
+    );
+    await expectCode(
+      caller.academicInventory.recordDiagnostic(
+        sitting('Reading', [
+          [2, 'Pass'],
+          [2, 'Fail'],
+        ]),
+      ),
+      'BAD_REQUEST',
+    );
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('rejects Word Building when the student is not assigned it', async () => {
+    const { caller, diagnostics } = makeCaller(HEAD);
+
+    await expectCode(
+      caller.academicInventory.recordDiagnostic(sitting('WordBuilding', [[3, 'Fail']])),
+      'BAD_REQUEST',
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it('records a Reading sitting without a subject and places it at the first failed level', async () => {
+    const { caller, diagnostics } = makeCaller(HEAD);
+
+    const result = await caller.academicInventory.recordDiagnostic(
+      sitting('Reading', [
+        [1, 'Pass'],
+        [2, 'Pass'],
+        [3, 'Pass'],
+        [4, 'Fail'],
+      ]),
+    );
+
+    expect(result).toMatchObject({
+      test: 'Reading',
+      subjectId: null,
+      passedLevels: [1, 2, 3],
+      failedLevels: [4],
+      levelPlacement: { firstFailedLevel: 4, recommendedStartPace: 1037, review: null },
+    });
+    expect(diagnostics).toHaveLength(1);
+    const summary = await caller.academicInventory.summary();
+    expect(summary.diagnostics).toMatchObject([
+      { test: 'Reading', subjectId: null, levelPlacement: { recommendedStartPace: 1037 } },
+    ]);
+    const history = await caller.academicInventory.diagnosticsHistory({ page: 1, pageSize: 10 });
+    expect(history.rows).toMatchObject([{ test: 'Reading', failedLevels: [4] }]);
+    expect(history.totalRows).toBe(1);
+  });
+
+  it('flags an all-pass Reading sitting for review without a recommendation', async () => {
+    const { caller } = makeCaller(HEAD);
+
+    const result = await caller.academicInventory.recordDiagnostic(
+      sitting('Reading', [
+        [1, 'Pass'],
+        [2, 'Pass'],
+      ]),
+    );
+
+    expect(result.levelPlacement).toEqual({
+      firstFailedLevel: null,
+      recommendedStartPace: null,
+      review: 'allPassed',
+    });
+  });
+
+  it('returns the derived placement for chart rows in history', async () => {
+    const { caller } = makeCaller(HEAD);
+    await caller.academicInventory.recordDiagnostic(englishChart());
+
+    const history = await caller.academicInventory.diagnosticsHistory({ page: 1, pageSize: 10 });
+
+    expect(history.rows).toMatchObject([
+      { test: 'English', placement: { learningGaps: [1008], performanceLevelPace: 1015 } },
+    ]);
+  });
+
   it('soft-deletes a recorded diagnostic without touching the assignment', async () => {
     const { auditInsideRls, caller, db, diagnostics } = makeCaller(HEAD);
-    const diagnostic = await caller.academicInventory.recordDiagnostic({
-      studentId: STUDENT_ID,
-      subjectId: SUBJECT_ID,
-      level: 2,
-      outcome: 'Fail',
-    });
+    const diagnostic = await caller.academicInventory.recordDiagnostic(englishChart());
 
     const result = await caller.academicInventory.deleteDiagnostic({ diagnosticId: diagnostic.id });
 
@@ -1960,12 +2168,7 @@ describe('academic inventory router', () => {
 
   it('does not audit when another Head deletes a diagnostic first', async () => {
     const { caller, db } = makeCaller(HEAD);
-    const diagnostic = await caller.academicInventory.recordDiagnostic({
-      studentId: STUDENT_ID,
-      subjectId: SUBJECT_ID,
-      level: 2,
-      outcome: 'Fail',
-    });
+    const diagnostic = await caller.academicInventory.recordDiagnostic(englishChart());
     db.auditLog.create.mockClear();
     db.diagnosticResult.updateMany.mockResolvedValueOnce({ count: 0 });
 

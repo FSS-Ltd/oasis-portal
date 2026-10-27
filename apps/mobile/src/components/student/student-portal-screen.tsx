@@ -1,3 +1,4 @@
+import { HOMEWORK_VISIBLE } from '@oasis/domain/portal-visibility';
 import { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -111,8 +112,14 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     },
     { retry: false },
   );
-  const studentHomeworkDue = api.homework.studentDue.useQuery(undefined, { retry: false });
-  const studentHomeworkGraded = api.homework.studentGraded.useQuery(undefined, { retry: false });
+  const studentHomeworkDue = api.homework.studentDue.useQuery(undefined, {
+    enabled: HOMEWORK_VISIBLE,
+    retry: false,
+  });
+  const studentHomeworkGraded = api.homework.studentGraded.useQuery(undefined, {
+    enabled: HOMEWORK_VISIBLE,
+    retry: false,
+  });
   const studentNotifications = api.studentNotification.list.useQuery(undefined, { retry: false });
   const studentNotificationUnread = api.studentNotification.unreadCount.useQuery(undefined, {
     retry: false,
@@ -194,6 +201,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   }, [timetableTermKey, timetableTerms.data]);
 
   async function refreshHomework() {
+    if (!HOMEWORK_VISIBLE) return;
     await Promise.all([studentHomeworkDue.refetch(), studentHomeworkGraded.refetch()]);
   }
 
@@ -206,8 +214,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         academicScreensEnabled && studentId.length > 0 ? studentPace.refetch() : Promise.resolve(),
         academicScreensEnabled ? studentAttendance.refetch() : Promise.resolve(),
         studentLeaderboard.refetch(),
-        studentHomeworkDue.refetch(),
-        studentHomeworkGraded.refetch(),
+        HOMEWORK_VISIBLE ? studentHomeworkDue.refetch() : Promise.resolve(),
+        HOMEWORK_VISIBLE ? studentHomeworkGraded.refetch() : Promise.resolve(),
         studentNotifications.refetch(),
         studentNotificationUnread.refetch(),
         activeTab === 'wallet' ? titheStatus.refetch() : Promise.resolve(),

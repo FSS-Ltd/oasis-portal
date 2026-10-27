@@ -10,11 +10,20 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { availablePacesAhead } from '@oasis/domain';
+import {
+  availablePacesAhead,
+  derivePacePlacement,
+  diagnosticLevelsFor,
+  firstPaceOfLevel,
+  isDiagnosticChartTest,
+  placementFromLevels,
+  type DiagnosticTest,
+} from '@oasis/domain';
 import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, Field, MobileButton, MutedText } from '../core/mobile-ui';
-import { diagnosticPlacementLabel, paceNumberValue } from './staff-academic-inventory-utils';
+import { StaffDiagnosticChart } from './staff-academic-diagnostic-chart';
+import { describePlacement, paceNumberValue } from './staff-academic-inventory-utils';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
@@ -23,8 +32,22 @@ type InventoryAlert = InventorySummary['alerts'][number];
 type DiagnosticOutcome = 'Fail' | 'Pass';
 export type InventoryStatusMessage = { message: string; tone: 'error' | 'success' };
 
-export const diagnosticLevels = [1, 2, 3, 4, 5] as const;
-export type DiagnosticLevel = (typeof diagnosticLevels)[number];
+const diagnosticTestOptions: ReadonlyArray<{ value: DiagnosticTest; label: string }> = [
+  { value: 'Math', label: 'Math' },
+  { value: 'English', label: 'English' },
+  { value: 'WordBuilding', label: 'Word Building' },
+  { value: 'Reading', label: 'Reading' },
+];
+const FIRST_PACE = 1001;
+const LAST_PACE = 1144;
+/** The chart opens on the first row of twelve and is extended as far as the student got. */
+const INITIAL_LAST_PACE = 1012;
+export type DiagnosticSubmission =
+  | { test: 'Math' | 'English'; attemptedPaceNumbers: number[]; circledPaceNumbers: number[] }
+  | {
+      test: 'WordBuilding' | 'Reading';
+      levelResults: Array<{ level: number; outcome: DiagnosticOutcome }>;
+    };
 const diagnosticOutcomes: DiagnosticOutcome[] = ['Pass', 'Fail'];
 
 function assignmentLabel(assignment: InventoryAssignment): string {
@@ -376,72 +399,209 @@ export function InventoryQuickOrderModal({
 }
 
 export function InventoryDiagnosticCard({
-  assignment,
-  level,
-  onChangeLevel,
-  onChangeOutcome,
+  onEdit,
   onSubmit,
-  outcome,
   pending,
   student,
   submitted,
 }: {
-  assignment: InventoryAssignment | null;
-  level: DiagnosticLevel;
-  onChangeLevel: (level: DiagnosticLevel) => void;
-  onChangeOutcome: (outcome: DiagnosticOutcome) => void;
-  onSubmit: () => void;
-  outcome: DiagnosticOutcome;
+  onEdit: () => void;
+  onSubmit: (submission: DiagnosticSubmission | null) => void;
   pending: boolean;
   student: InventoryStudent | null;
   submitted: boolean;
 }) {
+  const [test, setTest] = useState<DiagnosticTest>('Math');
+  const [levelOutcomes, setLevelOutcomes] = useState<Record<number, DiagnosticOutcome>>({});
+  const [lastPace, setLastPace] = useState(INITIAL_LAST_PACE);
+  const [circled, setCircled] = useState<number[]>([]);
+  const chartTest = isDiagnosticChartTest(test);
+  const levelTest = test === 'Reading' || test === 'WordBuilding' ? test : null;
+  const levels = levelTest ? diagnosticLevelsFor(levelTest) : [];
+  const recorded = levels.flatMap((level) => {
+    const outcome = levelOutcomes[level];
+    return outcome ? [{ level, outcome }] : [];
+  });
+  const levelPlacement =
+    levelTest && recorded.length > 0
+      ? placementFromLevels(
+          levelTest,
+          recorded.filter((row) => row.outcome === 'Pass').map((row) => row.level),
+          recorded.filter((row) => row.outcome === 'Fail').map((row) => row.level),
+        )
+      : null;
+  const attempted = Array.from({ length: lastPace - FIRST_PACE + 1 }, (_, i) => FIRST_PACE + i);
+  const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
+  const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
   const validation = !student
     ? 'Select a student.'
-    : !assignment
-      ? 'Select an assigned subject.'
+    : levelTest && recorded.length === 0
+      ? 'Mark Pass or Fail for at least one level.'
       : null;
+
+  function chooseOutcome(level: number, outcome: DiagnosticOutcome) {
+    onEdit();
+    setLevelOutcomes((current) =>
+      // Choosing the active button again clears the level (not tested).
+      current[level] === outcome
+        ? Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== level))
+        : { ...current, [level]: outcome },
+    );
+  }
+
+  function submit() {
+    // A null submission lets the screen show the validation message.
+    if (validation) {
+      onSubmit(null);
+      return;
+    }
+    if (test === 'Math' || test === 'English') {
+      onSubmit({
+        test,
+        attemptedPaceNumbers: attempted,
+        circledPaceNumbers: [...circledInRange].sort((a, b) => a - b),
+      });
+      return;
+    }
+    onSubmit({ test, levelResults: recorded });
+  }
+
   return (
     <Card style={styles.compactCard}>
-      <Text style={styles.cardTitle}>Diagnostic placement</Text>
-      <MutedText>
-        Uses {student?.fullName ?? 'the selected student'} and{' '}
-        {assignment ? assignmentLabel(assignment) : 'the selected subject'}.
-      </MutedText>
-      <Text style={styles.fieldLabel}>Level</Text>
+      <Text style={styles.cardTitle}>Diagnostic test</Text>
+      <MutedText>Records a result for {student?.fullName ?? 'the selected student'}.</MutedText>
+      <Text style={styles.fieldLabel}>Test</Text>
       <View style={styles.segmentedRow}>
-        {diagnosticLevels.map((value) => (
+        {diagnosticTestOptions.map((option) => (
           <SegmentButton
-            active={level === value}
+            active={test === option.value}
             disabled={pending}
-            key={value}
-            label={String(value)}
+            key={option.value}
+            label={option.label}
             onPress={() => {
-              onChangeLevel(value);
+              onEdit();
+              setTest(option.value);
+              // Each test assesses its own levels, so start with a clean sheet.
+              setLevelOutcomes({});
             }}
           />
         ))}
       </View>
-      <MutedText>{diagnosticPlacementLabel(level)}</MutedText>
-      <Text style={styles.fieldLabel}>Outcome</Text>
-      <View style={styles.segmentedRow}>
-        {diagnosticOutcomes.map((value) => (
-          <SegmentButton
-            active={outcome === value}
+      {chartTest ? (
+        <>
+          <MutedText>
+            Tap every PACE scored below the minimum to circle it. Extend the chart to the last PACE
+            attempted.
+          </MutedText>
+          <StaffDiagnosticChart
+            attempted={attempted}
+            circled={circledInRange}
             disabled={pending}
-            key={value}
-            label={value}
-            onPress={() => {
-              onChangeOutcome(value);
+            onToggle={(paceNumber) => {
+              onEdit();
+              setCircled((current) =>
+                current.includes(paceNumber)
+                  ? current.filter((value) => value !== paceNumber)
+                  : [...current, paceNumber],
+              );
             }}
           />
-        ))}
-      </View>
+          <View style={styles.segmentedRow}>
+            <MobileButton
+              compact
+              disabled={pending || lastPace >= LAST_PACE}
+              label="Add next 12 PACEs"
+              onPress={() => {
+                onEdit();
+                setLastPace((current) => Math.min(LAST_PACE, current + 12));
+              }}
+              variant="secondary"
+            />
+            <MobileButton
+              compact
+              disabled={pending || lastPace >= LAST_PACE}
+              label="Add next PACE"
+              onPress={() => {
+                onEdit();
+                setLastPace((current) => Math.min(LAST_PACE, current + 1));
+              }}
+              variant="secondary"
+            />
+            <MobileButton
+              compact
+              disabled={pending || lastPace <= FIRST_PACE}
+              label="Remove last PACE"
+              onPress={() => {
+                onEdit();
+                setLastPace((current) => Math.max(FIRST_PACE, current - 1));
+              }}
+              variant="secondary"
+            />
+          </View>
+          <MutedText>
+            Attempted: PACEs {String(FIRST_PACE)}–{String(lastPace)} ({String(attempted.length)})
+          </MutedText>
+          {placement ? (
+            <Text accessibilityLiveRegion="polite" style={styles.fieldLabel}>
+              {describePlacement(placement)}
+            </Text>
+          ) : null}
+        </>
+      ) : levelTest ? (
+        <>
+          {test === 'Reading' ? (
+            <MutedText>
+              Reading is not a subject. Its result informs Science, Social Studies, Bible Reading
+              and Literature and Creative Writing.
+            </MutedText>
+          ) : (
+            <MutedText>Level 9 is Etymology.</MutedText>
+          )}
+          <MutedText>Mark Pass or Fail for each level tested, then save once.</MutedText>
+          {levels.map((level) => (
+            <View accessibilityLabel={`Level ${String(level)}`} key={level} style={styles.levelRow}>
+              <Text style={styles.levelName}>Level {String(level)}</Text>
+              <View style={styles.levelChoices}>
+                {diagnosticOutcomes.map((value) => (
+                  <SegmentButton
+                    active={levelOutcomes[level] === value}
+                    disabled={pending}
+                    key={value}
+                    label={value}
+                    onPress={() => {
+                      chooseOutcome(level, value);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          ))}
+          <Text accessibilityLiveRegion="polite" style={styles.fieldLabel}>
+            {levelPlacement?.firstFailedLevel !== null &&
+            levelPlacement?.firstFailedLevel !== undefined
+              ? `First level failed: Level ${String(levelPlacement.firstFailedLevel)}. Recommended start: PACE # ${String(levelPlacement.recommendedStartPace)} (first PACE of Level ${String(levelPlacement.firstFailedLevel)}, ${String(firstPaceOfLevel(levelPlacement.firstFailedLevel))}–${String(firstPaceOfLevel(levelPlacement.firstFailedLevel) + 11)}). Provisional: review the full diagnostic report.`
+              : levelPlacement
+                ? 'Recommended start: none. Every level tested passed, so review the full diagnostic report manually.'
+                : 'Recommended start appears once you mark the levels. It begins at the first PACE of the first level failed.'}
+          </Text>
+          {levelPlacement?.review === 'conflict' ? (
+            <ErrorText>
+              A higher level passed after a failed one. Results conflict, so review the full
+              diagnostic report manually.
+            </ErrorText>
+          ) : null}
+          {test === 'Reading' && levelPlacement?.firstFailedLevel === 1 ? (
+            <MutedText>
+              Level 1 may need ABCs with Ace and Christi or a readiness assessment.
+            </MutedText>
+          ) : null}
+        </>
+      ) : null}
       {submitted && validation ? <ErrorText>{validation}</ErrorText> : null}
       <MobileButton
         disabled={pending}
         label={pending ? 'Recording diagnostic...' : 'Record diagnostic'}
-        onPress={onSubmit}
+        onPress={submit}
         variant="navy"
       />
     </Card>
@@ -550,6 +710,19 @@ const styles = StyleSheet.create({
   segmentButtonActive: { backgroundColor: C.navy, borderColor: C.navy },
   segmentButtonDisabled: { opacity: 0.45 },
   segmentedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  levelRow: {
+    alignItems: 'center',
+    borderColor: C.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+    padding: 8,
+  },
+  levelName: { color: C.navy, fontSize: 14, fontWeight: '700' },
+  levelChoices: { flexDirection: 'row', gap: 8 },
   segmentText: { color: C.textSecondary, fontSize: 12, fontWeight: '900' },
   segmentTextActive: { color: C.surface },
   statusNotice: { borderRadius: 10, borderWidth: 1, padding: 12 },

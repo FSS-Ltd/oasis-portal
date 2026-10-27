@@ -1,6 +1,6 @@
 'use client';
 
-import { CLUBS_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
+import { CLUBS_VISIBLE, HOMEWORK_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -198,7 +198,7 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
   if (item.label === 'Community') return access.fullAdmin;
   if (item.label === 'Leaderboard') return access.canUseAdminOperations;
   if (item.label === 'Clubs') return CLUBS_VISIBLE && access.canManageClubs;
-  if (item.label === 'Homework') return access.fullAdmin;
+  if (item.label === 'Homework') return HOMEWORK_VISIBLE && access.fullAdmin;
   if (item.label === 'Permission Slips') return access.canManagePermissionSlips;
   if (item.label === 'Invoices') return access.fullAdmin || access.canManageInvoices;
   if (item.label === 'Merit Shop') return access.fullAdmin || access.canUseShop;

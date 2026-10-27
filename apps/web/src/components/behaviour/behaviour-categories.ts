@@ -10,11 +10,7 @@ export const meritCategories = [
   'Creativity',
 ] as const;
 
-export const clubMeritCategories = [
-  ...meritCategories,
-  'Homework',
-  'General Club Merit',
-] as const;
+export const clubMeritCategories = [...meritCategories, 'General Club Merit'] as const;
 
 export const demeritCategories = [
   'Conduct',

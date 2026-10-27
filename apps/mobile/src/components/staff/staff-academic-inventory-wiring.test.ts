@@ -113,17 +113,42 @@ describe('staff academic inventory mobile wiring', () => {
     expect(screen).toMatch(/<\/ScrollView>[\s\S]*<View style={styles\.bulkFooter}>/);
   });
 
-  it('clears stale feedback when diagnostic controls change', () => {
+  it('clears stale feedback when the diagnostic sheet is edited', () => {
     const screen = readStaffComponent('staff-academic-inventory-screen.tsx');
 
     expect(screen).toMatch(
-      /function changeDiagnosticLevel[\s\S]*?setDiagnosticLevel[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
+      /function clearDiagnosticFeedback[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
     );
+    expect(screen).toMatch(/onEdit={clearDiagnosticFeedback}/);
+  });
+
+  it('records chart tests for Math and English and level tests for Word Building and Reading', () => {
+    const components = readStaffComponent('staff-academic-inventory-components.tsx');
+    const screen = readStaffComponent('staff-academic-inventory-screen.tsx');
+    const history = readStaffComponent('staff-academic-inventory-history.tsx');
+    const gapPlan = readStaffComponent('staff-academic-gap-plan.tsx');
+
+    for (const label of ['Math', 'English', 'Word Building', 'Reading']) {
+      expect(components).toContain(`label: '${label}'`);
+    }
+    expect(components).toMatch(/diagnosticLevelsFor\(/);
+    expect(components).toMatch(/placementFromLevels\(/);
+    expect(components).toMatch(/levelResults/);
+    expect(components).toMatch(/First level failed/);
+    expect(components).toMatch(/Recommended start/);
+    expect(components).toMatch(/Level 9 is Etymology/);
+    expect(components).toMatch(/derivePacePlacement\(/);
+    expect(components).not.toMatch(/label="First PACE"/);
+    expect(components).toMatch(/Add next 12 PACEs/);
+    expect(components).toMatch(/Add next PACE/);
+    expect(components).toMatch(/Remove last PACE/);
+    expect(components).toMatch(/Reading is not a subject/);
     expect(screen).toMatch(
-      /function changeDiagnosticOutcome[\s\S]*?setDiagnosticOutcome[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
+      /recordDiagnostic\.mutate\(\{ studentId: selectedStudent\.id, \.\.\.submission \}\)/,
     );
-    expect(screen).toMatch(/onChangeLevel={changeDiagnosticLevel}/);
-    expect(screen).toMatch(/onChangeOutcome={changeDiagnosticOutcome}/);
+    expect(history).toMatch(/Set up Gap PACEs/);
+    expect(screen).toMatch(/initialGaps={gapPrefillMatch\?\.gaps}/);
+    expect(gapPlan).toMatch(/initialGaps\?: readonly number\[\] \| undefined/);
   });
 
   it('locks diagnostic choices while a result is pending', () => {
@@ -137,7 +162,10 @@ describe('staff academic inventory mobile wiring', () => {
       components.indexOf('const styles'),
     );
 
-    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(3);
+    // Test, chart, each level's Pass/Fail, and the submit button.
+    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(4);
+    // The chart extend and trim buttons also lock while pending.
+    expect(diagnosticCard.match(/disabled={pending \|\|/g)).toHaveLength(3);
     expect(segmentButton).toMatch(/disabled: boolean/);
     expect(segmentButton).toMatch(/accessibilityState={{ disabled, selected: active }}/);
     expect(segmentButton).toMatch(/disabled={disabled}/);

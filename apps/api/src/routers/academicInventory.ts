@@ -4,7 +4,10 @@ import {
   bulkPaceInventoryOrderInput,
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
+  derivePacePlacement,
+  placementFromLevels,
   diagnosticResultInput,
+  type DiagnosticTest,
   markPaceOrdersInTransitInput,
   markPaceOrdersDeliveredInput,
   PACE_CATALOGUE,
@@ -54,9 +57,100 @@ const ORDER_SUMMARY_SELECT = {
   updatedAt: true,
 } as const;
 
-const createOrderInput = diagnosticResultInput
-  .pick({ studentId: true, subjectId: true })
-  .extend({ paceNumber: paceInventoryOrderInput.shape.paceNumber });
+const createOrderInput = z.object({
+  studentId: z.string().trim().min(1),
+  subjectId: z.string().trim().min(1),
+  paceNumber: paceInventoryOrderInput.shape.paceNumber,
+});
+
+const DIAGNOSTIC_SELECT = {
+  id: true,
+  studentId: true,
+  subjectId: true,
+  test: true,
+  level: true,
+  outcome: true,
+  attemptedPaceNumbers: true,
+  circledPaceNumbers: true,
+  passedLevels: true,
+  failedLevels: true,
+  recordedById: true,
+  recordedAt: true,
+  createdAt: true,
+} as const;
+
+/** Subject codes a student may be assigned for each subject-based diagnostic test. */
+const DIAGNOSTIC_SUBJECT_CODES = {
+  Math: ['MATH', 'MA'],
+  English: ['ENG', 'EN'],
+  WordBuilding: ['WB', 'CUSTOM-WORD-BUILDING'],
+} as const satisfies Record<Exclude<DiagnosticTest, 'Reading'>, readonly string[]>;
+
+const DIAGNOSTIC_TEST_LABELS: Record<DiagnosticTest, string> = {
+  Math: 'Math',
+  English: 'English',
+  WordBuilding: 'Word Building',
+  Reading: 'Reading',
+};
+
+/**
+ * Derived placement: chart rows carry Learning Gaps and a Performance Level; Reading and Word
+ * Building sittings carry the first failed level and its recommended start PACE.
+ */
+function withPlacement<
+  Row extends {
+    test: DiagnosticTest | null;
+    attemptedPaceNumbers: number[];
+    circledPaceNumbers: number[];
+    passedLevels: number[];
+    failedLevels: number[];
+  },
+>(row: Row) {
+  const sitting =
+    (row.test === 'Reading' || row.test === 'WordBuilding') &&
+    row.passedLevels.length + row.failedLevels.length > 0;
+  return {
+    ...row,
+    placement:
+      row.attemptedPaceNumbers.length > 0
+        ? derivePacePlacement(row.attemptedPaceNumbers, row.circledPaceNumbers)
+        : null,
+    levelPlacement:
+      sitting && (row.test === 'Reading' || row.test === 'WordBuilding')
+        ? placementFromLevels(row.test, row.passedLevels, row.failedLevels)
+        : null,
+  };
+}
+
+/** Diagnostics for active assignments, plus subject-less Reading results for their students. */
+function diagnosticVisibility(
+  assignments: ReadonlyArray<{ studentId: string; subjectId: string }>,
+) {
+  const studentIds = [...new Set(assignments.map(({ studentId }) => studentId))];
+  return [...assignments, { studentId: { in: studentIds }, subjectId: null }];
+}
+
+async function resolveDiagnosticSubjectId(
+  tx: RlsTx,
+  studentId: string,
+  test: Exclude<DiagnosticTest, 'Reading'>,
+): Promise<string> {
+  const assignment = await tx.studentSubject.findFirst({
+    where: {
+      studentId,
+      student: { active: true },
+      subject: { active: true, code: { in: [...DIAGNOSTIC_SUBJECT_CODES[test]] } },
+    },
+    select: { subjectId: true },
+  });
+  if (!assignment) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `Assign ${DIAGNOSTIC_TEST_LABELS[test]} to this student before recording its diagnostic.`,
+    });
+  }
+  return assignment.subjectId;
+}
 
 const pageInput = z.object({
   page: z.number().int().min(1).default(1),
@@ -260,18 +354,9 @@ export const academicInventoryRouter = router({
           input?.includeHistory === false
             ? Promise.resolve([])
             : tx.diagnosticResult.findMany({
-                where: { deletedAt: null, OR: activeAssignments },
+                where: { deletedAt: null, OR: diagnosticVisibility(activeAssignments) },
                 orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
-                select: {
-                  id: true,
-                  studentId: true,
-                  subjectId: true,
-                  level: true,
-                  outcome: true,
-                  recordedById: true,
-                  recordedAt: true,
-                  createdAt: true,
-                },
+                select: DIAGNOSTIC_SELECT,
               }),
           tx.studentPaceSupply.findMany({
             where: { OR: activeAssignments },
@@ -372,7 +457,18 @@ export const academicInventoryRouter = router({
           const availablePaceNumbers = gapPlan
             ? supplied.filter((paceNumber) => allowedPaces?.has(paceNumber))
             : availablePacesAhead(assignment.currentPaceNumber, supplied);
-          if (!requiresPaceReorder(assignment.currentPaceNumber, availablePaceNumbers)) {
+          // PACEs already ordered or in transit count as covered, so the student drops off
+          // the list once everything they still need has been ordered.
+          const remainingInCatalogue = (allowedPaces ? [...allowedPaces] : PACE_CATALOGUE).filter(
+            (paceNumber) => paceNumber > assignment.currentPaceNumber,
+          ).length;
+          if (
+            !requiresPaceReorder(
+              assignment.currentPaceNumber,
+              [...availablePaceNumbers, ...pendingOrders.map(({ paceNumber }) => paceNumber)],
+              remainingInCatalogue,
+            )
+          ) {
             return [];
           }
           return [
@@ -410,7 +506,7 @@ export const academicInventoryRouter = router({
       return {
         students: decryptedStudents,
         orders,
-        diagnostics,
+        diagnostics: diagnostics.map((row) => withPlacement(row)),
         supply,
         alerts,
         orderCountsByStudent: orderCounts,
@@ -454,7 +550,7 @@ export const academicInventoryRouter = router({
     .query(({ ctx, input }) =>
       ctx.withRls(async (tx) => {
         const assignments = await activeInventoryAssignments(tx);
-        const where = { OR: assignments, deletedAt: null };
+        const where = { OR: diagnosticVisibility(assignments), deletedAt: null };
         const [totalRows, rows] = await Promise.all([
           tx.diagnosticResult.count({ where }),
           tx.diagnosticResult.findMany({
@@ -462,20 +558,11 @@ export const academicInventoryRouter = router({
             orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
             skip: (input.page - 1) * input.pageSize,
             take: input.pageSize,
-            select: {
-              id: true,
-              studentId: true,
-              subjectId: true,
-              level: true,
-              outcome: true,
-              recordedById: true,
-              recordedAt: true,
-              createdAt: true,
-            },
+            select: DIAGNOSTIC_SELECT,
           }),
         ]);
         return {
-          rows,
+          rows: rows.map((row) => withPlacement(row)),
           totalRows,
           page: input.page,
           pageSize: input.pageSize,
@@ -800,16 +887,36 @@ export const academicInventoryRouter = router({
     .input(diagnosticResultInput)
     .mutation(async ({ ctx, input }) => {
       return ctx.withRls(async (tx) => {
-        await requireAssignment(tx, input);
-        const diagnostic = await tx.diagnosticResult.create({
-          data: {
-            studentId: input.studentId,
-            subjectId: input.subjectId,
-            level: input.level,
-            outcome: input.outcome,
-            recordedById: ctx.user.id,
-          },
-        });
+        let subjectId: string | null = null;
+        if (input.test === 'Reading') {
+          // Reading is not a subject; it only needs an active student with ACE work.
+          if ((await activeInventoryAssignments(tx, input.studentId)).length === 0) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
+          }
+        } else {
+          subjectId = await resolveDiagnosticSubjectId(tx, input.studentId, input.test);
+        }
+        const sortedLevels = (outcome: 'Pass' | 'Fail') =>
+          'levelResults' in input
+            ? input.levelResults
+                .filter((result) => result.outcome === outcome)
+                .map((result) => result.level)
+                .sort((a, b) => a - b)
+            : [];
+        const chart = 'attemptedPaceNumbers' in input;
+        const data = {
+          studentId: input.studentId,
+          subjectId,
+          test: input.test,
+          level: null,
+          outcome: null,
+          attemptedPaceNumbers: chart ? [...input.attemptedPaceNumbers].sort((a, b) => a - b) : [],
+          circledPaceNumbers: chart ? [...input.circledPaceNumbers].sort((a, b) => a - b) : [],
+          passedLevels: sortedLevels('Pass'),
+          failedLevels: sortedLevels('Fail'),
+          recordedById: ctx.user.id,
+        };
+        const diagnostic = await tx.diagnosticResult.create({ data });
         await tx.auditLog.create({
           data: {
             userId: ctx.user.id,
@@ -817,14 +924,19 @@ export const academicInventoryRouter = router({
             entity: 'DiagnosticResult',
             entityId: diagnostic.id,
             meta: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-              level: input.level,
-              outcome: input.outcome,
+              studentId: data.studentId,
+              subjectId: data.subjectId,
+              test: data.test,
+              level: data.level,
+              outcome: data.outcome,
+              attemptedPaceNumbers: data.attemptedPaceNumbers,
+              circledPaceNumbers: data.circledPaceNumbers,
+              passedLevels: data.passedLevels,
+              failedLevels: data.failedLevels,
             },
           },
         });
-        return diagnostic;
+        return withPlacement(diagnostic);
       });
     }),
 

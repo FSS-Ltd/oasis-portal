@@ -1,14 +1,10 @@
 'use client';
 
-import { Clock, Mail, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
+import { Clock, Mail } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
-import { api } from '@/lib/trpc';
+import { PendingInviteDeleteAction } from '../_components/pending-invite-delete-action';
 import { PendingInviteResendAction } from '../_components/pending-invite-resend-action';
 import { formatAccountDate, type AccessInvitation } from './access-account-model';
 
@@ -23,19 +19,6 @@ function emailStatusLabel(status: AccessInvitation['emailStatus']): string {
 }
 
 export function AccessPendingInvitePanel({ invitation }: AccessPendingInvitePanelProps) {
-  const utils = api.useUtils();
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const deleteInvitation = api.admin.deleteUserInvitation.useMutation({
-    async onSuccess() {
-      await utils.admin.listUserInvitations.invalidate();
-      setDeleteOpen(false);
-      showSuccessToast('Pending invitation deleted.');
-    },
-    onError(error) {
-      showErrorToast(error, 'Invitation could not be deleted.');
-    },
-  });
-
   return (
     <>
       <section className="person-profile person-profile--supervisor">
@@ -84,37 +67,11 @@ export function AccessPendingInvitePanel({ invitation }: AccessPendingInvitePane
             </div>
             <div className="pending-invite-actions">
               <PendingInviteResendAction invitationId={invitation.id} />
-              <Button
-                onClick={() => {
-                  setDeleteOpen(true);
-                }}
-                pending={deleteInvitation.isPending}
-                size="sm"
-                type="button"
-                variant="danger"
-              >
-                <Trash2 aria-hidden="true" size={15} />
-                Delete invitation
-              </Button>
+              <PendingInviteDeleteAction invitationId={invitation.id} email={invitation.email} />
             </div>
           </div>
         </section>
       </section>
-      <ConfirmationDialog
-        confirmLabel="Delete invitation"
-        errorMessage={deleteInvitation.error ? friendlyErrorMessage(deleteInvitation.error) : undefined}
-        onCancel={() => {
-          if (!deleteInvitation.isPending) setDeleteOpen(false);
-        }}
-        onConfirm={() => {
-          deleteInvitation.mutate({ id: invitation.id });
-        }}
-        open={deleteOpen}
-        pending={deleteInvitation.isPending}
-        title={`Delete invitation for ${invitation.email}?`}
-      >
-        <p>This revokes the pending Clerk invitation when possible and removes the local invite row.</p>
-      </ConfirmationDialog>
     </>
   );
 }

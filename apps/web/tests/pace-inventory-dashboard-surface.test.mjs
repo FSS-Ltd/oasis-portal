@@ -122,8 +122,7 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(pickerSource, /Unavailable/);
   assert.match(pickerSource, /Starting after PACE #\$\{String\(currentPaceNumber\)\}/);
   assert.match(diagnosticFormSource, /<form/);
-  assert.match(diagnosticFormSource, /label="Level"/);
-  assert.match(diagnosticFormSource, /label="Outcome"/);
+  assert.match(diagnosticFormSource, /<fieldset className="pace-levels">/);
   assert.match(diagnosticFormSource, /Record diagnostic/);
   assert.match(diagnosticFormSource, /It does not change the student&apos;s current PACE\./);
 });
@@ -176,9 +175,9 @@ test('Needs attention groups by child and lets the order modal select a subject'
 
   assert.match(clientSource, /function groupAlertsByStudent\([\s\S]*groupedAlerts\s*\.slice\(/);
   assert.match(clientSource, /setQuickOrderTarget\(\{[\s\S]*studentId: group\.studentId/);
-  assert.match(modalSource, /onSubmit: \(subjectId: string, paceNumbers: number\[\]\)/);
+  assert.match(modalSource, /onSubmit: \(orders: PaceInventoryOrderRequest\[\]\)/);
   assert.match(modalSource, /<Field label="Subject">[\s\S]*<SelectInput/);
-  assert.match(modalSource, /onSubmit\(subject\.subjectId, paceNumbers\)/);
+  assert.match(modalSource, /onSubmit\(orders\)/);
   assert.match(clientSource, /<PaceInventoryOrderModal/);
   assert.match(clientSource, /aria-label={`Create order for/);
   assert.match(modalSource, /<dialog[\s\S]*aria-labelledby=/);

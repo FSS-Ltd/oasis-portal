@@ -193,7 +193,7 @@ function CompletedWorkTab() {
         <UploadCloud aria-hidden="true" size={30} />
         <span>
           <strong>Completed work uploads are coming soon.</strong>
-          <small>This area is reserved for homework, worksheets, and club project evidence.</small>
+          <small>This area is reserved for worksheets and club project evidence.</small>
         </span>
         <Button disabled type="button" variant="secondary">
           Upload disabled

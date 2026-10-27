@@ -4,12 +4,15 @@ import { Clock, Mail, ShieldCheck } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { permissionTagLabel, roleLabel } from '@/lib/profile-display';
+import { PendingInviteDeleteAction } from '../../_components/pending-invite-delete-action';
 import { PendingInviteResendAction } from '../../_components/pending-invite-resend-action';
 import type { InvitationRow } from './people-profile-model';
 import { formatDate } from './people-profile-model';
 
 interface PendingInviteProfilePanelProps {
   invitation: InvitationRow;
+  /** Delete is limited to full admins and Technical Support. */
+  canDeleteInvitation: boolean;
 }
 
 function emailStatusLabel(status: InvitationRow['emailStatus']): string {
@@ -18,7 +21,10 @@ function emailStatusLabel(status: InvitationRow['emailStatus']): string {
   return 'Email queued';
 }
 
-export function PendingInviteProfilePanel({ invitation }: PendingInviteProfilePanelProps) {
+export function PendingInviteProfilePanel({
+  invitation,
+  canDeleteInvitation,
+}: PendingInviteProfilePanelProps) {
   return (
     <section className="person-profile person-profile--supervisor">
       <section className="profile-hero">
@@ -79,7 +85,12 @@ export function PendingInviteProfilePanel({ invitation }: PendingInviteProfilePa
               This person appears here until they accept the invite.
             </span>
           </div>
-          <PendingInviteResendAction invitationId={invitation.id} />
+          <div className="pending-invite-actions">
+            <PendingInviteResendAction invitationId={invitation.id} />
+            {canDeleteInvitation ? (
+              <PendingInviteDeleteAction invitationId={invitation.id} email={invitation.email} />
+            ) : null}
+          </div>
         </div>
       </section>
     </section>
