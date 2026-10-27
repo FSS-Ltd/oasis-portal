@@ -13537,20 +13537,10 @@ button.library-book-card:focus-visible {
   margin-top: 16px;
 }
 
-.pace-inventory-pagination .field {
-  min-width: 90px;
-}
-.pace-inventory-orders__filters .field {
-  flex: 1 1 180px;
-}
-.pace-inventory-orders {
-  padding-bottom: 90px;
-}
-.pace-inventory-order-group {
-  margin-top: 10px;
-  border: 1px solid var(--oasis-border);
-  border-radius: 8px;
-}
+.pace-inventory-pagination .field { min-width: 90px; }
+.pace-inventory-orders__filters .field { flex: 1 1 180px; }
+.pace-inventory-orders { padding-bottom: 90px; }
+.pace-inventory-order-group { margin-top: 10px; border: 1px solid var(--oasis-border); border-radius: 8px; }
 .pace-inventory-order-group__trigger {
   display: flex;
   width: 100%;
@@ -13565,12 +13555,7 @@ button.library-book-card:focus-visible {
   text-align: left;
   cursor: pointer;
 }
-.pace-inventory-order-group__body {
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  border-top: 1px solid var(--oasis-border);
-}
+.pace-inventory-order-group__body { display: grid; gap: 10px; padding: 14px; border-top: 1px solid var(--oasis-border); }
 .pace-inventory-bulk-bar {
   position: fixed;
   z-index: 20;
@@ -13587,11 +13572,7 @@ button.library-book-card:focus-visible {
   background: var(--oasis-surface);
   box-shadow: 0 8px 30px rgba(27, 43, 94, 0.16);
 }
-.pace-inventory-bulk-bar p {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--oasis-danger);
-}
+.pace-inventory-bulk-bar p { flex-basis: 100%; margin: 0; color: var(--oasis-danger); }
 
 .pace-inventory__planner-heading {
   display: grid;
@@ -13801,18 +13782,10 @@ button.library-book-card:focus-visible {
 }
 
 @media (max-width: 720px) {
-  .pace-inventory-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .pace-inventory-order-group__trigger {
-    flex-direction: column;
-  }
-  .pace-inventory-pagination .field {
-    flex-basis: 100%;
-  }
-  .pace-inventory-orders {
-    padding-bottom: 160px;
-  }
+  .pace-inventory-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pace-inventory-order-group__trigger { flex-direction: column; }
+  .pace-inventory-pagination .field { flex-basis: 100%; }
+  .pace-inventory-orders { padding-bottom: 160px; }
   .pace-inventory-alert-row {
     grid-template-columns: 1fr;
   }
@@ -13845,11 +13818,7 @@ button.library-book-card:focus-visible {
 }
 
 @media (max-width: 900px) {
-  .pace-inventory-bulk-bar {
-    left: 14px;
-    right: 14px;
-    bottom: calc(82px + env(safe-area-inset-bottom));
-  }
+  .pace-inventory-bulk-bar { left: 14px; right: 14px; bottom: calc(82px + env(safe-area-inset-bottom)); }
 }
 
 .inline-form,
