@@ -9,12 +9,29 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 type Summary = RouterOutputs['academicInventory']['gapPlansForAssignment'];
 type Plan = Summary['plans'][number];
 
+const LEVEL_SIZE = 12;
+const LEVELS = Array.from({ length: Math.ceil(PACE_CATALOGUE.length / LEVEL_SIZE) }, (_, i) => i);
+const FIRST_PACE = PACE_CATALOGUE[0] ?? 1001;
+const LAST_PACE = PACE_CATALOGUE[PACE_CATALOGUE.length - 1] ?? 1144;
+
+function levelIndexOf(paceNumber: number): number {
+  return Math.max(
+    0,
+    Math.min(LEVELS.length - 1, Math.floor((paceNumber - FIRST_PACE) / LEVEL_SIZE)),
+  );
+}
+
 export function PaceGapPlanPanel({
   studentId,
   subjectId,
+  initialGaps,
+  initialJumpTo,
 }: {
   studentId: string;
   subjectId: string;
+  /** Prefill for a new plan, e.g. from a diagnostic result. Ignored when a plan exists. */
+  initialGaps?: readonly number[];
+  initialJumpTo?: number;
 }) {
   const utils = api.useUtils();
   const enabled = Boolean(studentId && subjectId);
@@ -24,9 +41,8 @@ export function PaceGapPlanPanel({
   );
   const [selected, setSelected] = useState<number[]>([]);
   const [jumpTo, setJumpTo] = useState('');
-  const [page, setPage] = useState(0);
-  const [rangeFrom, setRangeFrom] = useState('');
-  const [rangeTo, setRangeTo] = useState('');
+  const [level, setLevel] = useState<number | null>(null);
+  const lastClicked = useRef<number | null>(null);
   const [message, setMessage] = useState('');
   const [conflict, setConflict] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Plan | null>(null);
@@ -36,6 +52,9 @@ export function PaceGapPlanPanel({
 
   const draftValues = useRef({ selected, jumpTo });
   draftValues.current = { selected, jumpTo };
+  const initialRef = useRef({ initialGaps, initialJumpTo });
+  initialRef.current = { initialGaps, initialJumpTo };
+  const initialKey = JSON.stringify([initialGaps ?? null, initialJumpTo ?? null]);
   const baseline = useRef<{
     identity: string;
     selected: number[];
@@ -124,11 +143,14 @@ export function PaceGapPlanPanel({
       samePlan &&
       JSON.stringify(draftValues.current.selected) !== JSON.stringify(previous.selected);
     const jumpDirty = samePlan && draftValues.current.jumpTo !== previous.jumpTo;
+    const prefill = plan ? undefined : initialRef.current;
     const nextSelected =
       plan?.items
         .filter((item) => !item.removed && !item.completed)
-        .map((item) => item.paceNumber) ?? [];
-    const nextJump = String(activePlan?.jumpToPaceNumber ?? query.data.currentPaceNumber);
+        .map((item) => item.paceNumber) ?? [...(prefill?.initialGaps ?? [])].sort((a, b) => a - b);
+    const nextJump = String(
+      activePlan?.jumpToPaceNumber ?? prefill?.initialJumpTo ?? query.data.currentPaceNumber,
+    );
     if (!selectedDirty) setSelected(nextSelected);
     if (!jumpDirty) setJumpTo(nextJump);
     baseline.current = {
@@ -146,10 +168,10 @@ export function PaceGapPlanPanel({
       setMessage('');
       setConflict(false);
       setCancelTarget(null);
-      setRangeFrom('');
-      setRangeTo('');
+      setLevel(null);
+      lastClicked.current = null;
     }
-  }, [studentId, subjectId, query.data, activePlan, reviewPlan, resetRevision]);
+  }, [studentId, subjectId, query.data, activePlan, reviewPlan, resetRevision, initialKey]);
 
   if (!enabled)
     return (
@@ -167,7 +189,6 @@ export function PaceGapPlanPanel({
     );
   if (!query.data) return null;
 
-  const visiblePaces = PACE_CATALOGUE.slice(page * 12, page * 12 + 12);
   const jumpNumber = Number(jumpTo);
   const sortedSelected = [...selected].sort((a, b) => a - b);
   const editablePlan: Plan | undefined = activePlan;
@@ -176,22 +197,45 @@ export function PaceGapPlanPanel({
     ...(reviewedPlan?.items.filter((item) => !item.removed).map((item) => item.paceNumber) ?? []),
     ...(sortedSelected.length ? sortedSelected : [0]),
   );
-  const addRange = () => {
-    const from = Number(rangeFrom);
-    const to = Number(rangeTo);
-    if (!Number.isInteger(from) || !Number.isInteger(to) || from > to || from < 1001 || to > 1144) {
-      setMessage('Choose a valid catalogue range from 1001 to 1144.');
-      return;
-    }
-    setSelected((current) =>
-      [
-        ...new Set([
-          ...current,
-          ...PACE_CATALOGUE.filter((pace) => pace >= from && pace <= to && !completed.has(pace)),
-        ]),
-      ].sort((a, b) => a - b),
-    );
-    setMessage('');
+  const lockedPaces = new Set([
+    ...completed,
+    ...(editablePlan?.items.filter((item) => !item.removed && item.completed) ?? []).map(
+      (item) => item.paceNumber,
+    ),
+  ]);
+  const activeLevel = level ?? levelIndexOf(query.data.currentPaceNumber);
+  const visiblePaces = PACE_CATALOGUE.slice(
+    activeLevel * LEVEL_SIZE,
+    activeLevel * LEVEL_SIZE + LEVEL_SIZE,
+  );
+  const selectedPerLevel = LEVELS.map(
+    (index) => sortedSelected.filter((pace) => levelIndexOf(pace) === index).length,
+  );
+  const afterLastGap = maxRetainedGap + 1;
+  let jumpProblem = '';
+  if (!Number.isInteger(jumpNumber) || jumpNumber < FIRST_PACE || jumpNumber > LAST_PACE) {
+    jumpProblem = `Enter a PACE between ${String(FIRST_PACE)} and ${String(LAST_PACE)}.`;
+  } else if (sortedSelected.some((pace) => pace >= jumpNumber)) {
+    jumpProblem = `Must be higher than the last gap (PACE ${String(maxRetainedGap)}).`;
+  } else if (completed.has(jumpNumber)) {
+    jumpProblem = `PACE ${String(jumpNumber)} is already completed. Choose an incomplete PACE.`;
+  }
+  const togglePace = (pace: number, shiftKey: boolean) => {
+    const anchor = lastClicked.current;
+    lastClicked.current = pace;
+    setSelected((current) => {
+      if (shiftKey && anchor !== null && anchor !== pace) {
+        const from = Math.min(anchor, pace);
+        const to = Math.max(anchor, pace);
+        const range = PACE_CATALOGUE.filter(
+          (value) => value >= from && value <= to && !lockedPaces.has(value),
+        );
+        return [...new Set([...current, ...range])].sort((a, b) => a - b);
+      }
+      return current.includes(pace)
+        ? current.filter((value) => value !== pace)
+        : [...current, pace].sort((a, b) => a - b);
+    });
   };
   const submit = () => {
     if (
@@ -278,116 +322,138 @@ export function PaceGapPlanPanel({
           remaining gap.
         </p>
       ) : null}
-      <div className="form-grid form-grid--two">
-        <label className="field">
-          <span className="field__label">Jump to PACE</span>
-          <select
-            className="input"
-            value={jumpTo}
-            disabled={busy}
-            onChange={(event) => {
-              setJumpTo(event.target.value);
-            }}
-          >
-            {PACE_CATALOGUE.filter((pace) => pace > maxRetainedGap).map((pace) => (
-              <option key={pace} value={pace} disabled={completed.has(pace)}>
-                {pace}
-                {completed.has(pace) ? ' · Already completed' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="field">
-          <span className="field__label">Select missing PACEs</span>
-          <div className="pace-gap__catalogue-nav">
-            <Button
+      <section className="pace-gap__step" aria-labelledby="pace-gap-step-gaps">
+        <h3 className="pace-gap__step-title" id="pace-gap-step-gaps">
+          <span aria-hidden="true">1</span> Missing PACEs
+        </h3>
+        <div className="pace-gap__levels" role="group" aria-label="PACE level">
+          {LEVELS.map((index) => (
+            <button
+              key={index}
               type="button"
-              size="sm"
-              variant="secondary"
-              disabled={page === 0}
+              className="pace-gap__level"
+              aria-current={index === activeLevel ? 'true' : undefined}
+              aria-label={`Level ${String(index + 1)}, PACEs ${String(FIRST_PACE + index * LEVEL_SIZE)} to ${String(FIRST_PACE + index * LEVEL_SIZE + LEVEL_SIZE - 1)}${selectedPerLevel[index] ? `, ${String(selectedPerLevel[index])} selected` : ''}`}
               onClick={() => {
-                setPage((value) => value - 1);
+                setLevel(index);
               }}
             >
-              Previous 12
-            </Button>
-            <span>
-              {visiblePaces[0]}–{visiblePaces[visiblePaces.length - 1]}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={(page + 1) * 12 >= PACE_CATALOGUE.length}
-              onClick={() => {
-                setPage((value) => value + 1);
-              }}
-            >
-              Next 12
-            </Button>
-          </div>
-          <div className="pace-gap__checks">
-            {visiblePaces.map((pace) => {
-              const locked =
-                completed.has(pace) ||
-                Boolean(
-                  editablePlan?.items.some(
-                    (item) => item.paceNumber === pace && !item.removed && item.completed,
-                  ),
-                );
-              return (
-                <label className="pace-gap__check" key={pace}>
-                  <input
-                    type="checkbox"
-                    checked={locked || selected.includes(pace)}
-                    disabled={locked || busy}
-                    onChange={(event) => {
-                      setSelected((current) =>
-                        event.target.checked
-                          ? [...new Set([...current, pace])].sort((a, b) => a - b)
-                          : current.filter((value) => value !== pace),
-                      );
-                    }}
-                  />
-                  <span>
-                    PACE {pace}
-                    {locked ? ' · Already completed' : ''}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+              L{index + 1}
+              {selectedPerLevel[index] ? (
+                <span className="pace-gap__level-count" aria-hidden="true">
+                  {selectedPerLevel[index]}
+                </span>
+              ) : null}
+            </button>
+          ))}
         </div>
-      </div>
-      <div className="pace-gap__range">
-        <label className="field">
-          <span className="field__label">From</span>
-          <input
-            className="input"
-            inputMode="numeric"
-            value={rangeFrom}
-            onChange={(event) => {
-              setRangeFrom(event.target.value);
-            }}
-            aria-label="Range start PACE"
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">To</span>
-          <input
-            className="input"
-            inputMode="numeric"
-            value={rangeTo}
-            onChange={(event) => {
-              setRangeTo(event.target.value);
-            }}
-            aria-label="Range end PACE"
-          />
-        </label>
-        <Button type="button" variant="secondary" onClick={addRange} disabled={busy}>
-          Add Range
-        </Button>
-      </div>
+        <div className="pace-gap__tiles">
+          {visiblePaces.map((pace) => {
+            const locked = lockedPaces.has(pace);
+            const picked = !locked && selected.includes(pace);
+            return (
+              <button
+                key={pace}
+                type="button"
+                className="pace-gap__tile"
+                aria-pressed={locked ? undefined : picked}
+                aria-label={`PACE ${String(pace)}${locked ? ', already completed' : picked ? ', gap' : ''}`}
+                data-state={locked ? 'done' : picked ? 'gap' : 'idle'}
+                disabled={locked || busy}
+                onClick={(event) => {
+                  togglePace(pace, event.shiftKey);
+                }}
+              >
+                {pace}
+                {locked ? (
+                  <span className="pace-gap__tile-mark" aria-hidden="true">
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <p className="field__hint">Tap a PACE to mark it as a gap. Shift-click selects a range.</p>
+        <div className="pace-gap__chips" aria-live="polite">
+          {sortedSelected.length ? (
+            <>
+              {sortedSelected.map((pace) => (
+                <button
+                  key={pace}
+                  type="button"
+                  className="pace-gap__chip"
+                  aria-label={`Remove PACE ${String(pace)}`}
+                  disabled={busy}
+                  onClick={() => {
+                    setSelected((current) => current.filter((value) => value !== pace));
+                  }}
+                >
+                  {pace} <span aria-hidden="true">✕</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="pace-gap__clear"
+                disabled={busy}
+                onClick={() => {
+                  setSelected([]);
+                }}
+              >
+                Clear all
+              </button>
+            </>
+          ) : (
+            <span className="field__hint">No gaps selected yet.</span>
+          )}
+        </div>
+      </section>
+
+      <section className="pace-gap__step" aria-labelledby="pace-gap-step-resume">
+        <h3 className="pace-gap__step-title" id="pace-gap-step-resume">
+          <span aria-hidden="true">2</span> Resume at PACE
+        </h3>
+        <div className="pace-gap__resume">
+          <label className="field">
+            <span className="field__label">After the gaps, continue from</span>
+            <input
+              className="input pace-gap__resume-input"
+              type="number"
+              inputMode="numeric"
+              min={Math.max(afterLastGap, FIRST_PACE)}
+              max={LAST_PACE}
+              value={jumpTo}
+              disabled={busy}
+              aria-invalid={sortedSelected.length > 0 && jumpProblem ? true : undefined}
+              aria-describedby="pace-gap-resume-hint"
+              onChange={(event) => {
+                setJumpTo(event.target.value);
+              }}
+            />
+          </label>
+          {sortedSelected.length > 0 && afterLastGap <= LAST_PACE && jumpNumber !== afterLastGap ? (
+            <button
+              type="button"
+              className="pace-gap__suggest"
+              disabled={busy}
+              onClick={() => {
+                setJumpTo(String(afterLastGap));
+              }}
+            >
+              Use PACE {afterLastGap} (after last gap)
+            </button>
+          ) : null}
+        </div>
+        <p
+          className={sortedSelected.length > 0 && jumpProblem ? 'pace-gap__error' : 'field__hint'}
+          id="pace-gap-resume-hint"
+          role={sortedSelected.length > 0 && jumpProblem ? 'alert' : undefined}
+        >
+          {sortedSelected.length > 0 && jumpProblem
+            ? jumpProblem
+            : 'Must be higher than every gap. The student jumps here once the gaps are done.'}
+        </p>
+      </section>
       <p className="pace-gap__preview" aria-live="polite">
         {sortedSelected.length
           ? `Complete ${sortedSelected.join(', ')}, then jump to ${String(jumpNumber) || '…'}. Saving starts PACE ${String(sortedSelected[0])}.`
