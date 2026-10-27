@@ -13528,7 +13528,6 @@ button.library-book-card:focus-visible {
   outline-offset: 2px;
 }
 
-.pace-inventory-pagination,
 .pace-inventory-orders__filters {
   display: flex;
   flex-wrap: wrap;
@@ -13537,7 +13536,28 @@ button.library-book-card:focus-visible {
   margin-top: 16px;
 }
 
-.pace-inventory-pagination .field { min-width: 90px; }
+.pace-inventory-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--oasis-border-light);
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+}
+.pace-inventory-pagination__summary strong,
+.pace-inventory-pagination__page { color: var(--oasis-navy); font-variant-numeric: tabular-nums; }
+.pace-inventory-pagination__controls,
+.pace-inventory-pagination__pager,
+.pace-inventory-pagination__size { display: flex; align-items: center; gap: 10px; }
+.pace-inventory-pagination__controls { flex-wrap: wrap; gap: 12px 20px; }
+.pace-inventory-pagination__size .input { width: auto; min-height: 36px; padding-block: 0; }
+.pace-inventory-pagination__page { min-width: 6.5em; font-weight: 600; text-align: center; }
+.pace-inventory-pagination .button { min-height: 36px; gap: 4px; white-space: nowrap; }
+.pace-inventory-pagination .button:disabled { cursor: not-allowed; opacity: 0.45; }
 .pace-inventory-orders__filters .field { flex: 1 1 180px; }
 .pace-inventory-orders { padding-bottom: 90px; }
 .pace-inventory-order-group { margin-top: 10px; border: 1px solid var(--oasis-border); border-radius: 8px; }
@@ -13784,7 +13804,11 @@ button.library-book-card:focus-visible {
 @media (max-width: 720px) {
   .pace-inventory-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pace-inventory-order-group__trigger { flex-direction: column; }
-  .pace-inventory-pagination .field { flex-basis: 100%; }
+  .pace-inventory-pagination,
+  .pace-inventory-pagination__controls { width: 100%; }
+  .pace-inventory-pagination__pager { width: 100%; justify-content: space-between; }
+  .pace-inventory-pagination__pager .button { flex: 1; justify-content: center; min-height: 44px; }
+  .pace-inventory-pagination__page { min-width: 0; }
   .pace-inventory-orders { padding-bottom: 160px; }
   .pace-inventory-alert-row {
     grid-template-columns: 1fr;

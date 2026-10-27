@@ -1,8 +1,9 @@
 'use client';
 
 import type { KeyboardEvent } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Field, SelectInput } from '@/components/ui/field';
+import { SelectInput } from '@/components/ui/field';
 
 export const inventoryTabs = [
   { id: 'attention', label: 'Needs attention' },
@@ -89,50 +90,63 @@ export function InventoryPagination({
   const end = Math.min(page * pageSize, total);
   return (
     <nav aria-label={`${label} pages`} className="pace-inventory-pagination">
-      <span aria-live="polite">
-        Showing {String(start)}–{String(end)} of {String(total)}
+      <span aria-live="polite" className="pace-inventory-pagination__summary">
+        Showing{' '}
+        <strong>
+          {String(start)}–{String(end)}
+        </strong>{' '}
+        of <strong>{String(total)}</strong>
       </span>
-      {onPageSizeChange ? (
-        <Field label="Per page">
-          <SelectInput
-            onChange={(event) => {
-              onPageSizeChange(Number(event.target.value));
+      <div className="pace-inventory-pagination__controls">
+        {onPageSizeChange ? (
+          <label className="pace-inventory-pagination__size">
+            <span>Per page</span>
+            <SelectInput
+              onChange={(event) => {
+                onPageSizeChange(Number(event.target.value));
+              }}
+              value={pageSize}
+            >
+              {[5, 10, 20].map((size) => (
+                <option key={size} value={size}>
+                  {String(size)}
+                </option>
+              ))}
+            </SelectInput>
+          </label>
+        ) : null}
+        <div className="pace-inventory-pagination__pager">
+          <Button
+            aria-label="Previous page"
+            disabled={page <= 1}
+            onClick={() => {
+              onPageChange(page - 1);
             }}
-            value={pageSize}
+            size="sm"
+            type="button"
+            variant="secondary"
           >
-            {[5, 10, 20].map((size) => (
-              <option key={size} value={size}>
-                {String(size)}
-              </option>
-            ))}
-          </SelectInput>
-        </Field>
-      ) : null}
-      <Button
-        disabled={page <= 1}
-        onClick={() => {
-          onPageChange(page - 1);
-        }}
-        size="sm"
-        type="button"
-        variant="secondary"
-      >
-        Previous
-      </Button>
-      <span>
-        {String(page)} / {String(totalPages)}
-      </span>
-      <Button
-        disabled={page >= totalPages}
-        onClick={() => {
-          onPageChange(page + 1);
-        }}
-        size="sm"
-        type="button"
-        variant="secondary"
-      >
-        Next
-      </Button>
+            <ChevronLeft aria-hidden="true" size={16} />
+            Previous
+          </Button>
+          <span className="pace-inventory-pagination__page">
+            Page {String(page)} of {String(totalPages)}
+          </span>
+          <Button
+            aria-label="Next page"
+            disabled={page >= totalPages}
+            onClick={() => {
+              onPageChange(page + 1);
+            }}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            Next
+            <ChevronRight aria-hidden="true" size={16} />
+          </Button>
+        </div>
+      </div>
     </nav>
   );
 }

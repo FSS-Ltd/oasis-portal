@@ -37,6 +37,15 @@ describe('academic inventory', () => {
     expect(requiresPaceReorder(1144, [])).toBe(false);
   });
 
+  it('stops alerting once every PACE left to order is covered', () => {
+    expect(requiresPaceReorder(1010, [1011, 1012, 1013], 134)).toBe(false);
+    expect(requiresPaceReorder(1010, [1011, 1012], 134)).toBe(true);
+    expect(requiresPaceReorder(1142, [1143], 2)).toBe(true);
+    expect(requiresPaceReorder(1142, [1143, 1144], 2)).toBe(false);
+    expect(requiresPaceReorder(1143, [1144], 1)).toBe(false);
+    expect(requiresPaceReorder(1143, [], 1)).toBe(true);
+  });
+
   it('validates Reading as Levels 1–8 and Word Building as Levels 2–9, Pass/Fail', () => {
     const base = { studentId: 'student_1', outcome: 'Pass' as const };
     const accepts = (test: 'Reading' | 'WordBuilding', level: number) =>
