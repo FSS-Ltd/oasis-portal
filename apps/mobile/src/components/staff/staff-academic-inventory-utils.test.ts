@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  attemptedPaceRange,
   canOpenAcademicInventory,
   describePlacement,
   nextOrderStatus,
@@ -12,16 +11,6 @@ describe('staff academic inventory helpers', () => {
     expect(canOpenAcademicInventory({ role: 'Head' })).toBe(true);
     expect(canOpenAcademicInventory({ role: 'Supervisor' })).toBe(false);
     expect(canOpenAcademicInventory(undefined)).toBe(false);
-  });
-
-  it('builds the attempted PACE range for a diagnostic chart', () => {
-    expect(attemptedPaceRange('1001', '1004')).toEqual([1001, 1002, 1003, 1004]);
-    expect(attemptedPaceRange(' 1143 ', '1144')).toEqual([1143, 1144]);
-    expect(attemptedPaceRange('1005', '1001')).toBeNull();
-    expect(attemptedPaceRange('1000', '1005')).toBeNull();
-    expect(attemptedPaceRange('1001', '1145')).toBeNull();
-    expect(attemptedPaceRange('1001', '')).toBeNull();
-    expect(attemptedPaceRange('10a1', '1004')).toBeNull();
   });
 
   it('describes the derived placement in the printed sheet wording', () => {

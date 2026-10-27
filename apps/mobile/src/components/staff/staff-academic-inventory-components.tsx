@@ -23,11 +23,7 @@ import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, Field, MobileButton, MutedText } from '../core/mobile-ui';
 import { StaffDiagnosticChart } from './staff-academic-diagnostic-chart';
-import {
-  attemptedPaceRange,
-  describePlacement,
-  paceNumberValue,
-} from './staff-academic-inventory-utils';
+import { describePlacement, paceNumberValue } from './staff-academic-inventory-utils';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
@@ -42,6 +38,10 @@ const diagnosticTestOptions: ReadonlyArray<{ value: DiagnosticTest; label: strin
   { value: 'WordBuilding', label: 'Word Building' },
   { value: 'Reading', label: 'Reading' },
 ];
+const FIRST_PACE = 1001;
+const LAST_PACE = 1144;
+/** The chart opens on the first row of twelve and is extended as far as the student got. */
+const INITIAL_LAST_PACE = 1012;
 export type DiagnosticSubmission =
   | { test: 'Math' | 'English'; attemptedPaceNumbers: number[]; circledPaceNumbers: number[] }
   | {
@@ -413,8 +413,7 @@ export function InventoryDiagnosticCard({
 }) {
   const [test, setTest] = useState<DiagnosticTest>('Math');
   const [levelOutcomes, setLevelOutcomes] = useState<Record<number, DiagnosticOutcome>>({});
-  const [firstPace, setFirstPace] = useState('1001');
-  const [lastPace, setLastPace] = useState('');
+  const [lastPace, setLastPace] = useState(INITIAL_LAST_PACE);
   const [circled, setCircled] = useState<number[]>([]);
   const chartTest = isDiagnosticChartTest(test);
   const levelTest = test === 'Reading' || test === 'WordBuilding' ? test : null;
@@ -431,17 +430,14 @@ export function InventoryDiagnosticCard({
           recorded.filter((row) => row.outcome === 'Fail').map((row) => row.level),
         )
       : null;
-  const attempted = attemptedPaceRange(firstPace, lastPace) ?? [];
+  const attempted = Array.from({ length: lastPace - FIRST_PACE + 1 }, (_, i) => FIRST_PACE + i);
   const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
   const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
-  const rangeInvalid = chartTest && lastPace.trim() !== '' && attempted.length === 0;
   const validation = !student
     ? 'Select a student.'
-    : chartTest && attempted.length === 0
-      ? 'Enter the first and last PACE attempted (1001 to 1144).'
-      : levelTest && recorded.length === 0
-        ? 'Mark Pass or Fail for at least one level.'
-        : null;
+    : levelTest && recorded.length === 0
+      ? 'Mark Pass or Fail for at least one level.'
+      : null;
 
   function chooseOutcome(level: number, outcome: DiagnosticOutcome) {
     onEdit();
@@ -493,45 +489,62 @@ export function InventoryDiagnosticCard({
       </View>
       {chartTest ? (
         <>
-          <Field
+          <MutedText>
+            Tap every PACE scored below the minimum to circle it. Extend the chart to the last PACE
+            attempted.
+          </MutedText>
+          <StaffDiagnosticChart
+            attempted={attempted}
+            circled={circledInRange}
             disabled={pending}
-            keyboardType="numeric"
-            label="First PACE"
-            onChangeText={setFirstPace}
-            value={firstPace}
+            onToggle={(paceNumber) => {
+              onEdit();
+              setCircled((current) =>
+                current.includes(paceNumber)
+                  ? current.filter((value) => value !== paceNumber)
+                  : [...current, paceNumber],
+              );
+            }}
           />
-          <Field
-            disabled={pending}
-            keyboardType="numeric"
-            label="Last PACE attempted"
-            onChangeText={setLastPace}
-            value={lastPace}
-          />
-          {rangeInvalid ? (
-            <ErrorText>Use PACEs from 1001 to 1144, with the last at or after the first.</ErrorText>
-          ) : null}
-          {attempted.length > 0 ? (
-            <>
-              <MutedText>Tap every PACE scored below the minimum to circle it.</MutedText>
-              <StaffDiagnosticChart
-                attempted={attempted}
-                circled={circledInRange}
-                disabled={pending}
-                onToggle={(paceNumber) => {
-                  onEdit();
-                  setCircled((current) =>
-                    current.includes(paceNumber)
-                      ? current.filter((value) => value !== paceNumber)
-                      : [...current, paceNumber],
-                  );
-                }}
-              />
-              {placement ? (
-                <Text accessibilityLiveRegion="polite" style={styles.fieldLabel}>
-                  {describePlacement(placement)}
-                </Text>
-              ) : null}
-            </>
+          <View style={styles.segmentedRow}>
+            <MobileButton
+              compact
+              disabled={pending || lastPace >= LAST_PACE}
+              label="Add next 12 PACEs"
+              onPress={() => {
+                onEdit();
+                setLastPace((current) => Math.min(LAST_PACE, current + 12));
+              }}
+              variant="secondary"
+            />
+            <MobileButton
+              compact
+              disabled={pending || lastPace >= LAST_PACE}
+              label="Add next PACE"
+              onPress={() => {
+                onEdit();
+                setLastPace((current) => Math.min(LAST_PACE, current + 1));
+              }}
+              variant="secondary"
+            />
+            <MobileButton
+              compact
+              disabled={pending || lastPace <= FIRST_PACE}
+              label="Remove last PACE"
+              onPress={() => {
+                onEdit();
+                setLastPace((current) => Math.max(FIRST_PACE, current - 1));
+              }}
+              variant="secondary"
+            />
+          </View>
+          <MutedText>
+            Attempted: PACEs {String(FIRST_PACE)}–{String(lastPace)} ({String(attempted.length)})
+          </MutedText>
+          {placement ? (
+            <Text accessibilityLiveRegion="polite" style={styles.fieldLabel}>
+              {describePlacement(placement)}
+            </Text>
           ) : null}
         </>
       ) : levelTest ? (

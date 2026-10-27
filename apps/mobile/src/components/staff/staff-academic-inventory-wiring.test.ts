@@ -138,8 +138,10 @@ describe('staff academic inventory mobile wiring', () => {
     expect(components).toMatch(/Recommended start/);
     expect(components).toMatch(/Level 9 is Etymology/);
     expect(components).toMatch(/derivePacePlacement\(/);
-    expect(components).toMatch(/label="First PACE"/);
-    expect(components).toMatch(/label="Last PACE attempted"/);
+    expect(components).not.toMatch(/label="First PACE"/);
+    expect(components).toMatch(/Add next 12 PACEs/);
+    expect(components).toMatch(/Add next PACE/);
+    expect(components).toMatch(/Remove last PACE/);
     expect(components).toMatch(/Reading is not a subject/);
     expect(screen).toMatch(
       /recordDiagnostic\.mutate\(\{ studentId: selectedStudent\.id, \.\.\.submission \}\)/,
@@ -160,8 +162,10 @@ describe('staff academic inventory mobile wiring', () => {
       components.indexOf('const styles'),
     );
 
-    // Test, first and last PACE, chart, each level's Pass/Fail, and the submit button.
-    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(6);
+    // Test, chart, each level's Pass/Fail, and the submit button.
+    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(4);
+    // The chart extend and trim buttons also lock while pending.
+    expect(diagnosticCard.match(/disabled={pending \|\|/g)).toHaveLength(3);
     expect(segmentButton).toMatch(/disabled: boolean/);
     expect(segmentButton).toMatch(/accessibilityState={{ disabled, selected: active }}/);
     expect(segmentButton).toMatch(/disabled={disabled}/);

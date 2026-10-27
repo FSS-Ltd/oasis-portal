@@ -26,8 +26,12 @@ test('the diagnostic form offers four tests and splits chart entry from level en
   assert.match(form, /diagnosticLevelsFor\(/);
   assert.match(form, /isDiagnosticChartTest/);
   assert.match(form, /derivePacePlacement\(/);
-  assert.match(form, /label="First PACE"/);
-  assert.match(form, /label="Last PACE attempted"/);
+  // The chart is the input: shown straight away and extended with buttons, no PACE typing.
+  assert.doesNotMatch(form, /label="First PACE"/);
+  assert.doesNotMatch(form, /label="Last PACE attempted"/);
+  assert.match(form, /Add next 12 PACEs/);
+  assert.match(form, /Add next PACE/);
+  assert.match(form, /Remove last PACE/);
   assert.match(form, /Learning Gaps/);
   assert.match(form, /Performance Level/);
   assert.match(form, /is not a subject/);

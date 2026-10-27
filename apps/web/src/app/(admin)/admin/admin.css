@@ -18475,3 +18475,9 @@ button.pace-chart__cell {
   .pace-levels__choices { width: 100%; }
   .pace-levels__choice { flex: 1; min-height: 44px; }
 }
+
+.pace-chart-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 12px; }
+.pace-chart-controls .button { min-height: 36px; }
+@media (max-width: 480px) {
+  .pace-chart-controls .button { flex: 1 1 100%; min-height: 44px; }
+}

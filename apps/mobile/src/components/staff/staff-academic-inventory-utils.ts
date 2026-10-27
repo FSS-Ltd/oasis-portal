@@ -2,14 +2,6 @@ export function canOpenAcademicInventory(user: { role?: string } | undefined): b
   return user?.role === 'Head';
 }
 
-/** Every PACE from first to last, or null when either end is invalid or out of order. */
-export function attemptedPaceRange(first: string, last: string): number[] | null {
-  const from = paceNumberValue(first);
-  const to = paceNumberValue(last);
-  if (from === null || to === null || from > to) return null;
-  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
-}
-
 export function describePlacement(placement: {
   learningGaps: readonly number[];
   performanceLevelPace: number | null;

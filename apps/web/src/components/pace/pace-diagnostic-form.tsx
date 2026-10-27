@@ -10,7 +10,7 @@ import {
   type DiagnosticTest,
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
-import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { Field, SelectInput } from '@/components/ui/field';
 import { PaceDiagnosticChart } from './pace-diagnostic-chart';
 
 const diagnosticTests: ReadonlyArray<{ value: DiagnosticTest; label: string }> = [
@@ -53,22 +53,13 @@ function levelLabel(test: 'Reading' | 'WordBuilding', level: number): string {
   return test === 'WordBuilding' && level === 9 ? 'Level 9 (Etymology)' : `Level ${String(level)}`;
 }
 
-function paceRange(first: string, last: string): { paceNumbers: number[]; error: string } {
-  const from = Number(first);
-  const to = Number(last);
-  if (!Number.isInteger(from) || !Number.isInteger(to) || first === '' || last === '') {
-    return { paceNumbers: [], error: 'Enter the first and last PACE attempted.' };
-  }
-  if (from < 1001 || to > 1144 || from > to) {
-    return {
-      paceNumbers: [],
-      error: 'Use PACEs from 1001 to 1144, with the last at or after the first.',
-    };
-  }
-  return {
-    paceNumbers: Array.from({ length: to - from + 1 }, (_, index) => from + index),
-    error: '',
-  };
+const FIRST_PACE = 1001;
+const LAST_PACE = 1144;
+/** The chart opens on the first row of twelve and is extended as far as the student got. */
+const INITIAL_LAST_PACE = 1012;
+
+function paceRange(lastPace: number): number[] {
+  return Array.from({ length: lastPace - FIRST_PACE + 1 }, (_, index) => FIRST_PACE + index);
 }
 
 export function PaceDiagnosticForm({
@@ -79,12 +70,11 @@ export function PaceDiagnosticForm({
 }: PaceDiagnosticFormProps): ReactElement {
   const [test, setTest] = useState<DiagnosticTest>('Math');
   const [levelOutcomes, setLevelOutcomes] = useState<LevelOutcomes>({});
-  const [firstPace, setFirstPace] = useState('1001');
-  const [lastPace, setLastPace] = useState('');
+  const [lastPace, setLastPace] = useState(INITIAL_LAST_PACE);
   const [circled, setCircled] = useState<number[]>([]);
   const chartTest = isDiagnosticChartTest(test);
   const levelTest = isLevelTest(test) ? test : null;
-  const { paceNumbers: attempted, error: rangeError } = paceRange(firstPace, lastPace);
+  const attempted = paceRange(lastPace);
   const circledInRange = circled.filter((paceNumber) => attempted.includes(paceNumber));
   const placement = attempted.length > 0 ? derivePacePlacement(attempted, circledInRange) : null;
   const levels = levelTest ? diagnosticLevelsFor(levelTest) : [];
@@ -254,61 +244,69 @@ export function PaceDiagnosticForm({
       ) : null}
       {chartTest ? (
         <>
-          <div className="form-grid form-grid--two">
-            <Field label="First PACE">
-              <TextInput
-                disabled={disabled || pending}
-                inputMode="numeric"
-                onChange={(event) => {
-                  setFirstPace(event.target.value);
-                }}
-                value={firstPace}
-              />
-            </Field>
-            <Field label="Last PACE attempted">
-              <TextInput
-                disabled={disabled || pending}
-                inputMode="numeric"
-                onChange={(event) => {
-                  setLastPace(event.target.value);
-                }}
-                value={lastPace}
-              />
-            </Field>
+          <p className="field__hint">
+            Tap every PACE scored below the minimum requirement to circle it. Extend the chart to
+            the last PACE the student attempted.
+          </p>
+          <PaceDiagnosticChart
+            attempted={attempted}
+            circled={circledInRange}
+            disabled={disabled || pending}
+            onToggle={toggleCircle}
+          />
+          <div className="pace-chart-controls">
+            <Button
+              disabled={disabled || pending || lastPace >= LAST_PACE}
+              onClick={() => {
+                setLastPace((current) => Math.min(LAST_PACE, current + 12));
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Add next 12 PACEs
+            </Button>
+            <Button
+              disabled={disabled || pending || lastPace >= LAST_PACE}
+              onClick={() => {
+                setLastPace((current) => Math.min(LAST_PACE, current + 1));
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Add next PACE
+            </Button>
+            <Button
+              disabled={disabled || pending || lastPace <= FIRST_PACE}
+              onClick={() => {
+                setLastPace((current) => Math.max(FIRST_PACE, current - 1));
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Remove last PACE
+            </Button>
+            <span className="field__hint" aria-live="polite">
+              Attempted: PACEs {String(FIRST_PACE)}–{String(lastPace)} ({String(attempted.length)})
+            </span>
           </div>
-          {rangeError && lastPace !== '' ? (
-            <p className="field__error" role="alert">
-              {rangeError}
-            </p>
-          ) : null}
-          {attempted.length > 0 ? (
-            <>
-              <p className="field__hint">
-                Tap every PACE scored below the minimum requirement to circle it.
-              </p>
-              <PaceDiagnosticChart
-                attempted={attempted}
-                circled={circledInRange}
-                disabled={disabled || pending}
-                onToggle={toggleCircle}
-              />
-              {placement ? (
-                <div className="pace-diagnostic-form__placement" aria-live="polite">
-                  <span>
-                    <strong>Learning Gaps:</strong>{' '}
-                    {placement.learningGaps.length > 0
-                      ? `PACEs # ${placement.learningGaps.join(', ')}`
-                      : 'None'}
-                  </span>
-                  <span>
-                    <strong>Performance Level:</strong>{' '}
-                    {placement.performanceLevelPace === null
-                      ? 'The student has passed every PACE.'
-                      : `After completing any learning gaps, the student is ready to advance from PACE # ${String(placement.performanceLevelPace)}.`}
-                  </span>
-                </div>
-              ) : null}
-            </>
+          {placement ? (
+            <div className="pace-diagnostic-form__placement" aria-live="polite">
+              <span>
+                <strong>Learning Gaps:</strong>{' '}
+                {placement.learningGaps.length > 0
+                  ? `PACEs # ${placement.learningGaps.join(', ')}`
+                  : 'None'}
+              </span>
+              <span>
+                <strong>Performance Level:</strong>{' '}
+                {placement.performanceLevelPace === null
+                  ? 'The student has passed every PACE.'
+                  : `After completing any learning gaps, the student is ready to advance from PACE # ${String(placement.performanceLevelPace)}.`}
+              </span>
+            </div>
           ) : null}
         </>
       ) : null}
