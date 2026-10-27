@@ -24,6 +24,8 @@ import {
 import { PaceInventoryOrders } from './pace-inventory-orders';
 import {
   PaceInventoryOrderModal,
+  PartialOrderError,
+  type PaceInventoryOrderRequest,
   type PaceInventoryOrderSubjectChoice,
 } from './pace-inventory-order-modal';
 
@@ -327,30 +329,41 @@ export function PaceInventoryClient() {
     window.requestAnimationFrame(() => quickOrderTriggerRef.current?.focus());
   }
 
-  async function submitQuickOrder(subjectId: string, paceNumbers: number[]): Promise<void> {
+  async function submitQuickOrder(orders: PaceInventoryOrderRequest[]): Promise<void> {
     if (!quickOrderTarget || createOrders.isPending) return;
-    const assignment = quickOrderStudent?.subjects.find((row) => row.subjectId === subjectId);
-    const alert = quickOrderStudentAlerts.find((row) => row.subjectId === subjectId);
-    if (!assignment || !alert) {
-      throw new Error(
-        'This subject assignment is no longer available. Refresh inventory and try again.',
-      );
+    const studentId = quickOrderTarget.studentId;
+    // Check every subject before writing anything, so a stale pick fails the whole request.
+    for (const { subjectId, paceNumbers } of orders) {
+      const assignment = quickOrderStudent?.subjects.find((row) => row.subjectId === subjectId);
+      const alert = quickOrderStudentAlerts.find((row) => row.subjectId === subjectId);
+      if (!assignment || !alert) {
+        throw new Error(
+          'This subject assignment is no longer available. Refresh inventory and try again.',
+        );
+      }
+      const orderable = availableOrderPaces(summary, studentId, subjectId);
+      if (paceNumbers.some((paceNumber) => !orderable.includes(paceNumber))) {
+        throw new Error(
+          `One or more selected PACEs for ${formatAssignment(assignment)} are no longer available. Refresh your selection.`,
+        );
+      }
     }
-    const orderablePaceNumbers = availableOrderPaces(
-      summary,
-      quickOrderTarget.studentId,
-      subjectId,
-    );
-    if (paceNumbers.some((paceNumber) => !orderablePaceNumbers.includes(paceNumber))) {
-      throw new Error(
-        'One or more selected PACEs are no longer available. Refresh your selection.',
-      );
+    const completed: string[] = [];
+    for (const { subjectId, paceNumbers } of orders) {
+      try {
+        await createOrders.mutateAsync({ studentId, subjectId, paceNumbers });
+        completed.push(subjectId);
+      } catch (error) {
+        if (completed.length === 0) throw error;
+        const label = formatAssignment(
+          quickOrderStudent?.subjects.find((row) => row.subjectId === subjectId) ?? null,
+        );
+        throw new PartialOrderError(
+          completed,
+          `${label} could not be ordered: ${friendlyErrorMessage(error)} The other subjects were ordered.`,
+        );
+      }
     }
-    await createOrders.mutateAsync({
-      studentId: quickOrderTarget.studentId,
-      subjectId,
-      paceNumbers,
-    });
     closeQuickOrder();
   }
 
