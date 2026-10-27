@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { GraduationCap, UserPlus, UsersRound } from 'lucide-react';
-import { displaySchoolYearLabel, type Role } from '@oasis/domain';
+import { canManageUserAccounts, displaySchoolYearLabel, type Role } from '@oasis/domain';
 import { friendlyErrorMessage } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { roleLabel } from '@/lib/profile-display';
@@ -189,7 +189,10 @@ export function PeopleProfilesClient({
             />
           ) : null}
           {selectedItem?.kind === 'invite' ? (
-            <PendingInviteProfilePanel invitation={selectedItem.invitation} />
+            <PendingInviteProfilePanel
+              canDeleteInvitation={canManageUserAccounts({ role: currentUserRole })}
+              invitation={selectedItem.invitation}
+            />
           ) : null}
         </div>
       </div>
