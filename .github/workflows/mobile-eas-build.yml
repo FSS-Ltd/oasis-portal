@@ -17,6 +17,7 @@ permissions:
 
 env:
   NODE_VERSION: '20'
+  PNPM_VERSION: '10.0.0'
 
 jobs:
   build:
@@ -47,9 +48,20 @@ jobs:
             exit 1
           fi
 
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      # eas-cli runs `expo config` locally, which resolves plugins such as expo-router from node_modules.
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter "@oasis/mobile..."
 
       - uses: expo/expo-github-action@v8
         with:
