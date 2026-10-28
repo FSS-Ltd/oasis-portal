@@ -1,4 +1,5 @@
 import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
+import { AccountDeletionCard } from '../core/account-deletion-card';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { PortalScrollView } from '../core/portal-scroll-view';
@@ -634,6 +635,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
           />
         ))}
       </Card>
+      <AccountDeletionCard title="Delete my account" />
     </PortalScrollView>
   );
 }

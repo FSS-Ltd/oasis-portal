@@ -3,6 +3,7 @@
  */
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { router } from './trpc.js';
+import { accountDeletionRouter } from './routers/accountDeletion.js';
 import { adminRouter } from './routers/admin.js';
 import { auditRouter } from './routers/audit.js';
 import { healthRouter } from './routers/health.js';
@@ -43,6 +44,7 @@ import { complianceRouter } from './routers/compliance.js';
 import { userAgreementRouter } from './routers/userAgreement.js';
 
 export const appRouter = router({
+  accountDeletion: accountDeletionRouter,
   admin: adminRouter,
   audit: auditRouter,
   health: healthRouter,

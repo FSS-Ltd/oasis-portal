@@ -12,6 +12,8 @@ vi.mock('react-native', () => ({
   Text: 'Text',
   View: 'View',
 }));
+vi.mock('../core/account-deletion-card', () => ({ AccountDeletionCard: () => null }));
+
 vi.mock('../core/mobile-ui', () => ({
   Badge: 'Badge',
   Card: 'Card',
