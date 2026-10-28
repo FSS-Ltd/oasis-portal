@@ -1,11 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import type { ReactNode } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect, type ReactNode } from 'react';
 import { ClerkProvider } from '@clerk/clerk-expo';
 import { tokenCache } from '@clerk/clerk-expo/token-cache';
 import { StyleSheet, Text, View } from 'react-native';
 import { MobileTrpcProvider } from '../src/lib/trpc-provider';
 import { C } from '../src/components/core/mobile-theme';
+import { LaunchSplash } from '../src/components/core/launch-splash';
 import { PwaServiceWorkerRegistration } from '../src/components/pwa/pwa-service-worker-registration';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -24,6 +26,7 @@ function AppStack() {
   return (
     <AppFrame>
       <Stack screenOptions={{ contentStyle: { backgroundColor: C.bg }, headerShown: false }} />
+      <LaunchSplash />
     </AppFrame>
   );
 }
@@ -53,6 +56,9 @@ export default function RootLayout() {
 }
 
 function MissingClerkConfig() {
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
   return (
     <View style={styles.configShell}>
       <PwaServiceWorkerRegistration />
