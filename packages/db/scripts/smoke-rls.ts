@@ -269,6 +269,143 @@ async function assertComplianceAdminCapability(client: PrismaClient): Promise<vo
   });
 }
 
+// The slip parent policy once read PermissionSlipRecipient, whose policy read PermissionSlip back. Postgres
+// refuses to rewrite any query on a cycle like that (42P17), whoever is signed in. The two homework
+// policies have the same fault and are listed until they are fixed; any other table is a regression.
+const KNOWN_RECURSIVE_TABLES = ['HomeworkAssignment', 'HomeworkAssignmentBand'];
+
+async function assertNoPolicyRecursion(admin: PrismaClient, runtime: PrismaClient): Promise<void> {
+  const tables = await admin.$queryRaw<Array<{ name: string }>>`
+    SELECT c.relname AS name
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relrowsecurity
+    ORDER BY c.relname
+  `;
+  const recursive: string[] = [];
+
+  for (const { name } of tables) {
+    try {
+      // The error is raised while the query is rewritten, so no rows or session settings are needed.
+      await runtime.$queryRawUnsafe(`EXPLAIN SELECT 1 FROM "${name}"`);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('infinite recursion')) {
+        recursive.push(name);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  if (recursive.join(',') !== KNOWN_RECURSIVE_TABLES.join(',')) {
+    throw new Error(
+      `Expected only ${KNOWN_RECURSIVE_TABLES.join(', ')} to hit recursive policies, saw ${recursive.join(', ') || 'none'}`,
+    );
+  }
+}
+
+async function assertPermissionSlipAccess(
+  admin: PrismaClient,
+  runtime: PrismaClient,
+): Promise<void> {
+  await admin.$executeRaw`
+    INSERT INTO "User" (
+      "id", "clerkId", "role", "tags", "fullNameEnc", "emailEnc", "emailBidx", "updatedAt"
+    )
+    VALUES (
+      'ci-slip-parent', 'ci-slip-parent-clerk', 'Parent'::"Role", ARRAY[]::TEXT[],
+      ${encryptField('CI Slip Parent')}, ${encryptField('slip-parent@example.test')}, ${blindIndex('slip-parent@example.test')}, NOW()
+    )
+  `;
+  await admin.$executeRaw`
+    INSERT INTO "Student" (
+      "id", "fullNameEnc", "nameBidx", "dobEnc", "yearGroup", "enrolmentDate", "updatedAt"
+    )
+    VALUES (
+      'ci-slip-other-student', ${encryptField('CI Slip Other Student')}, ${blindIndex('CI Slip Other Student')},
+      ${encryptField('2016-01-01')}, 'Y4', NOW(), NOW()
+    )
+  `;
+  await admin.$executeRaw`
+    INSERT INTO "Guardian" ("id", "userId", "studentId")
+    VALUES ('ci-slip-guardian', 'ci-slip-parent', 'ci-student')
+  `;
+
+  await withRuntimeSession(
+    admin,
+    { fullAdmin: true, role: 'Head', userId: 'ci-head' },
+    async (tx) => {
+      const slips = [
+        { id: 'ci-slip-own', studentId: 'ci-student', active: true },
+        { id: 'ci-slip-other', studentId: 'ci-slip-other-student', active: true },
+        { id: 'ci-slip-inactive', studentId: 'ci-student', active: false },
+      ];
+      for (const slip of slips) {
+        await tx.permissionSlip.create({
+          data: {
+            id: slip.id,
+            title: slip.id,
+            category: 'Consent',
+            deadline: new Date('2030-01-01'),
+            consentTextEnc: encryptField('CI consent'),
+            recipientLabel: 'CI',
+            createdById: 'ci-head',
+            active: slip.active,
+            recipients: { create: [{ studentId: slip.studentId, position: 0 }] },
+          },
+        });
+      }
+    },
+  );
+
+  const parent: RuntimeSession = { fullAdmin: false, role: 'Parent', userId: 'ci-slip-parent' };
+  const head: RuntimeSession = { fullAdmin: true, role: 'Head', userId: 'ci-head' };
+  const visibleSlips = async (session: RuntimeSession) =>
+    (
+      await withRuntimeSession(runtime, session, (tx) =>
+        tx.permissionSlip.findMany({
+          where: { id: { startsWith: 'ci-slip-' } },
+          select: { id: true },
+          orderBy: { id: 'asc' },
+        }),
+      )
+    )
+      .map((slip) => slip.id)
+      .join(',');
+
+  const parentSees = await visibleSlips(parent);
+  if (parentSees !== 'ci-slip-own') {
+    throw new Error(`Expected the parent to see only ci-slip-own, saw ${parentSees || 'none'}`);
+  }
+  const headSees = await visibleSlips(head);
+  if (headSees !== 'ci-slip-inactive,ci-slip-other,ci-slip-own') {
+    throw new Error(`Expected the Head to see all three slips, saw ${headSees || 'none'}`);
+  }
+
+  const respond = (slipId: string, studentId: string) =>
+    withRuntimeSession(runtime, parent, (tx) =>
+      tx.permissionSlipRecipient.updateMany({
+        where: { slipId, studentId },
+        data: { responseStatus: 'Signed', signatureSource: 'ParentPortal' },
+      }),
+    );
+  assertVisibleCount({
+    actual: (await respond('ci-slip-other', 'ci-slip-other-student')).count,
+    expected: 0,
+    label: 'parent signing another child slip',
+  });
+  assertVisibleCount({
+    actual: (await respond('ci-slip-inactive', 'ci-student')).count,
+    expected: 0,
+    label: 'parent signing an inactive slip',
+  });
+  assertVisibleCount({
+    actual: (await respond('ci-slip-own', 'ci-student')).count,
+    expected: 1,
+    label: 'parent signing their own child slip',
+  });
+}
+
 async function main() {
   const runtimePrisma = new PrismaClient({
     datasources: {
@@ -470,6 +607,9 @@ async function main() {
       label: 'author personal tasks',
     });
     assertVisibleCount({ actual: otherTasks, expected: 1, label: 'other personal tasks' });
+
+    await assertNoPolicyRecursion(prisma, runtimePrisma);
+    await assertPermissionSlipAccess(prisma, runtimePrisma);
 
     console.warn(
       'RLS smoke passed: sensitive behaviour, personal tasks, and Compliance Admin access are enforced.',
