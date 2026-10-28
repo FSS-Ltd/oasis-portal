@@ -46,9 +46,18 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-it('holds the crest until auth is ready, then leaves', () => {
+function revealCrest(renderer: ReturnType<typeof mobileTestRenderer.create>) {
+  const image = renderer.root.find((n) => n.type === 'Image');
+  (image.props as { onLoadEnd: () => void }).onLoadEnd();
+}
+
+it('holds the crest until auth is ready, then leaves', async () => {
   const renderer = mobileTestRenderer.create(createElement(LaunchSplash));
   try {
+    await mobileTestRenderer.act(async () => {
+      revealCrest(renderer);
+      await Promise.resolve();
+    });
     mobileTestRenderer.act(() => {
       vi.advanceTimersByTime(1000);
     });
@@ -77,8 +86,7 @@ it('leaves after the safety timeout even if auth never loads', () => {
 it('releases the native splash once the crest image has loaded', () => {
   const renderer = mobileTestRenderer.create(createElement(LaunchSplash));
   try {
-    const image = renderer.root.find((n) => n.type === 'Image');
-    (image.props as { onLoadEnd: () => void }).onLoadEnd();
+    revealCrest(renderer);
     expect(hideAsync).toHaveBeenCalled();
   } finally {
     renderer.unmount();

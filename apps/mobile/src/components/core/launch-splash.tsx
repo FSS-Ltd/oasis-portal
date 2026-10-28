@@ -20,6 +20,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export function LaunchSplash() {
   const { isLoaded } = useAuth();
   const [reduceMotion, setReduceMotion] = useState(false);
+  // True once the native splash has been released, so no part of the intro plays hidden under it.
+  const [revealed, setRevealed] = useState(false);
   const [introDone, setIntroDone] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -34,21 +36,28 @@ export function LaunchSplash() {
     AccessibilityInfo.isReduceMotionEnabled()
       .then(setReduceMotion)
       .catch(() => {});
-    const introTimer = setTimeout(() => {
-      setIntroDone(true);
-    }, INTRO_MS);
     const maxTimer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
       setTimedOut(true);
     }, MAX_WAIT_MS);
     return () => {
-      clearTimeout(introTimer);
       clearTimeout(maxTimer);
     };
   }, []);
 
+  useEffect(() => {
+    if (!revealed) return;
+    const introTimer = setTimeout(() => {
+      setIntroDone(true);
+    }, INTRO_MS);
+    return () => {
+      clearTimeout(introTimer);
+    };
+  }, [revealed]);
+
   // Intro: halo warms up, crest breathes once, rings ripple outward until auth is ready.
   useEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion || !revealed) return;
     const intro = Animated.parallel([
       Animated.timing(halo, {
         toValue: 1,
@@ -85,7 +94,7 @@ export function LaunchSplash() {
       intro.stop();
       rippleLoop.stop();
     };
-  }, [reduceMotion, halo, crest, ripples]);
+  }, [reduceMotion, revealed, halo, crest, ripples]);
 
   useEffect(() => {
     if (exiting || !((isLoaded && introDone) || timedOut)) return;
@@ -167,7 +176,11 @@ export function LaunchSplash() {
           accessibilityLabel="Oasis Learning Centre"
           fadeDuration={0}
           onLoadEnd={() => {
-            SplashScreen.hideAsync().catch(() => {});
+            SplashScreen.hideAsync()
+              .catch(() => {})
+              .finally(() => {
+                setRevealed(true);
+              });
           }}
           source={CREST}
           style={styles.crest}
