@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react';
-import {
-  AppState,
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { AppState, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, MobileButton, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -249,10 +241,10 @@ export function MobileAgreementsContent() {
 export function MobileAgreementsScreen({ onBack }: { onBack?: () => void }) {
   return (
     <View style={styles.shell}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <PortalScrollView contentContainerStyle={styles.content}>
         {onBack ? <MobileButton label="Back" onPress={onBack} variant="secondary" /> : null}
         <MobileAgreementsContent />
-      </ScrollView>
+      </PortalScrollView>
     </View>
   );
 }

@@ -1,4 +1,5 @@
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Card, ErrorText, InlineSpinner, MobileButton, MutedText } from '../core/mobile-ui';
@@ -97,7 +98,7 @@ export function ParentHomeScreen({
   }
 
   return (
-    <ScrollView
+    <PortalScrollView
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -155,7 +156,7 @@ export function ParentHomeScreen({
       ) : null}
 
       <PwaHomeActions />
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 

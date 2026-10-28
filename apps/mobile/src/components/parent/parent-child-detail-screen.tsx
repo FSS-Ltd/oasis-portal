@@ -1,4 +1,5 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { formatPaceIdentifier } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
@@ -52,7 +53,7 @@ export function ParentChildDetailScreen({
   }
 
   return (
-    <ScrollView
+    <PortalScrollView
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -123,7 +124,7 @@ export function ParentChildDetailScreen({
           </View>
         </>
       ) : null}
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 

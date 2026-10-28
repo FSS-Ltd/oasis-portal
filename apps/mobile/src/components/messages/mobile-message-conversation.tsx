@@ -1,12 +1,5 @@
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { C } from '../core/mobile-theme';
 import { ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
 import type { ConversationDetail, ConversationSummary } from './mobile-message-types';
@@ -97,7 +90,7 @@ export function ConversationView({
 
       {detail ? (
         <>
-          <ScrollView
+          <PortalScrollView
             contentContainerStyle={styles.messageList}
             keyboardShouldPersistTaps="handled"
             refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} />}
@@ -114,7 +107,7 @@ export function ConversationView({
                 <MessageBubble currentUserId={currentUserId} key={message.id} message={message} />
               ))
             )}
-          </ScrollView>
+          </PortalScrollView>
           <ReplyComposer
             disabled={sending}
             onSend={onSend}

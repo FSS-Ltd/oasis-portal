@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -93,7 +94,7 @@ export function ParentReportsRanksScreen({
   }
 
   return (
-    <ScrollView
+    <PortalScrollView
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -160,7 +161,7 @@ export function ParentReportsRanksScreen({
       />
       {leaderboard.error ? <ErrorText>{leaderboard.error.message}</ErrorText> : null}
       {reportsQuery.error ? <ErrorText>{reportsQuery.error.message}</ErrorText> : null}
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 

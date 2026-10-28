@@ -1,18 +1,22 @@
 import { CLUBS_VISIBLE, HOMEWORK_VISIBLE, ROTA_VISIBLE } from '@oasis/domain/portal-visibility';
-import { useMemo, useRef, useState } from 'react';
+import { selectionAsync } from 'expo-haptics';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   Image,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import oasisLogo from '../../../assets/oasis-logo.png';
-import { C } from './mobile-theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import crest from '../../../assets/crest.png';
+import { GlassFill, GlassGroup, GlassSurface, useGlassMode, useReduceMotion } from './glass';
+import { C, elevation, radius, typeRamp } from './mobile-theme';
 import { PortalMobileNavIcon } from './portal-mobile-nav-icon';
 import type { PortalMobileNavIconName } from './portal-mobile-nav-icon-types';
 
@@ -45,54 +49,22 @@ interface PortalMobileBottomNavProps<T extends string> {
   variant?: NavVariant;
 }
 
-interface DrawerTimingStep {
-  duration: number;
-  easing: (value: number) => number;
-  toValue: number;
+// Nav chrome scales with Dynamic Type but is capped so the brand row stays on screen.
+const HEADER_MAX_FONT_SCALE = 1.5;
+const BAR_RADIUS = 34;
+const BAR_PADDING = 6;
+const SLOT_HEIGHT = 54;
+const DRAWER_HIDDEN = 420;
+const DRAWER_RADIUS = 28;
+const DRAWER_OVERSCAN = 40;
+
+// Parent is crimson, student and staff are navy: identity lives in the accent, not a full-bleed bar.
+function accentFor(variant: NavVariant) {
+  return variant === 'dark' ? C.navy : C.crimson;
 }
 
-const drawerSettleSteps: readonly DrawerTimingStep[] = [
-  { duration: 210, easing: Easing.out(Easing.quad), toValue: -12 },
-  { duration: 260, easing: Easing.in(Easing.quad), toValue: 7 },
-  { duration: 180, easing: Easing.out(Easing.quad), toValue: -4 },
-  { duration: 210, easing: Easing.in(Easing.quad), toValue: 2 },
-];
-
-const drawerOpenSteps: readonly DrawerTimingStep[] = [
-  { duration: 620, easing: Easing.out(Easing.cubic), toValue: -30 },
-  { duration: 330, easing: Easing.in(Easing.quad), toValue: 17 },
-  { duration: 250, easing: Easing.out(Easing.quad), toValue: -11 },
-  { duration: 270, easing: Easing.in(Easing.quad), toValue: 6 },
-  { duration: 190, easing: Easing.out(Easing.quad), toValue: -3 },
-  { duration: 210, easing: Easing.in(Easing.quad), toValue: 2 },
-];
-
-function drawerTiming(
-  drawerOffset: Animated.Value,
-  { duration, easing, toValue }: DrawerTimingStep,
-) {
-  return Animated.timing(drawerOffset, {
-    duration,
-    easing,
-    toValue,
-    useNativeDriver: true,
-  });
-}
-
-function drawerSpring(drawerOffset: Animated.Value) {
-  return Animated.spring(drawerOffset, {
-    bounciness: 2,
-    speed: 5,
-    toValue: 0,
-    useNativeDriver: true,
-  });
-}
-
-function runDrawerBounce(drawerOffset: Animated.Value, steps: readonly DrawerTimingStep[]) {
-  Animated.sequence([
-    ...steps.map((step) => drawerTiming(drawerOffset, step)),
-    drawerSpring(drawerOffset),
-  ]).start();
+function indicatorTintFor(variant: NavVariant) {
+  return variant === 'dark' ? 'rgba(27,43,94,0.11)' : C.glassTint;
 }
 
 export function PortalMobileHeader({
@@ -105,42 +77,64 @@ export function PortalMobileHeader({
   title,
   variant = 'light',
 }: PortalMobileHeaderProps) {
-  const dark = variant === 'dark';
+  const accent = accentFor(variant);
 
   return (
-    <View style={[styles.header, dark ? styles.headerDark : styles.headerLight]}>
+    <View style={styles.header}>
       <View style={styles.brandGroup}>
         <View style={styles.logoFrame}>
           <Image
             accessibilityIgnoresInvertColors
             accessibilityLabel="Oasis Learning Centre"
-            source={oasisLogo}
+            source={crest}
             style={styles.logo}
           />
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.headerEyebrow}>{eyebrow}</Text>
-          <Text numberOfLines={1} style={styles.headerTitle}>
+          <Text
+            maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}
+            numberOfLines={1}
+            style={[styles.headerEyebrow, { color: accent }]}
+          >
+            {eyebrow}
+          </Text>
+          <Text
+            accessibilityRole="header"
+            maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}
+            numberOfLines={2}
+            style={styles.headerTitle}
+          >
             {title}
           </Text>
           {subtitle ? (
-            <Text numberOfLines={1} style={styles.headerSubtitle}>
+            <Text
+              maxFontSizeMultiplier={HEADER_MAX_FONT_SCALE}
+              numberOfLines={2}
+              style={styles.headerSubtitle}
+            >
               {subtitle}
             </Text>
           ) : null}
         </View>
       </View>
-      <Pressable
-        accessibilityLabel={actionAccessibilityLabel}
-        accessibilityRole="button"
-        onPress={onActionPress}
-        style={styles.accountButton}
-      >
-        <View style={styles.accountAvatar}>
-          <Text style={styles.accountAvatarText}>{avatarLabel}</Text>
-        </View>
-        <Text style={styles.accountButtonText}>{actionLabel}</Text>
-      </Pressable>
+      <GlassSurface style={styles.accountGlass}>
+        <Pressable
+          accessibilityLabel={actionAccessibilityLabel}
+          accessibilityRole="button"
+          hitSlop={6}
+          onPress={onActionPress}
+          style={({ pressed }) => [styles.accountButton, pressed ? styles.pressed : null]}
+        >
+          <View style={[styles.accountAvatar, { backgroundColor: accent }]}>
+            <Text maxFontSizeMultiplier={1} style={styles.accountAvatarText}>
+              {avatarLabel}
+            </Text>
+          </View>
+          <Text maxFontSizeMultiplier={1.3} style={styles.accountButtonText}>
+            {actionLabel}
+          </Text>
+        </Pressable>
+      </GlassSurface>
     </View>
   );
 }
@@ -162,9 +156,15 @@ export function PortalMobileBottomNav<T extends string>({
       ),
     [allItems],
   );
-  const dark = variant === 'dark';
+  const accent = accentFor(variant);
+  const insets = useSafeAreaInsets();
+  const mode = useGlassMode();
+  const reduceMotion = useReduceMotion();
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const drawerOffset = useRef(new Animated.Value(360)).current;
+  const [barWidth, setBarWidth] = useState(0);
+  const drawerOffset = useRef(new Animated.Value(DRAWER_HIDDEN)).current;
+  const indicatorX = useRef(new Animated.Value(0)).current;
+  const indicatorPlaced = useRef(false);
   const visiblePrimaryCount =
     items.length > primaryItemLimit ? Math.max(primaryItemLimit - 1, 1) : items.length;
   const primaryItems = useMemo(
@@ -178,26 +178,70 @@ export function PortalMobileBottomNav<T extends string>({
   const hasOverflow = overflowItems.length > 0;
   const overflowActive = overflowItems.some((item) => item.id === activeId);
   const overflowBadgeCount = overflowItems.reduce((count, item) => count + (item.badge ?? 0), 0);
+  const activePrimaryIndex = primaryItems.findIndex((item) => item.id === activeId);
+  const activeSlot =
+    activePrimaryIndex >= 0 ? activePrimaryIndex : overflowActive ? primaryItems.length : -1;
+  const slotCount = primaryItems.length + (hasOverflow ? 1 : 0);
+  const slotWidth = barWidth > 0 && slotCount > 0 ? (barWidth - BAR_PADDING * 2) / slotCount : 0;
+
+  useEffect(() => {
+    if (activeSlot < 0 || slotWidth === 0) return;
+    const toValue = activeSlot * slotWidth;
+
+    if (!indicatorPlaced.current || reduceMotion) {
+      indicatorPlaced.current = true;
+      indicatorX.setValue(toValue);
+      return;
+    }
+
+    Animated.spring(indicatorX, {
+      damping: 28,
+      mass: 1,
+      stiffness: 320,
+      toValue,
+      useNativeDriver: true,
+    }).start();
+  }, [activeSlot, indicatorX, reduceMotion, slotWidth]);
 
   function settleDrawer() {
-    runDrawerBounce(drawerOffset, drawerSettleSteps);
+    Animated.spring(drawerOffset, {
+      damping: 30,
+      mass: 1,
+      stiffness: 280,
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
   }
 
   function openDrawer() {
     setDrawerVisible(true);
-    drawerOffset.setValue(360);
-    runDrawerBounce(drawerOffset, drawerOpenSteps);
+    if (reduceMotion) {
+      drawerOffset.setValue(0);
+      return;
+    }
+    drawerOffset.setValue(DRAWER_HIDDEN);
+    settleDrawer();
   }
 
   function closeDrawer() {
+    if (reduceMotion) {
+      drawerOffset.setValue(DRAWER_HIDDEN);
+      setDrawerVisible(false);
+      return;
+    }
     Animated.timing(drawerOffset, {
-      duration: 320,
-      easing: Easing.inOut(Easing.cubic),
-      toValue: 360,
+      duration: 220,
+      easing: Easing.in(Easing.cubic),
+      toValue: DRAWER_HIDDEN,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) setDrawerVisible(false);
     });
+  }
+
+  function select(id: T) {
+    if (Platform.OS === 'ios') selectionAsync().catch(() => undefined);
+    onSelect(id);
   }
 
   const drawerPanResponder = useMemo(
@@ -220,12 +264,16 @@ export function PortalMobileBottomNav<T extends string>({
         },
         onPanResponderTerminate: settleDrawer,
       }),
-    [drawerOffset],
+    // closeDrawer and settleDrawer only read refs and the reduce-motion flag.
+    [drawerOffset, reduceMotion],
   );
 
   function itemColor(active: boolean) {
-    if (active) return dark ? C.surface : C.crimson;
-    return dark ? 'rgba(255,255,255,0.54)' : C.textMuted;
+    return active ? accent : C.textSecondary;
+  }
+
+  function badgeLabel(label: string, badge: number) {
+    return badge > 0 ? `${label}, ${String(badge)} new` : label;
   }
 
   function renderBottomNavItem(item: PortalMobileNavItem<T>) {
@@ -235,21 +283,26 @@ export function PortalMobileBottomNav<T extends string>({
 
     return (
       <Pressable
+        accessibilityLabel={badgeLabel(item.label, badge)}
         accessibilityRole="tab"
         accessibilityState={{ selected: active }}
         key={item.id}
         onPress={() => {
-          onSelect(item.id);
+          select(item.id);
         }}
-        style={styles.bottomNavItem}
+        style={({ pressed }) => [styles.slot, pressed ? styles.pressed : null]}
       >
         <PortalMobileNavIcon color={color} name={item.icon ?? navIconFromId(item.id)} />
-        <Text numberOfLines={1} style={[styles.bottomNavLabel, { color }]}>
+        <Text
+          maxFontSizeMultiplier={1.2}
+          numberOfLines={1}
+          style={[styles.slotLabel, active ? styles.slotLabelActive : null, { color }]}
+        >
           {item.label}
         </Text>
         {badge > 0 ? (
-          <View style={styles.bottomNavBadge}>
-            <Text style={styles.bottomNavBadgeText}>{String(badge)}</Text>
+          <View style={styles.slotBadge}>
+            <Text style={styles.slotBadgeText}>{String(badge)}</Text>
           </View>
         ) : null}
       </Pressable>
@@ -258,30 +311,65 @@ export function PortalMobileBottomNav<T extends string>({
 
   return (
     <>
-      <View style={[styles.bottomNav, dark ? styles.bottomNavDark : styles.bottomNavLight]}>
-        {primaryItems.map(renderBottomNavItem)}
-        {hasOverflow ? (
-          <Pressable
-            accessibilityLabel="More navigation options"
-            accessibilityRole="button"
-            accessibilityState={{ expanded: drawerVisible, selected: overflowActive }}
-            onPress={openDrawer}
-            style={styles.bottomNavItem}
-          >
-            <PortalMobileNavIcon color={itemColor(overflowActive)} name="more" />
-            <Text
-              numberOfLines={1}
-              style={[styles.bottomNavLabel, { color: itemColor(overflowActive) }]}
-            >
-              More
-            </Text>
-            {overflowBadgeCount > 0 ? (
-              <View style={styles.bottomNavBadge}>
-                <Text style={styles.bottomNavBadgeText}>{String(overflowBadgeCount)}</Text>
-              </View>
+      <View
+        pointerEvents="box-none"
+        style={[styles.navHost, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      >
+        <View
+          onLayout={(event) => {
+            setBarWidth(event.nativeEvent.layout.width);
+          }}
+          style={styles.barShadow}
+        >
+          <GlassGroup mode={mode} spacing={2} style={styles.bar}>
+            <GlassFill borderRadius={BAR_RADIUS} mode={mode} />
+            {activeSlot >= 0 && slotWidth > 0 ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.indicator,
+                  { transform: [{ translateX: indicatorX }], width: slotWidth },
+                ]}
+              >
+                <GlassFill
+                  borderRadius={BAR_RADIUS - BAR_PADDING}
+                  mode={mode}
+                  tint={indicatorTintFor(variant)}
+                />
+              </Animated.View>
             ) : null}
-          </Pressable>
-        ) : null}
+            <View accessibilityRole="tablist" style={styles.slots}>
+              {primaryItems.map(renderBottomNavItem)}
+              {hasOverflow ? (
+                <Pressable
+                  accessibilityLabel="More navigation options"
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: drawerVisible, selected: overflowActive }}
+                  onPress={openDrawer}
+                  style={({ pressed }) => [styles.slot, pressed ? styles.pressed : null]}
+                >
+                  <PortalMobileNavIcon color={itemColor(overflowActive)} name="more" />
+                  <Text
+                    maxFontSizeMultiplier={1.2}
+                    numberOfLines={1}
+                    style={[
+                      styles.slotLabel,
+                      overflowActive ? styles.slotLabelActive : null,
+                      { color: itemColor(overflowActive) },
+                    ]}
+                  >
+                    More
+                  </Text>
+                  {overflowBadgeCount > 0 ? (
+                    <View style={styles.slotBadge}>
+                      <Text style={styles.slotBadgeText}>{String(overflowBadgeCount)}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              ) : null}
+            </View>
+          </GlassGroup>
+        </View>
       </View>
       <Modal animationType="none" onRequestClose={closeDrawer} transparent visible={drawerVisible}>
         <View style={styles.drawerRoot}>
@@ -295,45 +383,42 @@ export function PortalMobileBottomNav<T extends string>({
             {...drawerPanResponder.panHandlers}
             style={[
               styles.drawerPanel,
-              dark ? styles.drawerPanelDark : styles.drawerPanelLight,
+              { paddingBottom: Math.max(insets.bottom, 12) + 8 + DRAWER_OVERSCAN },
               { transform: [{ translateY: drawerOffset }] },
             ]}
           >
+            <GlassFill borderRadius={DRAWER_RADIUS} mode={mode} />
             <View style={styles.drawerHandle} />
-            <Text
-              style={[styles.drawerTitle, dark ? styles.drawerTitleDark : styles.drawerTitleLight]}
-            >
+            <Text accessibilityRole="header" style={styles.drawerTitle}>
               More
             </Text>
             <View style={styles.drawerList}>
               {overflowItems.map((item) => {
                 const active = activeId === item.id;
                 const badge = item.badge ?? 0;
-                const color = itemColor(active);
+                const color = active ? accent : C.navy;
 
                 return (
                   <Pressable
+                    accessibilityLabel={badgeLabel(item.label, badge)}
                     accessibilityRole="menuitem"
                     accessibilityState={{ selected: active }}
                     key={item.id}
                     onPress={() => {
                       closeDrawer();
-                      onSelect(item.id);
+                      select(item.id);
                     }}
-                    style={[
+                    style={({ pressed }) => [
                       styles.drawerItem,
-                      active
-                        ? dark
-                          ? styles.drawerItemActiveDark
-                          : styles.drawerItemActiveLight
-                        : null,
+                      active ? { backgroundColor: indicatorTintFor(variant) } : null,
+                      pressed ? styles.drawerItemPressed : null,
                     ]}
                   >
                     <PortalMobileNavIcon color={color} name={item.icon ?? navIconFromId(item.id)} />
                     <Text style={[styles.drawerItemLabel, { color }]}>{item.label}</Text>
                     {badge > 0 ? (
-                      <View style={styles.drawerBadge}>
-                        <Text style={styles.bottomNavBadgeText}>{String(badge)}</Text>
+                      <View style={[styles.drawerBadge, { backgroundColor: C.crimson }]}>
+                        <Text style={styles.slotBadgeText}>{String(badge)}</Text>
                       </View>
                     ) : null}
                   </Pressable>
@@ -384,188 +469,127 @@ function navIconFromId(id: string): PortalMobileNavIconName {
 const styles = StyleSheet.create({
   accountAvatar: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 11,
-    height: 22,
+    borderRadius: 13,
+    height: 26,
     justifyContent: 'center',
-    width: 22,
+    width: 26,
   },
   accountAvatarText: {
     color: C.surface,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   accountButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderColor: 'rgba(255,255,255,0.26)',
-    borderRadius: 8,
-    borderWidth: 1.5,
     flexDirection: 'row',
-    gap: 7,
-    minHeight: 36,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
+    gap: 8,
+    minHeight: 40,
+    paddingLeft: 7,
+    paddingRight: 14,
   },
   accountButtonText: {
-    color: C.surface,
-    fontSize: 11,
-    fontWeight: '800',
+    ...typeRamp.subhead,
+    color: C.navy,
+    fontWeight: '600',
   },
-  bottomNav: {
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    minHeight: 78,
-    paddingBottom: 7,
-    paddingHorizontal: 4,
-    paddingTop: 8,
+  accountGlass: {
+    borderColor: C.hairline,
+    borderWidth: 1,
   },
-  bottomNavBadge: {
-    alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 8,
-    justifyContent: 'center',
-    minHeight: 16,
-    minWidth: 16,
-    paddingHorizontal: 4,
-    position: 'absolute',
-    right: 16,
-    top: 6,
+  bar: {
+    borderCurve: 'continuous',
+    borderRadius: BAR_RADIUS,
+    minHeight: SLOT_HEIGHT + BAR_PADDING * 2,
   },
-  bottomNavBadgeText: {
-    color: C.surface,
-    fontSize: 9,
-    fontWeight: '900',
-  },
-  bottomNavDark: {
-    backgroundColor: C.navy,
-    borderTopColor: 'rgba(255,255,255,0.22)',
-  },
-  bottomNavItem: {
-    alignItems: 'center',
-    flex: 1,
-    gap: 5,
-    justifyContent: 'center',
-    minHeight: 58,
-    position: 'relative',
-  },
-  bottomNavLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    lineHeight: 14,
-  },
-  bottomNavLight: {
-    backgroundColor: C.surface,
-    borderTopColor: C.border,
+  barShadow: {
+    borderCurve: 'continuous',
+    borderRadius: BAR_RADIUS,
+    boxShadow: elevation.float,
   },
   brandGroup: {
     alignItems: 'center',
     flex: 1,
     flexDirection: 'row',
-    gap: 10,
-    minWidth: 0,
+    gap: 12,
+    minWidth: 200,
   },
   drawerBackdrop: {
     flex: 1,
   },
   drawerBadge: {
     alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 9,
+    borderRadius: 10,
     justifyContent: 'center',
-    minHeight: 18,
-    minWidth: 18,
-    paddingHorizontal: 5,
+    minHeight: 20,
+    minWidth: 20,
+    paddingHorizontal: 6,
   },
   drawerHandle: {
     alignSelf: 'center',
-    backgroundColor: C.border,
-    borderRadius: 2,
-    height: 4,
+    backgroundColor: C.hairline,
+    borderRadius: 3,
+    height: 5,
     marginBottom: 14,
-    width: 42,
+    width: 40,
   },
   drawerItem: {
     alignItems: 'center',
-    borderRadius: 8,
+    borderCurve: 'continuous',
+    borderRadius: radius.md,
     flexDirection: 'row',
-    gap: 10,
-    minHeight: 50,
-    paddingHorizontal: 12,
+    gap: 14,
+    minHeight: 52,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  drawerItemActiveDark: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  drawerItemActiveLight: {
-    backgroundColor: C.crimsonLight,
-  },
   drawerItemLabel: {
+    ...typeRamp.headline,
     flex: 1,
-    fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '500',
+  },
+  drawerItemPressed: {
+    backgroundColor: C.fillPressed,
   },
   drawerList: {
-    gap: 6,
+    gap: 4,
   },
   drawerPanel: {
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    marginBottom: -72,
-    paddingBottom: 96,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  drawerPanelDark: {
-    backgroundColor: C.navy,
-    borderColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1,
-  },
-  drawerPanelLight: {
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderWidth: 1,
+    borderTopLeftRadius: DRAWER_RADIUS,
+    borderTopRightRadius: DRAWER_RADIUS,
+    marginBottom: -DRAWER_OVERSCAN,
+    paddingHorizontal: 12,
+    paddingTop: 10,
   },
   drawerRoot: {
-    backgroundColor: 'rgba(10,18,42,0.34)',
+    backgroundColor: C.scrim,
     flex: 1,
     justifyContent: 'flex-end',
   },
   drawerTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    marginBottom: 10,
-  },
-  drawerTitleDark: {
-    color: C.surface,
-  },
-  drawerTitleLight: {
+    ...typeRamp.title3,
     color: C.navy,
+    marginBottom: 8,
+    paddingHorizontal: 14,
   },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     justifyContent: 'space-between',
+    paddingBottom: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerDark: {
-    backgroundColor: C.navy,
+    paddingTop: 8,
   },
   headerEyebrow: {
-    color: 'rgba(255,255,255,0.72)',
-    fontSize: 11,
+    ...typeRamp.caption,
     fontWeight: '700',
-  },
-  headerLight: {
-    backgroundColor: C.crimson,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   headerSubtitle: {
-    color: 'rgba(255,255,255,0.74)',
-    fontSize: 11,
-    fontWeight: '600',
+    ...typeRamp.footnote,
+    color: C.textSecondary,
   },
   headerText: {
     flex: 1,
@@ -573,21 +597,80 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   headerTitle: {
-    color: C.surface,
-    fontSize: 14,
-    fontWeight: '800',
+    ...typeRamp.headline,
+    color: C.navy,
+  },
+  indicator: {
+    borderCurve: 'continuous',
+    borderRadius: BAR_RADIUS - BAR_PADDING,
+    height: SLOT_HEIGHT,
+    left: BAR_PADDING,
+    position: 'absolute',
+    top: BAR_PADDING,
   },
   logo: {
-    height: 28,
-    resizeMode: 'contain',
-    width: 28,
+    height: 36,
+    width: 36,
   },
   logoFrame: {
     alignItems: 'center',
     backgroundColor: C.surface,
-    borderRadius: 8,
-    height: 36,
+    borderCurve: 'continuous',
+    borderRadius: 13,
+    boxShadow: elevation.card,
+    height: 46,
     justifyContent: 'center',
-    width: 36,
+    width: 46,
+  },
+  navHost: {
+    bottom: 0,
+    left: 0,
+    paddingHorizontal: 16,
+    position: 'absolute',
+    right: 0,
+  },
+  pressed: {
+    opacity: 0.6,
+  },
+  slot: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 3,
+    height: SLOT_HEIGHT,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  slotBadge: {
+    alignItems: 'center',
+    backgroundColor: C.crimson,
+    borderColor: C.surface,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    left: '50%',
+    marginLeft: 6,
+    minHeight: 18,
+    minWidth: 18,
+    paddingHorizontal: 4,
+    position: 'absolute',
+    top: 3,
+  },
+  slotBadgeText: {
+    color: C.surface,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  slotLabel: {
+    fontSize: 10.5,
+    fontWeight: '500',
+    letterSpacing: 0.1,
+    lineHeight: 13,
+  },
+  slotLabelActive: {
+    fontWeight: '700',
+  },
+  slots: {
+    flexDirection: 'row',
+    padding: BAR_PADDING,
   },
 });

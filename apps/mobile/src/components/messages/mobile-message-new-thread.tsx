@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { C } from '../core/mobile-theme';
 import { ErrorText, MutedText } from '../core/mobile-ui';
 import type { Recipient } from './mobile-message-types';
@@ -54,7 +55,7 @@ export function NewThreadView({
         </Pressable>
       </View>
 
-      <ScrollView
+      <PortalScrollView
         contentContainerStyle={styles.newThreadContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -110,7 +111,7 @@ export function NewThreadView({
         {formError ? <ErrorText>{formError}</ErrorText> : null}
         {openConversationError ? <ErrorText>{openConversationError}</ErrorText> : null}
         {sendError ? <ErrorText>{sendError}</ErrorText> : null}
-      </ScrollView>
+      </PortalScrollView>
     </View>
   );
 }

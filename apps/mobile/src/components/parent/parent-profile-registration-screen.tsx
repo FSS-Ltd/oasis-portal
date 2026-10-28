@@ -1,6 +1,7 @@
 import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import {
   PARENT_EMAIL_NOTIFICATION_CATEGORIES,
   type ParentEmailNotificationCategory,
@@ -275,7 +276,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
   }, [linkedChildCount, missingLinks, pendingLinkCount]);
 
   return (
-    <ScrollView
+    <PortalScrollView
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -633,7 +634,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
           />
         ))}
       </Card>
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 

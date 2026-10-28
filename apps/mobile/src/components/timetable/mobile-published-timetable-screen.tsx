@@ -1,4 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { TIMETABLE_DAYS } from '@oasis/domain';
 import type { RouterOutputs } from '../../lib/trpc';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -93,7 +94,7 @@ export function MobilePublishedTimetableScreen({
         </View>
 
         {children.length > 1 ? (
-          <ScrollView
+          <PortalScrollView
             contentContainerStyle={styles.selectorRow}
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -114,10 +115,10 @@ export function MobilePublishedTimetableScreen({
                 </Badge>
               </Pressable>
             ))}
-          </ScrollView>
+          </PortalScrollView>
         ) : null}
 
-        <ScrollView
+        <PortalScrollView
           contentContainerStyle={styles.selectorRow}
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -138,7 +139,7 @@ export function MobilePublishedTimetableScreen({
               </Badge>
             </Pressable>
           ))}
-        </ScrollView>
+        </PortalScrollView>
       </Card>
 
       {loading ? <InlineSpinner label="Loading timetable" /> : null}

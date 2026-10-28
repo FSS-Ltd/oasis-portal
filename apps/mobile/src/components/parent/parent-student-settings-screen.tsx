@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { api } from '../../lib/trpc';
 import {
   Card,
@@ -83,7 +84,7 @@ export function ParentStudentSettingsScreen({ onRefresh }: { onRefresh: () => Pr
   }
 
   return (
-    <ScrollView
+    <PortalScrollView
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -179,7 +180,7 @@ export function ParentStudentSettingsScreen({ onRefresh }: { onRefresh: () => Pr
           />
         </>
       ) : null}
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 

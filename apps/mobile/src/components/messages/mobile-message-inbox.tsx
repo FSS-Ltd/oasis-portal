@@ -1,4 +1,5 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { C } from '../core/mobile-theme';
 import { MutedText } from '../core/mobile-ui';
 import type { ConversationSummary } from './mobile-message-types';
@@ -70,7 +71,7 @@ export function InboxView({
         ) : null}
       </View>
 
-      <ScrollView
+      <PortalScrollView
         contentContainerStyle={styles.threadList}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} />}
@@ -99,7 +100,7 @@ export function InboxView({
             <Text style={styles.primaryButtonText}>{loadingMore ? 'Loading' : 'Load more'}</Text>
           </Pressable>
         ) : null}
-      </ScrollView>
+      </PortalScrollView>
     </View>
   );
 }

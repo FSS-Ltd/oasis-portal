@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { canUseParentVolunteerNavigation, type ParentVolunteerAccess } from '@oasis/domain';
@@ -424,7 +425,7 @@ export function ParentPortalScreen({
       ) : route === 'settings' ? (
         <ParentStudentSettingsScreen onRefresh={refresh} />
       ) : (
-        <ScrollView
+        <PortalScrollView
           contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
@@ -522,7 +523,7 @@ export function ParentPortalScreen({
               slots={parentVolunteerSlots.data}
             />
           ) : null}
-        </ScrollView>
+        </PortalScrollView>
       )}
 
       {bottomNav}

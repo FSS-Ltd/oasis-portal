@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
@@ -291,7 +292,7 @@ export function SupervisorSmokeScreen() {
         title="Oasis Learning Centre"
         variant="dark"
       />
-      <ScrollView
+      <PortalScrollView
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -639,7 +640,7 @@ export function SupervisorSmokeScreen() {
             reservationsLoading={shopReservations.isFetching}
           />
         ) : null}
-      </ScrollView>
+      </PortalScrollView>
       <PortalMobileBottomNav
         activeId={activeTab}
         items={navItems}
