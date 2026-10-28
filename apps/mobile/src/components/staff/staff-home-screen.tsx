@@ -6,7 +6,7 @@ import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { useSchoolNow } from '../../lib/realtime/school-clock';
 import { roleLabel } from '../access/user-access-model';
-import { C } from '../core/mobile-theme';
+import { C, elevation, radius, typeRamp } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -375,8 +375,13 @@ function MetricCard({
 }) {
   const accent = tone === 'success' ? C.success : tone === 'warning' ? C.warning : C.blue;
   return (
-    <View style={[styles.metricCard, { borderTopColor: accent }]}>
-      <Text style={styles.metricLabel}>{label}</Text>
+    <View style={styles.metricCard}>
+      <View style={styles.metricHeader}>
+        <View style={[styles.metricDot, { backgroundColor: accent }]} />
+        <Text numberOfLines={1} style={styles.metricLabel}>
+          {label}
+        </Text>
+      </View>
       <Text style={[styles.metricValue, { color: accent }]}>{value}</Text>
       <Text numberOfLines={1} style={styles.metricSub}>
         {sub}
@@ -531,14 +536,24 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 10,
-    borderTopWidth: 3,
-    borderWidth: 1,
+    borderCurve: 'continuous',
+    borderRadius: radius.lg,
+    boxShadow: elevation.card,
     flexBasis: '48%',
     flexGrow: 1,
+    gap: 4,
     minWidth: 144,
-    padding: 12,
+    padding: 14,
+  },
+  metricDot: {
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  metricHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
   },
   metricGrid: {
     flexDirection: 'row',
@@ -546,20 +561,20 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   metricLabel: {
+    ...typeRamp.caption,
     color: C.textSecondary,
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    flexShrink: 1,
+    fontWeight: '600',
   },
   metricSub: {
-    color: C.textMuted,
-    fontSize: 11,
-    marginTop: 4,
+    ...typeRamp.footnote,
+    color: C.textSecondary,
   },
   metricValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    marginTop: 4,
+    fontSize: 28,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   nextTaskCard: {
     borderLeftColor: C.crimson,

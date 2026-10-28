@@ -171,7 +171,7 @@ describe('mobile realtime lifecycle', () => {
     mobileTestRenderer.act(() => {
       mocks.emitStatus('CHANNEL_ERROR');
     });
-    expect(JSON.stringify(renderer?.toJSON())).toContain('Live updates unavailable');
+    expect(JSON.stringify(renderer?.toJSON())).not.toContain('Live updates');
     mobileTestRenderer.act(() => {
       mocks.emitStatus('SUBSCRIBED');
     });

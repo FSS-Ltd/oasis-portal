@@ -48,7 +48,11 @@
       "sharp",
       "unrs-resolver",
       "utf-8-validate"
-    ]
+    ],
+    "overrides": {
+      "@types/react": "~19.1.17",
+      "@types/react-dom": "~19.1.11"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

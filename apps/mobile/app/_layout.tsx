@@ -1,4 +1,6 @@
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import type { ReactNode } from 'react';
 import { ClerkProvider } from '@clerk/clerk-expo';
 import { tokenCache } from '@clerk/clerk-expo/token-cache';
 import { StyleSheet, Text, View } from 'react-native';
@@ -8,6 +10,24 @@ import { PwaServiceWorkerRegistration } from '../src/components/pwa/pwa-service-
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
+// Cap content width so iPad, foldables and the PWA do not stretch a phone layout edge to edge.
+function AppFrame({ children }: { children: ReactNode }) {
+  return (
+    <View style={styles.frame}>
+      <StatusBar style="dark" />
+      <View style={styles.column}>{children}</View>
+    </View>
+  );
+}
+
+function AppStack() {
+  return (
+    <AppFrame>
+      <Stack screenOptions={{ contentStyle: { backgroundColor: C.bg }, headerShown: false }} />
+    </AppFrame>
+  );
+}
+
 export default function RootLayout() {
   if (!publishableKey) return <MissingClerkConfig />;
 
@@ -16,7 +36,7 @@ export default function RootLayout() {
       <ClerkProvider publishableKey={publishableKey}>
         <PwaServiceWorkerRegistration />
         <MobileTrpcProvider>
-          <Stack screenOptions={{ headerShown: false }} />
+          <AppStack />
         </MobileTrpcProvider>
       </ClerkProvider>
     );
@@ -26,7 +46,7 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <PwaServiceWorkerRegistration />
       <MobileTrpcProvider>
-        <Stack screenOptions={{ headerShown: false }} />
+        <AppStack />
       </MobileTrpcProvider>
     </ClerkProvider>
   );
@@ -45,6 +65,11 @@ function MissingClerkConfig() {
 }
 
 const styles = StyleSheet.create({
+  column: {
+    flex: 1,
+    maxWidth: 680,
+    width: '100%',
+  },
   configShell: {
     backgroundColor: C.bg,
     flex: 1,
@@ -61,5 +86,10 @@ const styles = StyleSheet.create({
     color: C.navy,
     fontSize: 20,
     fontWeight: '800',
+  },
+  frame: {
+    alignItems: 'center',
+    backgroundColor: C.bg,
+    flex: 1,
   },
 });

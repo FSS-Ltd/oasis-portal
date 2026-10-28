@@ -18,7 +18,9 @@ interface PressableProps {
 }
 
 function hasText(props: unknown, text: string): props is { children: string } {
-  return typeof props === 'object' && props !== null && 'children' in props && props.children === text;
+  return (
+    typeof props === 'object' && props !== null && 'children' in props && props.children === text
+  );
 }
 
 function hasPressableLabel(props: unknown, label: string): props is PressableProps {
@@ -67,7 +69,7 @@ vi.mock('react-native', () => ({
   Pressable: 'Pressable',
   RefreshControl: 'RefreshControl',
   ScrollView: 'ScrollView',
-  StyleSheet: { create: <T,>(styles: T) => styles },
+  StyleSheet: { create: <T>(styles: T) => styles, flatten: <T>(style: T) => style },
   Text: 'Text',
   View: 'View',
 }));
@@ -227,7 +229,8 @@ describe('parent PACE screen behavior', () => {
     });
     expect(
       renderer.root.find(
-        (node) => node.type === 'Text' && hasText(node.props, 'No active PACE subjects are assigned.'),
+        (node) =>
+          node.type === 'Text' && hasText(node.props, 'No active PACE subjects are assigned.'),
       ),
     ).toBeDefined();
   });

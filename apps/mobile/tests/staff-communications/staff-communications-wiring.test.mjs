@@ -40,7 +40,12 @@ describe('staff communications mobile wiring', () => {
     assert.match(screen, /api\.message\.listRecipients\.useQuery\(\s*\{\s*kind: 'StaffDirect'/);
     assert.match(screen, /api\.message\.listRecipients\.useQuery\(\s*\{\s*kind: 'SupervisorHead'/);
     assert.match(screen, /enabled: canUseSupervisorHead/);
-    assert.match(screen, /api\.message\.openStaffroom\.useMutation/);
+    // The shared panel owns the Staffroom mutation; the screen pins it in the unified list.
+    assert.match(
+      read('src/components/messages/mobile-messages-panel.tsx'),
+      /api\.message\.openStaffroom\.useMutation/,
+    );
+    assert.match(screen, /showStaffroom/);
     assert.match(screen, /staffInboxConversationKinds/);
     assert.match(screen, /supervisorHeadConversationKinds/);
   });
@@ -56,7 +61,8 @@ describe('staff communications mobile wiring', () => {
       /api\.message\.listRecipients\.useQuery\(\s*\{\s*kind: 'ParentStaff',\s*direction: 'toParent'/,
     );
     assert.match(screen, /enabled: canMessageParents/);
-    assert.match(screen, /conversationKind="ParentStaff"/);
+    assert.match(screen, /kind: 'ParentStaff'/);
+    assert.match(screen, /recipientGroups/);
   });
 
   it('lets Staff Home open communications without introducing dead navigation', () => {
@@ -72,7 +78,7 @@ describe('staff communications mobile wiring', () => {
     const panel = read('src/components/messages/mobile-messages-panel.tsx');
 
     assert.match(
-      panel,
+      read('src/components/messages/mobile-message-types.ts'),
       /type ConversationKind = 'ParentStaff' \| 'StudentDirect' \| 'StaffDirect' \| 'SupervisorHead'/,
     );
     assert.match(panel, /emptyDetail/);

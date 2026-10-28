@@ -24,4 +24,34 @@ const require = createRequire(import.meta.url);
 
 // React's test renderer does not ship declarations, and the community declarations mark this
 // supported React 18 API as deprecated. Keep the narrow runtime contract local to mobile tests.
-export const mobileTestRenderer = require('react-test-renderer') as unknown as MobileTestRendererModule;
+const rawRenderer = require('react-test-renderer') as unknown as MobileTestRendererModule;
+
+// React 19's test renderer only commits inside act(). Route create/update/unmount through it so
+// tests keep reading `renderer.root` right after mounting, as they did on React 18.
+export const mobileTestRenderer: MobileTestRendererModule = {
+  act: rawRenderer.act.bind(rawRenderer),
+  create(element) {
+    let renderer: MobileTestRenderer | undefined;
+    rawRenderer.act(() => {
+      renderer = rawRenderer.create(element);
+    });
+    if (!renderer) throw new Error('react-test-renderer did not mount the element.');
+    const mounted = renderer;
+    return {
+      get root() {
+        return mounted.root;
+      },
+      toJSON: () => mounted.toJSON(),
+      unmount: () => {
+        rawRenderer.act(() => {
+          mounted.unmount();
+        });
+      },
+      update: (next) => {
+        rawRenderer.act(() => {
+          mounted.update(next);
+        });
+      },
+    };
+  },
+};

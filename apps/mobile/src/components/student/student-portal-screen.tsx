@@ -1,6 +1,7 @@
 import { HOMEWORK_VISIBLE } from '@oasis/domain/portal-visibility';
 import { useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
@@ -422,7 +423,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
 
   return (
     <>
-      <ScrollView
+      <PortalScrollView
         accessibilityLabel={`Student portal content for ${user.id}`}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -605,7 +606,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             }
           />
         ) : null}
-      </ScrollView>
+      </PortalScrollView>
 
       <PortalMobileBottomNav
         activeId={activeTab}

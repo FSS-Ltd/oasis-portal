@@ -3,6 +3,8 @@ import type { RealtimeArea } from './events.js';
 /** Command-only routers have no persisted read model to invalidate. */
 export const REALTIME_AREA_EXCLUSIONS = {
   email: 'Command-only email delivery; visible agreement delivery status belongs to userAgreement.',
+  accountDeletion:
+    'Requests live in two User columns and refetch after each request, cancel or decision; no table of their own.',
 } as const satisfies Partial<Record<RealtimeArea, string>>;
 
 export type RealtimeAudience =

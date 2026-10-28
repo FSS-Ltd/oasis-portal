@@ -513,7 +513,7 @@ export function LearningBadge({ rawPct, learningPct }: { rawPct: number; learnin
   );
 }
 
-function useMeasuredWidth(): [RefObject<HTMLDivElement>, number] {
+function useMeasuredWidth(): [RefObject<HTMLDivElement | null>, number] {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useSession, useUser } from '@clerk/nextjs';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,9 +23,6 @@ import {
 } from '@/lib/realtime/account-authority';
 import { routeDependsOnAreas } from '@/lib/realtime/route-dependencies';
 import { notifyRealtimeAreas } from '@/lib/realtime/area-listeners';
-import { Button } from '@/components/ui/button';
-
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 function legacyAreas(event: OasisRealtimeEvent): readonly RealtimeArea[] {
   if (event.event === OASIS_REALTIME_EVENTS.childNotesChanged) return ['childNotes', 'childLog'];
@@ -42,8 +39,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const current = useRef({ session, utils, pathname, router });
   current.current = { session, utils, pathname, router };
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
-  const [attempt, setAttempt] = useState(0);
   const previousIdentity = useRef<string | null>(null);
 
   useEffect(() => {
@@ -75,7 +70,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         accessToken: async () => current.current.session?.getToken() ?? null,
       });
     } catch {
-      setStatus('disconnected');
       return;
     }
     const coordinator = createRealtimeRefreshCoordinator({
@@ -112,7 +106,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         }
       },
       onError() {
-        if (!disposed) setStatus('disconnected');
+        // Reconnection is automatic (visibility and network events); there is nothing to show.
       },
     });
 
@@ -136,7 +130,6 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       await removal;
       if (generation !== connectionGeneration || disposed || document.visibilityState === 'hidden')
         return;
-      setStatus('connecting');
       const channel = supabase.channel(`oasis:user:${channelUserId}`, {
         config: { private: true },
       });
@@ -164,14 +157,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         },
         subscribed() {
           if (disposed) return;
-          setStatus('connected');
           coordinator.reconcile();
         },
         disconnected() {
-          if (!disposed) setStatus('disconnected');
+          // Reconnects on its own; no status is shown.
         },
         failed() {
-          if (!disposed) setStatus('disconnected');
+          // Reconnects on its own; no status is shown.
         },
       });
       scheduleClock();
@@ -196,25 +188,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', visibilityChanged);
       window.removeEventListener('online', online);
     };
-  }, [isLoaded, isSignedIn, user?.id, session?.id, queryClient, attempt]);
+  }, [isLoaded, isSignedIn, user?.id, session?.id, queryClient]);
 
-  return (
-    <>
-      {isSignedIn && status === 'disconnected' ? (
-        <div role="status" className="notice notice--warning">
-          <span>Live updates disconnected. Displayed data may be out of date.</span>{' '}
-          <Button
-            variant="secondary"
-            type="button"
-            onClick={() => {
-              setAttempt((value) => value + 1);
-            }}
-          >
-            Retry live updates
-          </Button>
-        </div>
-      ) : null}
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { useClerk } from '@clerk/clerk-expo';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../../lib/trpc';
-import { C } from './mobile-theme';
+import { C, radius, typeRamp } from './mobile-theme';
 import { ParentPortalScreen } from '../parent/parent-portal-screen';
 import { StaffPortalScreen } from '../staff/staff-portal-screen';
 import { StudentPortalScreen } from '../student/student-portal-screen';
@@ -14,6 +15,7 @@ type MobilePortalView = 'default' | 'parent';
 
 export function SignedInRouter() {
   const { signOut } = useClerk();
+  const insets = useSafeAreaInsets();
   const [portalView, setPortalView] = useState<MobilePortalView>('default');
   const health = api.health.me.useQuery(undefined, { retry: false });
 
@@ -35,7 +37,7 @@ export function SignedInRouter() {
           <View
             accessibilityLiveRegion="polite"
             accessibilityRole="alert"
-            style={styles.refreshWarning}
+            style={[styles.refreshWarning, { paddingTop: insets.top + 10 }]}
           >
             <Text style={styles.refreshWarningText}>
               We could not refresh your access. Showing your last available information.
@@ -74,6 +76,7 @@ export function SignedInRouter() {
       <View style={styles.loading}>
         <Text style={styles.loadingText}>We could not refresh your access. Please try again.</Text>
         <Pressable
+          accessibilityLabel="Retry session"
           accessibilityRole="button"
           disabled={health.isFetching}
           onPress={() => {
@@ -84,6 +87,14 @@ export function SignedInRouter() {
           <Text style={styles.retryButtonText}>
             {health.isFetching ? 'Retrying session…' : 'Retry session'}
           </Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Sign out"
+          accessibilityRole="button"
+          onPress={() => void signOut()}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>Sign out</Text>
         </Pressable>
       </View>
     );
@@ -201,24 +212,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: C.bg,
     flex: 1,
-    gap: 10,
+    gap: 14,
     justifyContent: 'center',
+    padding: 24,
   },
   loadingText: {
+    ...typeRamp.subhead,
     color: C.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
+    textAlign: 'center',
   },
   retryButton: {
-    backgroundColor: C.blue,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: C.crimson,
+    borderCurve: 'continuous',
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: 22,
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    backgroundColor: C.fill,
+    borderCurve: 'continuous',
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: 22,
+  },
+  secondaryButtonText: {
+    ...typeRamp.headline,
+    color: C.navy,
   },
   retryButtonText: {
+    ...typeRamp.headline,
     color: C.surface,
-    fontSize: 13,
-    fontWeight: '700',
   },
   refreshWarning: {
     alignItems: 'center',
@@ -234,22 +261,23 @@ const styles = StyleSheet.create({
   refreshWarningButton: {
     backgroundColor: C.surface,
     borderColor: C.warning,
-    borderRadius: 7,
+    borderCurve: 'continuous',
+    borderRadius: radius.sm,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
   },
   refreshWarningButtonText: {
+    ...typeRamp.footnote,
     color: C.warning,
-    fontSize: 12,
     fontWeight: '700',
   },
   refreshWarningText: {
+    ...typeRamp.footnote,
     color: C.warning,
     flex: 1,
-    fontSize: 12,
     fontWeight: '600',
-    lineHeight: 17,
   },
   sessionShell: {
     flex: 1,

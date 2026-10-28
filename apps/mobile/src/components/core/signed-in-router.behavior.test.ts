@@ -38,6 +38,17 @@ function hasText(props: unknown, text: string): props is { children: string } {
   );
 }
 
+function hasLabel(props: unknown, label: string): props is { onPress: () => void } {
+  return (
+    typeof props === 'object' &&
+    props !== null &&
+    'accessibilityLabel' in props &&
+    props.accessibilityLabel === label &&
+    'onPress' in props &&
+    typeof props.onPress === 'function'
+  );
+}
+
 function hasRetryAccessRefresh(props: unknown): props is { onPress: () => void } {
   return (
     typeof props === 'object' &&
@@ -83,10 +94,14 @@ const mocks = vi.hoisted(() => {
     query,
     refetch,
     remove,
+    signOut: vi.fn(),
   };
 });
 
-vi.mock('@clerk/clerk-expo', () => ({ useClerk: () => ({ signOut: vi.fn() }) }));
+vi.mock('@clerk/clerk-expo', () => ({ useClerk: () => ({ signOut: mocks.signOut }) }));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
+}));
 
 vi.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator',
@@ -214,7 +229,9 @@ describe('signed-in router entitlement refresh', () => {
       isError: true,
     };
     const renderer = renderRouter();
-    const retry = renderer.root.find((node) => node.type === 'Pressable');
+    const retry = renderer.root.find(
+      (node) => node.type === 'Pressable' && hasLabel(node.props, 'Retry session'),
+    );
     const retryProps = retry.props as { onPress: () => void };
 
     expect(mocks.parentPortal).not.toHaveBeenCalled();
@@ -232,5 +249,23 @@ describe('signed-in router entitlement refresh', () => {
       retryProps.onPress();
     });
     expect(mocks.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the user sign out when access cannot be refreshed and there is no cached session', () => {
+    mocks.query.current = {
+      ...mocks.query.current,
+      data: undefined,
+      error: new Error('offline'),
+      isError: true,
+    };
+    const renderer = renderRouter();
+    const signOut = renderer.root.find(
+      (node) => node.type === 'Pressable' && hasLabel(node.props, 'Sign out'),
+    );
+
+    mobileTestRenderer.act(() => {
+      (signOut.props as { onPress: () => void }).onPress();
+    });
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
   });
 });

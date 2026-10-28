@@ -1,27 +1,37 @@
+import Feather from '@expo/vector-icons/Feather';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { C } from '../core/mobile-theme';
+import { PortalScrollView } from '../core/portal-scroll-view';
+import { C, elevation, radius, typeRamp } from '../core/mobile-theme';
 import { MutedText } from '../core/mobile-ui';
+import { Avatar } from './mobile-message-ui';
 import type { ConversationSummary } from './mobile-message-types';
-import { formatThreadTime, latestSenderLabel, unreadLabel } from './mobile-message-utils';
+import { formatThreadTime, latestSenderLabel } from './mobile-message-utils';
+
+export interface PinnedConversation {
+  title: string;
+  detail: string;
+  pending: boolean;
+  onPress: () => void;
+}
 
 interface InboxViewProps {
+  accent: string;
+  conversations: ConversationSummary[];
   emptyDetail: string;
   hasMore: boolean;
   loadingMore: boolean;
+  /** Leave room for the floating tab bar when the portal shows one. */
+  navClearance: boolean;
   onCompose: () => void;
   onLoadMore: () => void;
   onOpenConversation: (conversationId: string) => void;
   onRefresh: () => void;
+  pinned: PinnedConversation | null;
   refreshing: boolean;
-  conversations: ConversationSummary[];
   unreadTotal: number;
 }
 
-function conversationCountLabel(count: number): string {
-  return count === 1 ? '1 message' : `${String(count)} messages`;
-}
-
-function conversationContact(conversation: ConversationSummary): string {
+export function conversationContact(conversation: ConversationSummary): string {
   if (conversation.kind === 'Staffroom') return 'Staffroom';
 
   return (
@@ -33,300 +43,350 @@ function conversationContact(conversation: ConversationSummary): string {
 }
 
 export function InboxView({
+  accent,
   conversations,
   emptyDetail,
   hasMore,
   loadingMore,
+  navClearance,
   onCompose,
   onLoadMore,
   onOpenConversation,
   onRefresh,
+  pinned,
   refreshing,
   unreadTotal,
 }: InboxViewProps) {
+  const Scroller = navClearance ? PortalScrollView : ScrollView;
+  const rowCount = conversations.length + (pinned ? 1 : 0);
+
   return (
     <View style={styles.screen}>
-      <View style={styles.inboxHeader}>
-        <View style={styles.headerTitleGroup}>
-          <Text style={styles.headerEyebrow}>Centre communications</Text>
-          <Text style={styles.largeTitle}>Messages</Text>
+      <View style={styles.titleRow}>
+        <View style={styles.titleGroup}>
+          <Text accessibilityRole="header" style={styles.largeTitle}>
+            Messages
+          </Text>
+          {unreadTotal > 0 ? (
+            <Text style={[styles.unreadSummary, { color: accent }]}>
+              {String(unreadTotal)} unread
+            </Text>
+          ) : null}
         </View>
         <Pressable
           accessibilityLabel="Start a new message"
           accessibilityRole="button"
+          hitSlop={6}
           onPress={onCompose}
-          style={styles.composeButton}
+          style={({ pressed }) => [
+            styles.composeButton,
+            { backgroundColor: accent },
+            pressed ? styles.pressed : null,
+          ]}
         >
-          <Text style={styles.composeButtonText}>+</Text>
+          <Feather color={C.surface} name="edit" size={19} />
         </Pressable>
       </View>
 
-      <View style={styles.inboxMetaRow}>
-        <Text style={styles.inboxMetaText}>{conversationCountLabel(conversations.length)}</Text>
-        {unreadTotal > 0 ? (
-          <View style={styles.unreadSummary}>
-            <Text style={styles.unreadSummaryText}>{String(unreadTotal)} unread</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.threadList}
+      <Scroller
+        contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} />}
         showsVerticalScrollIndicator={false}
       >
-        {conversations.length === 0 ? (
-          <EmptyInbox detail={emptyDetail} onCompose={onCompose} />
+        {rowCount === 0 ? (
+          <EmptyInbox accent={accent} detail={emptyDetail} onCompose={onCompose} />
         ) : (
-          conversations.map((conversation) => (
-            <ConversationRow
-              conversation={conversation}
-              key={conversation.id}
-              onPress={() => {
-                onOpenConversation(conversation.id);
-              }}
-            />
-          ))
+          <View style={styles.group}>
+            {pinned ? (
+              <PinnedRow accent={accent} last={conversations.length === 0} pinned={pinned} />
+            ) : null}
+            {conversations.map((conversation, index) => (
+              <ConversationRow
+                accent={accent}
+                conversation={conversation}
+                key={conversation.id}
+                last={index === conversations.length - 1}
+                onPress={() => {
+                  onOpenConversation(conversation.id);
+                }}
+              />
+            ))}
+          </View>
         )}
         {hasMore ? (
           <Pressable
             accessibilityRole="button"
             disabled={loadingMore}
             onPress={onLoadMore}
-            style={[styles.primaryButton, styles.loadMoreButton]}
+            style={styles.loadMore}
           >
-            <Text style={styles.primaryButtonText}>{loadingMore ? 'Loading' : 'Load more'}</Text>
+            <Text style={[styles.loadMoreText, { color: accent }]}>
+              {loadingMore ? 'Loading' : 'Load more'}
+            </Text>
           </Pressable>
         ) : null}
-      </ScrollView>
+      </Scroller>
     </View>
   );
 }
 
-function EmptyInbox({ detail, onCompose }: { detail: string; onCompose: () => void }) {
+function EmptyInbox({
+  accent,
+  detail,
+  onCompose,
+}: {
+  accent: string;
+  detail: string;
+  onCompose: () => void;
+}) {
   return (
     <View style={styles.emptyState}>
+      <View style={[styles.emptyIcon, { backgroundColor: C.fill }]}>
+        <Feather color={accent} name="message-circle" size={30} />
+      </View>
       <Text style={styles.emptyTitle}>No messages yet</Text>
       <MutedText>{detail}</MutedText>
-      <Pressable accessibilityRole="button" onPress={onCompose} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>New Message</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onCompose}
+        style={[styles.emptyButton, { backgroundColor: accent }]}
+      >
+        <Text style={styles.emptyButtonText}>New Message</Text>
       </Pressable>
     </View>
   );
 }
 
+function PinnedRow({
+  accent,
+  last,
+  pinned,
+}: {
+  accent: string;
+  last: boolean;
+  pinned: PinnedConversation;
+}) {
+  return (
+    <>
+      <Pressable
+        accessibilityLabel={`Open ${pinned.title}`}
+        accessibilityRole="button"
+        accessibilityState={{ busy: pinned.pending }}
+        disabled={pinned.pending}
+        onPress={pinned.onPress}
+        style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+      >
+        <View style={styles.gutter} />
+        <Avatar group name={pinned.title} />
+        <View style={styles.body}>
+          <View style={styles.topLine}>
+            <Text numberOfLines={1} style={styles.name}>
+              {pinned.title}
+            </Text>
+            <Feather color={accent} name="chevron-right" size={18} />
+          </View>
+          <Text numberOfLines={2} style={styles.preview}>
+            {pinned.pending ? 'Opening…' : pinned.detail}
+          </Text>
+        </View>
+      </Pressable>
+      {last ? null : <View style={styles.separator} />}
+    </>
+  );
+}
+
 function ConversationRow({
+  accent,
   conversation,
+  last,
   onPress,
 }: {
+  accent: string;
   conversation: ConversationSummary;
+  last: boolean;
   onPress: () => void;
 }) {
   const latestTime = conversation.latestMessage?.createdAt ?? conversation.updatedAt;
   const unread = conversation.unreadCount > 0;
   const contact = conversationContact(conversation);
+  const group = conversation.kind === 'Staffroom';
 
   return (
-    <Pressable
-      accessibilityLabel={`Message with ${contact}`}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={[styles.threadRow, unread ? styles.threadRowUnread : null]}
-    >
-      <View style={styles.threadAvatar}>
-        <Text style={styles.threadAvatarText}>{contact.slice(0, 1)}</Text>
-      </View>
-      <View style={styles.threadBody}>
-        <View style={styles.threadTopLine}>
-          <Text numberOfLines={1} style={styles.threadName}>
-            {contact}
+    <>
+      <Pressable
+        accessibilityLabel={`Message with ${contact}${
+          unread ? `, ${String(conversation.unreadCount)} unread` : ''
+        }`}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+      >
+        <View style={styles.gutter}>
+          {unread ? <View style={[styles.unreadDot, { backgroundColor: accent }]} /> : null}
+        </View>
+        <Avatar group={group} name={contact} />
+        <View style={styles.body}>
+          <View style={styles.topLine}>
+            <Text numberOfLines={1} style={[styles.name, unread ? styles.nameUnread : null]}>
+              {contact}
+            </Text>
+            <Text style={[styles.time, unread ? { color: accent } : null]}>
+              {formatThreadTime(latestTime)}
+            </Text>
+          </View>
+          <Text numberOfLines={2} style={[styles.preview, unread ? styles.previewUnread : null]}>
+            {group ? 'Staff group chat · ' : ''}
+            {latestSenderLabel(conversation)}
           </Text>
-          <Text style={styles.threadTime}>{formatThreadTime(latestTime)}</Text>
         </View>
-        <Text numberOfLines={1} style={styles.threadSubject}>
-          {conversation.kind === 'Staffroom' ? 'Staff group chat' : 'Private message'}
-        </Text>
-        <Text numberOfLines={1} style={styles.threadLatest}>
-          {latestSenderLabel(conversation)} - {conversationCountLabel(conversation.messageCount)}
-        </Text>
-      </View>
-      {unread ? (
-        <View style={styles.unreadBadge}>
-          <Text style={styles.unreadBadgeText}>{unreadLabel(conversation.unreadCount)}</Text>
-        </View>
-      ) : null}
-    </Pressable>
+      </Pressable>
+      {last ? null : <View style={styles.separator} />}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  body: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
   composeButton: {
     alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 18,
-    height: 36,
+    borderRadius: 20,
+    height: 40,
     justifyContent: 'center',
-    width: 36,
+    width: 40,
   },
-  composeButtonText: {
+  emptyButton: {
+    alignItems: 'center',
+    borderCurve: 'continuous',
+    borderRadius: radius.md,
+    marginTop: 6,
+    minHeight: 46,
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+  },
+  emptyButtonText: {
+    ...typeRamp.headline,
     color: C.surface,
-    fontSize: 24,
-    fontWeight: '600',
-    lineHeight: 26,
+  },
+  emptyIcon: {
+    alignItems: 'center',
+    borderRadius: 32,
+    height: 64,
+    justifyContent: 'center',
+    width: 64,
   },
   emptyState: {
     alignItems: 'center',
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 12,
-    borderWidth: 1,
     gap: 10,
-    marginTop: 16,
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 48,
   },
   emptyTitle: {
+    ...typeRamp.title3,
     color: C.navy,
-    fontSize: 17,
-    fontWeight: '800',
-    textAlign: 'center',
   },
-  headerEyebrow: {
-    color: C.textSecondary,
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+  group: {
+    backgroundColor: C.surface,
+    borderCurve: 'continuous',
+    borderRadius: radius.lg,
+    boxShadow: elevation.card,
+    overflow: 'hidden',
   },
-  headerTitleGroup: {
-    flex: 1,
-    gap: 2,
-  },
-  inboxHeader: {
+  gutter: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'center',
+    width: 12,
   },
-  inboxMetaRow: {
+  largeTitle: {
+    ...typeRamp.largeTitle,
+    color: C.navy,
+  },
+  list: {
+    gap: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
+  loadMore: {
+    alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    ...typeRamp.headline,
+  },
+  name: {
+    ...typeRamp.headline,
+    color: C.navy,
+    flex: 1,
+    fontWeight: '500',
+  },
+  nameUnread: {
+    fontWeight: '700',
+  },
+  pressed: {
+    opacity: 0.6,
+  },
+  preview: {
+    ...typeRamp.subhead,
+    color: C.textSecondary,
+  },
+  previewUnread: {
+    color: C.navy,
+    fontWeight: '500',
+  },
+  row: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 10,
-    justifyContent: 'space-between',
-  },
-  inboxMetaText: {
-    color: C.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  largeTitle: {
-    color: C.navy,
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  loadMoreButton: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 4,
-  },
-  primaryButton: {
-    backgroundColor: C.crimson,
-    borderRadius: 10,
-    paddingHorizontal: 16,
+    minHeight: 72,
+    paddingLeft: 8,
+    paddingRight: 16,
     paddingVertical: 10,
   },
-  primaryButtonText: {
-    color: C.surface,
-    fontSize: 13,
-    fontWeight: '800',
+  rowPressed: {
+    backgroundColor: C.fill,
   },
   screen: {
     flex: 1,
-    gap: 12,
+    gap: 8,
   },
-  threadAvatar: {
-    alignItems: 'center',
-    backgroundColor: C.blueLight,
-    borderRadius: 23,
-    height: 46,
-    justifyContent: 'center',
-    width: 46,
+  separator: {
+    backgroundColor: C.hairline,
+    height: 1,
+    marginLeft: 78,
   },
-  threadAvatarText: {
-    color: C.navy,
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  threadBody: {
-    flex: 1,
-    gap: 3,
-    minWidth: 0,
-  },
-  threadLatest: {
+  time: {
+    ...typeRamp.footnote,
     color: C.textSecondary,
-    fontSize: 12,
-    lineHeight: 17,
   },
-  threadList: {
-    gap: 10,
-    paddingBottom: 20,
-  },
-  threadName: {
-    color: C.navy,
+  titleGroup: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '800',
+    gap: 0,
   },
-  threadRow: {
+  titleRow: {
     alignItems: 'center',
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 12,
-    borderWidth: 1,
     flexDirection: 'row',
-    gap: 12,
-    padding: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
-  threadRowUnread: {
-    borderLeftColor: C.crimson,
-    borderLeftWidth: 3,
-  },
-  threadSubject: {
-    color: C.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  threadTime: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  threadTopLine: {
+  topLine: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 8,
   },
-  unreadBadge: {
-    alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 11,
-    justifyContent: 'center',
-    minHeight: 22,
-    minWidth: 22,
-    paddingHorizontal: 6,
-  },
-  unreadBadgeText: {
-    color: C.surface,
-    fontSize: 11,
-    fontWeight: '900',
+  unreadDot: {
+    borderRadius: 5,
+    height: 10,
+    width: 10,
   },
   unreadSummary: {
-    backgroundColor: C.crimsonLight,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  unreadSummaryText: {
-    color: C.crimson,
-    fontSize: 12,
-    fontWeight: '800',
+    ...typeRamp.footnote,
+    fontWeight: '600',
   },
 });

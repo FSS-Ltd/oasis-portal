@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterInputs, type RouterOutputs } from '../../lib/trpc';
@@ -428,7 +429,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
   return (
     <SafeAreaView style={styles.shell}>
       {header}
-      <ScrollView
+      <PortalScrollView
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -493,7 +494,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
             studentId={studentId}
           />
         ) : null}
-      </ScrollView>
+      </PortalScrollView>
       <PortalMobileBottomNav
         activeId={activeTab}
         items={visibleStudentTabs}

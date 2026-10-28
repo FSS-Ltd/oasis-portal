@@ -3,3 +3,7 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Continuous native generation: ios/ and android/ are produced by expo prebuild
+ios/
+android/

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSignIn, useSSO } from '@clerk/clerk-expo';
 import { WebBrowserResultType } from 'expo-web-browser';
-import oasisLogo from '../../../assets/oasis-logo.png';
+import crest from '../../../assets/crest.png';
 import { Card, ErrorText, Field, MutedText, MobileButton } from './mobile-ui';
-import { C } from './mobile-theme';
+import { C, radius, typeRamp } from './mobile-theme';
 
 type SecondFactor =
   | { strategy: 'totp' }
@@ -227,18 +227,25 @@ export function SignInPanel() {
   }
 
   return (
-    <View style={styles.shell}>
+    <ScrollView
+      automaticallyAdjustKeyboardInsets
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      style={styles.shell}
+    >
+      <View style={styles.brand}>
+        <Image
+          accessibilityIgnoresInvertColors
+          accessibilityLabel="Oasis Learning Centre"
+          source={crest}
+          style={styles.logo}
+        />
+        <Text accessibilityRole="header" style={styles.title}>
+          Oasis Learning Centre
+        </Text>
+        <Text style={styles.subtitle}>Staff and family mobile portal</Text>
+      </View>
       <Card style={styles.loginCard}>
-        <View style={styles.brand}>
-          <Image
-            accessibilityIgnoresInvertColors
-            accessibilityLabel="Oasis Learning Centre"
-            source={oasisLogo}
-            style={styles.logo}
-          />
-          <Text style={styles.title}>Oasis Learning Centre</Text>
-          <MutedText>Staff and family mobile portal</MutedText>
-        </View>
         {secondFactor ? (
           <>
             <MutedText>{factorLabel(secondFactor)}</MutedText>
@@ -319,72 +326,84 @@ export function SignInPanel() {
         ) : null}
         <Text style={styles.securityNote}>Secured with Clerk two-factor authentication</Text>
       </Card>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   brand: {
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 8,
+    gap: 6,
   },
   divider: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     marginVertical: 2,
   },
   dividerLine: {
-    backgroundColor: C.borderLight,
+    backgroundColor: C.hairline,
     flex: 1,
     height: 1,
   },
   dividerText: {
+    ...typeRamp.caption,
     color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-  },
-  loginCard: {
-    borderRadius: 20,
-    padding: 28,
   },
   forgotPasswordDisabled: {
     opacity: 0.45,
   },
   forgotPasswordLink: {
     alignSelf: 'flex-end',
-    marginTop: -6,
-    paddingVertical: 2,
+    minHeight: 32,
+    justifyContent: 'center',
   },
   forgotPasswordText: {
-    color: C.blue,
-    fontSize: 12,
-    fontWeight: '700',
+    ...typeRamp.subhead,
+    color: C.link,
+    fontWeight: '600',
+  },
+  loginCard: {
+    alignSelf: 'center',
+    borderRadius: radius.lg + 4,
+    gap: 14,
+    maxWidth: 440,
+    padding: 20,
+    width: '100%',
   },
   logo: {
-    height: 88,
+    height: 104,
     resizeMode: 'contain',
-    width: 180,
+    width: 104,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    gap: 24,
+    justifyContent: 'center',
+    padding: 24,
   },
   securityNote: {
+    ...typeRamp.caption,
     color: C.textMuted,
-    fontSize: 11,
-    lineHeight: 15,
     textAlign: 'center',
   },
   shell: {
-    backgroundColor: C.navy,
+    backgroundColor: C.bg,
     flex: 1,
-    justifyContent: 'center',
-    padding: 20,
+  },
+  subtitle: {
+    ...typeRamp.subhead,
+    color: C.textSecondary,
+    textAlign: 'center',
   },
   title: {
     color: C.navy,
-    fontSize: 21,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 0.36,
     textAlign: 'center',
   },
 });

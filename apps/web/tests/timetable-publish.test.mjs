@@ -7,8 +7,7 @@ import vm from 'node:vm';
 const require = createRequire(import.meta.url);
 const React = require('react');
 const ts = require('typescript');
-const mobileRequire = createRequire(new URL('../../mobile/package.json', import.meta.url));
-const { act, create } = mobileRequire('react-test-renderer');
+const { act, create } = require('react-test-renderer');
 const filename = new URL(
   '../src/components/timetable/student-timetable-editor.tsx',
   import.meta.url,

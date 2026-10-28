@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { canUseParentVolunteerNavigation, type ParentVolunteerAccess } from '@oasis/domain';
@@ -88,6 +89,8 @@ export function ParentPortalScreen({
   const { signOut } = useClerk();
   const canUseParentVolunteer = canUseParentVolunteerNavigation(parentVolunteerAccess);
   const [route, setRoute] = useState<ParentPortalRoute>('home');
+  // A message thread takes the whole screen: the header and tab bar would cover its composer.
+  const [messageThreadOpen, setMessageThreadOpen] = useState(false);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [timetableTermKey, setTimetableTermKey] = useState('');
   const profile = api.profile.me.useQuery(undefined, { retry: false });
@@ -301,27 +304,35 @@ export function ParentPortalScreen({
   if (route === 'messages') {
     return (
       <SafeAreaView style={styles.shell}>
-        <PortalMobileHeader
-          actionAccessibilityLabel={
-            onSwitchToStaff ? 'Switch back to staff mode' : `Sign out of parent account ${user.id}`
-          }
-          actionLabel={onSwitchToStaff ? 'Staff' : 'Out'}
-          avatarLabel="P"
-          eyebrow="Parent Portal"
-          onActionPress={() => {
-            if (onSwitchToStaff) {
-              onSwitchToStaff();
-              return;
+        {messageThreadOpen ? null : (
+          <PortalMobileHeader
+            actionAccessibilityLabel={
+              onSwitchToStaff
+                ? 'Switch back to staff mode'
+                : `Sign out of parent account ${user.id}`
             }
-            void signOut();
-          }}
-          subtitle={
-            selectedChild ? `Parent of ${selectedChild.student.fullName}` : 'Family account'
-          }
-          title="Oasis Learning Centre"
-        />
+            actionLabel={onSwitchToStaff ? 'Staff' : 'Out'}
+            avatarLabel="P"
+            eyebrow="Parent Portal"
+            onActionPress={() => {
+              if (onSwitchToStaff) {
+                onSwitchToStaff();
+                return;
+              }
+              void signOut();
+            }}
+            subtitle={
+              selectedChild ? `Parent of ${selectedChild.student.fullName}` : 'Family account'
+            }
+            title="Oasis Learning Centre"
+          />
+        )}
         <View style={styles.messagesContent}>
-          {routeQueryError ? <ErrorText>{routeQueryError}</ErrorText> : null}
+          {routeQueryError ? (
+            <View style={styles.messagesError}>
+              <ErrorText>{routeQueryError}</ErrorText>
+            </View>
+          ) : null}
           <ParentMessagesScreen
             conversations={conversations}
             hasMore={hasMoreMessages}
@@ -330,11 +341,12 @@ export function ParentPortalScreen({
               if (hasMoreMessages) void conversationsQuery.fetchNextPage();
             }}
             onRefresh={refresh}
+            onThreadOpenChange={setMessageThreadOpen}
             recipients={recipients.data ?? []}
             refreshing={refreshing}
           />
         </View>
-        {bottomNav}
+        {messageThreadOpen ? null : bottomNav}
       </SafeAreaView>
     );
   }
@@ -424,7 +436,7 @@ export function ParentPortalScreen({
       ) : route === 'settings' ? (
         <ParentStudentSettingsScreen onRefresh={refresh} />
       ) : (
-        <ScrollView
+        <PortalScrollView
           contentContainerStyle={styles.content}
           refreshControl={
             <RefreshControl
@@ -522,7 +534,7 @@ export function ParentPortalScreen({
               slots={parentVolunteerSlots.data}
             />
           ) : null}
-        </ScrollView>
+        </PortalScrollView>
       )}
 
       {bottomNav}
@@ -539,9 +551,10 @@ const styles = StyleSheet.create({
   messagesContent: {
     backgroundColor: C.bg,
     flex: 1,
-    gap: 12,
-    padding: 14,
-    paddingBottom: 10,
+    gap: 8,
+  },
+  messagesError: {
+    paddingHorizontal: 16,
   },
   scroller: {
     backgroundColor: C.bg,

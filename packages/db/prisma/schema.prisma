@@ -162,6 +162,8 @@ model User {
   // --- operational ---
   active                            Boolean                       @default(true)
   deletedAt                         DateTime?
+  deletionRequestedAt               DateTime?
+  deletionRequestedById             String?
   staffParentVolunteerAccess        Boolean                       @default(false)
   lunchAndClubsVolunteerExempt      Boolean                       @default(false)
   parentEmailNotificationsEnabled   Boolean                       @default(true)
@@ -289,6 +291,7 @@ model User {
   libraryEmailReminders            LibraryEmailReminder[]           @relation("LibraryEmailRemindersRecipient")
 
   @@index([role])
+  @@index([deletionRequestedAt])
 }
 
 enum DbsApplicationType {

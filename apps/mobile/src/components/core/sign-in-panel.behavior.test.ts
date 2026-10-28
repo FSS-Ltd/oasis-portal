@@ -8,6 +8,7 @@ vi.mock('react-native', () => ({
   Image: 'Image',
   Linking: { openURL: vi.fn() },
   Pressable: 'Pressable',
+  ScrollView: 'ScrollView',
   StyleSheet: { create: <T>(styles: T) => styles },
   Text: 'Text',
   TextInput: 'TextInput',

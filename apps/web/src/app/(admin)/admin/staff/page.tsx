@@ -1,5 +1,6 @@
 import { MotionPage } from '@/components/admin/motion';
 import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
+import { DeletionRequestsPanel } from './_components/deletion-requests-panel';
 import { PeopleProfilesClient } from './people-profiles-client';
 
 export default async function PeopleProfilesPage() {
@@ -17,6 +18,7 @@ export default async function PeopleProfilesPage() {
           </p>
         </div>
       </div>
+      <DeletionRequestsPanel currentUserRole={user.role} />
       <PeopleProfilesClient currentUserId={user.id} currentUserRole={user.role} />
     </MotionPage>
   );

@@ -1,6 +1,7 @@
 import { displaySchoolYearLabel, formatPaceIdentifier, resolveReportPeriod } from '@oasis/domain';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -340,7 +341,7 @@ export function ParentPaceScreen({
   }
 
   return (
-    <ScrollView
+    <PortalScrollView
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -440,7 +441,7 @@ export function ParentPaceScreen({
           )}
         </>
       )}
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 

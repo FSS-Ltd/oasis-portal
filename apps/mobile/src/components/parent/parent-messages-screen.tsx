@@ -7,6 +7,7 @@ export function ParentMessagesScreen({
   loadingMore,
   onLoadMore,
   onRefresh,
+  onThreadOpenChange,
   recipients,
   refreshing,
 }: {
@@ -15,6 +16,7 @@ export function ParentMessagesScreen({
   loadingMore: boolean;
   onLoadMore: () => void;
   onRefresh: () => Promise<void>;
+  onThreadOpenChange: (open: boolean) => void;
   recipients: Recipient[];
   refreshing: boolean;
 }) {
@@ -26,6 +28,7 @@ export function ParentMessagesScreen({
       loadingMore={loadingMore}
       onLoadMore={onLoadMore}
       onRefresh={onRefresh}
+      onThreadOpenChange={onThreadOpenChange}
       recipients={recipients}
       refreshing={refreshing}
     />

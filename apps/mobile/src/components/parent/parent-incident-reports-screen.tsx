@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -93,15 +94,13 @@ export function ParentIncidentReportsScreen({
       await utils.incident.listParent.invalidate();
     } catch (error) {
       setAcknowledgementError(
-        error instanceof Error
-          ? error.message
-          : 'Incident receipt could not be acknowledged.',
+        error instanceof Error ? error.message : 'Incident receipt could not be acknowledged.',
       );
     }
   }
 
   return (
-    <ScrollView
+    <PortalScrollView
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -173,7 +172,7 @@ export function ParentIncidentReportsScreen({
           />
         </>
       ) : null}
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 
@@ -333,10 +332,7 @@ function IncidentDetailCard({
             value={report.sharedAt ? formatParentDate(report.sharedAt) : 'Not recorded'}
           />
         </View>
-        <IncidentPreviewSection
-          body={report.parentSummary}
-          label="Summary shared with parent"
-        />
+        <IncidentPreviewSection body={report.parentSummary} label="Summary shared with parent" />
         <IncidentPreviewSection
           body={
             report.firstAidGiven

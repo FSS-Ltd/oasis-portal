@@ -30,6 +30,14 @@ test('web redirects homework routes and hides both nav entries', () => {
   assert.match(studentNav, /HOMEWORK_VISIBLE \|\| item\.href !== '\/student\/homework'/);
 });
 
+test('web also refuses the homework upload and image API routes with a 404', () => {
+  assert.match(middleware, /createRouteMatcher\(\['\/api\/homework\(\.\*\)'\]\)/);
+  assert.match(
+    middleware,
+    /!HOMEWORK_VISIBLE && isHomeworkApiRoute\(request\)\) \{\s*return NextResponse\.json\(\{ error: 'Not found' \}, \{ status: 404 \}\)/,
+  );
+});
+
 test('mobile drops the Activity tab and stops loading homework when hidden', () => {
   assert.match(mobileShell, /HOMEWORK_VISIBLE \|\| item\.id !== 'activity'/);
   assert.match(

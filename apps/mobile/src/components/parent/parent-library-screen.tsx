@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { type RouterOutputs, api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Card, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -33,7 +34,7 @@ export function ParentLibraryScreen({
   if (loading) return <MutedText>Loading library…</MutedText>;
   if (!data) return <MutedText>Library records are unavailable.</MutedText>;
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <PortalScrollView contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>OASIS LIBRARY</Text>
         <Text style={styles.heroTitle}>Books for your family</Text>
@@ -106,7 +107,7 @@ export function ParentLibraryScreen({
           </>
         )}
       </View>
-    </ScrollView>
+    </PortalScrollView>
   );
 }
 
@@ -130,7 +131,7 @@ function BookRow({
       {books.length === 0 ? (
         <MutedText>No books to show.</MutedText>
       ) : (
-        <ScrollView
+        <PortalScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.bookRow}
@@ -152,7 +153,7 @@ function BookRow({
               </Text>
             </View>
           ))}
-        </ScrollView>
+        </PortalScrollView>
       )}
     </View>
   );

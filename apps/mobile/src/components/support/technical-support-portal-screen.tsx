@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { type RouterOutputs, api } from '../../lib/trpc';
@@ -91,7 +92,7 @@ export function TechnicalSupportPortalScreen({
           }}
           subtitle="Calendar"
         />
-        <ScrollView contentContainerStyle={styles.content} style={styles.scroller}>
+        <PortalScrollView contentContainerStyle={styles.content} style={styles.scroller}>
           <ParentCalendarScreen
             detail="Dates visible to the support admin shell."
             error={calendarQuery.error?.message ?? null}
@@ -100,7 +101,7 @@ export function TechnicalSupportPortalScreen({
             loading={calendarQuery.isLoading}
             title="Key Dates"
           />
-        </ScrollView>
+        </PortalScrollView>
         {bottomNav}
       </SafeAreaView>
     );

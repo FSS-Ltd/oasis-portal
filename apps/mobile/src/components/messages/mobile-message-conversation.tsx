@@ -1,4 +1,7 @@
+import Feather from '@expo/vector-icons/Feather';
+import { useMemo, useRef } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -7,386 +10,389 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { C } from '../core/mobile-theme';
+import { C, radius, typeRamp } from '../core/mobile-theme';
 import { ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
-import type { ConversationDetail, ConversationSummary } from './mobile-message-types';
-import { formatDateTime, formatThreadTime, unreadLabel } from './mobile-message-utils';
+import { Avatar, GlassBackButton } from './mobile-message-ui';
+import type { ConversationDetail, ConversationMessage } from './mobile-message-types';
+import { buildMessageRows, formatThreadTime, type MessageRow } from './mobile-message-utils';
 
 interface ConversationViewProps {
+  accent: string;
+  contactName: string;
+  /** A contact picked from the list who has no conversation yet. */
+  draft: boolean;
   detail: ConversationDetail | undefined;
   error: string | undefined;
   formError: string | null;
+  isGroup: boolean;
   loading: boolean;
   onBack: () => void;
   onRefresh: () => void;
   onSend: () => void;
   refreshing: boolean;
   replyBody: string;
-  selectedSummary: ConversationSummary | null;
   sendError: string | undefined;
   sending: boolean;
   setReplyBody: (value: string) => void;
+  subtitle: string;
   unreadTotal: number;
 }
 
 export function ConversationView({
+  accent,
+  contactName,
   detail,
+  draft,
   error,
   formError,
+  isGroup,
   loading,
   onBack,
   onRefresh,
   onSend,
   refreshing,
   replyBody,
-  selectedSummary,
   sendError,
   sending,
   setReplyBody,
+  subtitle,
   unreadTotal,
 }: ConversationViewProps) {
-  const title = detail?.admin?.fullName ?? selectedSummary?.admin?.fullName ?? 'Centre team';
-  const otherParticipant =
-    detail?.participants.find((participant) => participant.id !== detail.currentUserId) ??
-    selectedSummary?.participants.find(
-      (participant) => participant.id !== selectedSummary.currentUserId,
-    );
-  const isStaffroom = detail?.kind === 'Staffroom' || selectedSummary?.kind === 'Staffroom';
-  const displayTitle = isStaffroom ? 'Staffroom' : (otherParticipant?.fullName ?? title);
-  const subject = isStaffroom ? 'Staff group chat' : 'Private message';
+  const scroller = useRef<ScrollView>(null);
   const currentUserId = detail?.currentUserId ?? null;
-  const unreadBackLabel =
+  const rows = useMemo(
+    () => buildMessageRows(detail?.messages ?? [], currentUserId),
+    [detail?.messages, currentUserId],
+  );
+  const backLabel =
     unreadTotal > 0 ? `Back to messages, ${String(unreadTotal)} unread` : 'Back to messages';
+  const showEmpty = draft || Boolean(detail && detail.messages.length === 0);
 
   return (
-    <View style={styles.conversationScreen}>
-      <View style={styles.conversationHeader}>
-        <Pressable
-          accessibilityLabel={unreadBackLabel}
-          accessibilityRole="button"
-          onPress={onBack}
-          style={styles.backButton}
-        >
-          <View style={styles.backChevronFrame}>
-            <View style={styles.backChevron} />
-          </View>
-          {unreadTotal > 0 ? (
-            <View style={styles.backUnreadBadge}>
-              <Text style={styles.backUnreadText}>{unreadLabel(unreadTotal)}</Text>
-            </View>
-          ) : null}
-        </Pressable>
-        <View style={styles.conversationTitleGroup}>
-          <Text numberOfLines={1} style={styles.conversationName}>
-            {displayTitle}
+    <View style={styles.screen}>
+      <View style={styles.topBar}>
+        <View style={styles.topBarSide}>
+          <GlassBackButton
+            accent={accent}
+            label={backLabel}
+            onPress={onBack}
+            unread={unreadTotal}
+          />
+        </View>
+        <View style={styles.titleGroup}>
+          <Avatar group={isGroup} name={contactName} size={38} />
+          <Text accessibilityRole="header" numberOfLines={1} style={styles.contactName}>
+            {contactName}
           </Text>
-          <Text numberOfLines={2} style={styles.conversationSubject}>
-            {subject}
+          <Text numberOfLines={1} style={styles.contactSubtitle}>
+            {subtitle}
           </Text>
         </View>
+        <View style={styles.topBarSide} />
       </View>
 
-      {loading ? <InlineSpinner label="Loading messages" /> : null}
-      {error ? <ErrorText>{error}</ErrorText> : null}
-      {!loading && !error && !detail ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Message unavailable</Text>
-          <MutedText>Select a message from your inbox.</MutedText>
-        </View>
-      ) : null}
+      <ScrollView
+        contentContainerStyle={[styles.list, showEmpty ? styles.listEmpty : null]}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => {
+          scroller.current?.scrollToEnd({ animated: false });
+        }}
+        ref={scroller}
+        refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} />}
+        showsVerticalScrollIndicator={false}
+        style={styles.scroller}
+      >
+        {loading ? <InlineSpinner label="Loading messages" /> : null}
+        {error ? <ErrorText>{error}</ErrorText> : null}
+        {!loading && !error && !draft && !detail ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Message unavailable</Text>
+            <MutedText>Select a message from your inbox.</MutedText>
+          </View>
+        ) : null}
+        {showEmpty ? (
+          <View style={styles.empty}>
+            <Avatar group={isGroup} name={contactName} size={72} />
+            <Text style={styles.emptyTitle}>{contactName}</Text>
+            <MutedText>
+              {draft ? 'Send a message to start the conversation.' : 'No messages yet.'}
+            </MutedText>
+          </View>
+        ) : null}
+        {rows.map((row) => (
+          <RowView accent={accent} isGroup={isGroup} key={row.key} row={row} />
+        ))}
+      </ScrollView>
 
-      {detail ? (
-        <>
-          <ScrollView
-            contentContainerStyle={styles.messageList}
-            keyboardShouldPersistTaps="handled"
-            refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} />}
-            showsVerticalScrollIndicator={false}
-            style={styles.messageScroller}
-          >
-            {detail.messages.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No messages yet</Text>
-                <MutedText>Messages in this conversation will appear here.</MutedText>
-              </View>
-            ) : (
-              detail.messages.map((message) => (
-                <MessageBubble currentUserId={currentUserId} key={message.id} message={message} />
-              ))
-            )}
-          </ScrollView>
-          <ReplyComposer
-            disabled={sending}
-            onSend={onSend}
-            replyBody={replyBody}
-            sendError={sendError}
-            setReplyBody={setReplyBody}
-          />
-        </>
-      ) : null}
-
-      {formError ? <ErrorText>{formError}</ErrorText> : null}
+      <Composer
+        accent={accent}
+        formError={formError}
+        onSend={onSend}
+        replyBody={replyBody}
+        sendError={sendError}
+        sending={sending}
+        setReplyBody={setReplyBody}
+      />
     </View>
   );
 }
 
-function MessageBubble({
-  currentUserId,
-  message,
+function RowView({
+  accent,
+  isGroup,
+  row,
 }: {
-  currentUserId: string | null;
-  message: ConversationDetail['messages'][number];
+  accent: string;
+  isGroup: boolean;
+  row: MessageRow<ConversationMessage>;
 }) {
-  const mine = currentUserId === message.senderId;
-  const metaLabel = messageMetaLabel(message, mine);
+  if (row.type === 'separator') {
+    return <Text style={styles.separator}>{row.label}</Text>;
+  }
+
+  const { message, mine, position, showSender, showStatus } = row;
+  const tail = position === 'single' || position === 'last';
+  const startsGroup = position === 'single' || position === 'first';
 
   return (
-    <View style={[styles.messageRow, mine ? styles.messageRowMine : styles.messageRowTheirs]}>
+    <View
+      style={[
+        styles.messageRow,
+        mine ? styles.rowMine : styles.rowTheirs,
+        startsGroup ? styles.rowGroupStart : null,
+      ]}
+    >
+      {isGroup && showSender ? (
+        <Text numberOfLines={1} style={styles.sender}>
+          {message.sender.fullName}
+        </Text>
+      ) : null}
       <View
-        style={[styles.messageBubble, mine ? styles.messageBubbleMine : styles.messageBubbleTheirs]}
+        style={[
+          styles.bubble,
+          mine ? { backgroundColor: accent } : styles.bubbleTheirs,
+          tail ? (mine ? styles.tailMine : styles.tailTheirs) : null,
+        ]}
       >
-        {!mine ? (
-          <Text numberOfLines={1} style={styles.messageSender}>
-            {message.sender.fullName}
-          </Text>
-        ) : null}
-        <Text style={[styles.messageText, mine ? styles.messageTextMine : null]}>
+        <Text selectable style={[styles.messageText, mine ? styles.messageTextMine : null]}>
           {message.body}
         </Text>
       </View>
-      <Text style={[styles.messageMeta, mine ? styles.messageMetaMine : null]}>{metaLabel}</Text>
+      {mine && showStatus ? (
+        <Text style={styles.status}>
+          {message.readByOtherParticipant ? 'Read' : 'Sent'} {formatThreadTime(message.createdAt)}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
-function messageMetaLabel(message: ConversationDetail['messages'][number], mine: boolean): string {
-  if (!mine) return formatDateTime(message.createdAt);
-
-  const status = message.readByOtherParticipant ? 'Read' : 'Sent';
-  return `${status} ${formatThreadTime(message.createdAt)}`;
-}
-
-function ReplyComposer({
-  disabled,
+function Composer({
+  accent,
+  formError,
   onSend,
   replyBody,
   sendError,
+  sending,
   setReplyBody,
 }: {
-  disabled: boolean;
+  accent: string;
+  formError: string | null;
   onSend: () => void;
   replyBody: string;
   sendError: string | undefined;
+  sending: boolean;
   setReplyBody: (value: string) => void;
 }) {
-  const canSend = replyBody.trim().length > 0 && !disabled;
+  const canSend = replyBody.trim().length > 0 && !sending;
 
   return (
-    <View style={styles.replyWrap}>
-      <View style={styles.replyComposer}>
+    <View style={styles.composer}>
+      {formError ? <ErrorText>{formError}</ErrorText> : null}
+      {sendError ? <ErrorText>{sendError}</ErrorText> : null}
+      <View style={styles.composerRow}>
         <TextInput
           accessibilityLabel="Message reply"
+          maxLength={4000}
           multiline
           onChangeText={setReplyBody}
           placeholder="Message"
           placeholderTextColor={C.textMuted}
-          style={styles.replyInput}
+          selectionColor={accent}
+          style={styles.input}
           value={replyBody}
         />
         <Pressable
+          accessibilityLabel="Send message"
           accessibilityRole="button"
+          accessibilityState={{ busy: sending, disabled: !canSend }}
           disabled={!canSend}
           onPress={onSend}
-          style={[styles.sendButton, canSend ? null : styles.sendButtonDisabled]}
+          style={({ pressed }) => [
+            styles.send,
+            { backgroundColor: accent },
+            canSend ? null : styles.sendDisabled,
+            pressed ? styles.sendPressed : null,
+          ]}
         >
-          <Text style={styles.sendButtonText}>{disabled ? '...' : 'Send'}</Text>
+          {sending ? (
+            <ActivityIndicator color={C.surface} size="small" />
+          ) : (
+            <Feather color={C.surface} name="arrow-up" size={20} />
+          )}
         </Pressable>
       </View>
-      {sendError ? <ErrorText>{sendError}</ErrorText> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    gap: 6,
-    minHeight: 40,
-    minWidth: 40,
-  },
-  backChevron: {
-    borderBottomColor: C.surface,
-    borderBottomWidth: 4,
-    borderLeftColor: C.surface,
-    borderLeftWidth: 4,
-    height: 15,
-    marginLeft: 5,
-    transform: [{ rotate: '45deg' }],
-    width: 15,
-  },
-  backChevronFrame: {
-    alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 18,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  backUnreadBadge: {
-    alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 12,
-    justifyContent: 'center',
-    minHeight: 24,
-    minWidth: 24,
-    paddingHorizontal: 7,
-  },
-  backUnreadText: {
-    color: C.surface,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  conversationHeader: {
-    alignItems: 'stretch',
-    backgroundColor: C.bg,
-    borderBottomColor: C.border,
-    borderBottomWidth: 1,
-    gap: 10,
-    paddingBottom: 12,
-    paddingTop: 2,
-  },
-  conversationName: {
-    color: C.navy,
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  conversationScreen: {
-    flex: 1,
-    gap: 12,
-  },
-  conversationSubject: {
-    color: C.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 18,
-    marginTop: 2,
-  },
-  conversationTitleGroup: {
-    flex: 1,
-    gap: 2,
-    minWidth: 0,
-  },
-  emptyState: {
-    alignItems: 'center',
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 10,
-    marginTop: 16,
-    padding: 24,
-  },
-  emptyTitle: {
-    color: C.navy,
-    fontSize: 17,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  messageBubble: {
-    borderRadius: 18,
-    maxWidth: '84%',
+  bubble: {
+    borderCurve: 'continuous',
+    borderRadius: 20,
+    maxWidth: '78%',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
-  messageBubbleMine: {
-    backgroundColor: C.crimson,
-    borderBottomRightRadius: 6,
+  bubbleTheirs: {
+    backgroundColor: C.bubble,
   },
-  messageBubbleTheirs: {
-    backgroundColor: C.surface,
-    borderBottomLeftRadius: 6,
-    borderColor: C.border,
-    borderWidth: 1,
+  composer: {
+    backgroundColor: C.bg,
+    borderTopColor: C.hairline,
+    borderTopWidth: 1,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
-  messageList: {
-    gap: 12,
-    paddingBottom: 12,
-    paddingTop: 4,
+  composerRow: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    gap: 8,
   },
-  messageMeta: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
+  contactName: {
+    ...typeRamp.footnote,
+    color: C.navy,
+    fontWeight: '600',
     marginTop: 4,
   },
-  messageMetaMine: {
-    textAlign: 'right',
+  contactSubtitle: {
+    ...typeRamp.caption,
+    color: C.textSecondary,
+  },
+  empty: {
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
+    ...typeRamp.title3,
+    color: C.navy,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  input: {
+    ...typeRamp.body,
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderCurve: 'continuous',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    color: C.textPrimary,
+    flex: 1,
+    maxHeight: 120,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  list: {
+    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+  },
+  listEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   messageRow: {
-    gap: 2,
-  },
-  messageRowMine: {
-    alignItems: 'flex-end',
-  },
-  messageRowTheirs: {
-    alignItems: 'flex-start',
-  },
-  messageScroller: {
-    flex: 1,
-  },
-  messageSender: {
-    color: C.textSecondary,
-    fontSize: 11,
-    fontWeight: '800',
-    marginBottom: 4,
+    gap: 3,
+    marginTop: 2,
   },
   messageText: {
-    color: C.textPrimary,
-    fontSize: 15,
-    lineHeight: 21,
+    ...typeRamp.body,
+    color: C.navy,
   },
   messageTextMine: {
     color: C.surface,
   },
-  replyComposer: {
+  rowGroupStart: {
+    marginTop: 10,
+  },
+  rowMine: {
     alignItems: 'flex-end',
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
-    padding: 8,
   },
-  replyInput: {
-    color: C.textPrimary,
+  rowTheirs: {
+    alignItems: 'flex-start',
+  },
+  screen: {
     flex: 1,
-    fontSize: 15,
-    maxHeight: 110,
-    minHeight: 36,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
   },
-  replyWrap: {
-    gap: 8,
-    paddingTop: 4,
+  scroller: {
+    flex: 1,
   },
-  sendButton: {
+  send: {
     alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 15,
+    borderRadius: 20,
+    height: 40,
     justifyContent: 'center',
-    minHeight: 30,
+    width: 40,
+  },
+  sendDisabled: {
+    opacity: 0.35,
+  },
+  sendPressed: {
+    opacity: 0.75,
+  },
+  sender: {
+    ...typeRamp.caption,
+    color: C.textSecondary,
+    fontWeight: '600',
+    paddingHorizontal: 14,
+  },
+  separator: {
+    ...typeRamp.caption,
+    color: C.textSecondary,
+    fontWeight: '600',
+    marginBottom: 4,
+    marginTop: 14,
+    textAlign: 'center',
+  },
+  status: {
+    ...typeRamp.caption,
+    color: C.textSecondary,
+    paddingHorizontal: 4,
+  },
+  tailMine: {
+    borderBottomRightRadius: 6,
+  },
+  tailTheirs: {
+    borderBottomLeftRadius: 6,
+  },
+  titleGroup: {
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  topBar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingBottom: 8,
     paddingHorizontal: 12,
+    paddingTop: 2,
   },
-  sendButtonDisabled: {
-    opacity: 0.45,
-  },
-  sendButtonText: {
-    color: C.surface,
-    fontSize: 12,
-    fontWeight: '800',
+  topBarSide: {
+    width: 56,
   },
 });

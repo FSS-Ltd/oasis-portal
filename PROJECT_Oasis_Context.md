@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-30
-**Agent:** Technical Agent (Codex)
-**Phase:** Web navigation accordion grouping.
+**Last updated:** 2026-10-28
+**Agent:** Technical Agent (Claude)
+**Phase:** Mobile store readiness and Liquid Glass redesign.
 
 ---
 
@@ -28,6 +28,62 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-10-28 mobile store readiness and Liquid Glass
+
+Working branch: `feat/mobile-store-readiness-liquid-glass` (from `origin/main`, not pushed).
+
+**Scope:** Make `apps/mobile` submittable to the App Store and Google Play, and redesign the UI to feel
+like a premium iOS app with subtle, purposeful Liquid Glass. Design doc:
+`docs/mobile-store-readiness-and-liquid-glass.md`. Human-only items:
+`docs/mobile-store-submission-checklist.md`.
+
+Completed:
+
+- Upgraded Expo SDK 52 to 54 (React Native 0.81, React 19.1). Apple has required Xcode 26 builds since
+  2026-04-28 and Google Play has required target API 36 since 2026-08-31; SDK 52 met neither.
+- Fixed the fallout: `useRef` arguments, PDF share helper moved to the `File`/`Paths` API, React 19 test
+  renderer wrapped in `act()`, `@expo/metro-runtime` declared at 6.x (a stale 4.0.1 peer crashed the app
+  on launch and only a device run exposed it), Metro `watchFolders` merged with defaults.
+- Pinned `@types/react` and `@types/react-dom` to 19.1 workspace-wide so mobile can type-check API source
+  without ~68 email-component errors. Runtime React stays 18 for web and API.
+- Removed unused `expo-image-picker` (its plugin added camera, photo and microphone permissions).
+- `app.json`: version 1.0.0, icon, adaptive and monochrome icons, splash, export-compliance flag, iOS
+  privacy manifest, narrowed permissions, edge-to-edge, light-only interface style.
+- New `glass.tsx` (native glass on iOS 26, blur on iOS below 26 and web, opaque on Android and Reduce
+  Transparency), restyled primitives in `mobile-ui.tsx`, new type ramp and tokens in `mobile-theme.ts`,
+  header, floating glass tab bar and More sheet in `portal-mobile-shell.tsx`, `PortalScrollView` for
+  bar clearance, restyled sign-in and signed-in router states, width cap and status bar in `_layout.tsx`.
+- Fixed the signed-in router's refresh warning, which was drawn under the status bar, and added a Sign out
+  action to the "could not refresh your access" screen, which previously had no way out.
+- Removed the "Live updates unavailable / Connecting live updates" banner from mobile and web on request.
+  The subscription, catch-up and automatic reconnect logic is unchanged; only the banner, its status state
+  and the manual Retry button are gone. The PWA realtime e2e spec now asserts on the websocket instead.
+- Web: one type-only change (`RefObject<T | null>`) and `timetable-publish.test.mjs` now uses web's own
+  `react-test-renderer`.
+
+**Decisions:** SDK 54, not latest (follow-up). Light only until a dark-mode pass. No `NativeTabs` (needs
+route-based tabs). Glass only on controls, never on content. No submit profile in `eas.json`.
+
+**Verified:** `pnpm lint`, `typecheck` and `test` from the repo root; `expo export` for ios, android and
+web; `pwa:check`; `eas:check`; `expo-doctor` 17 of 18; native Xcode 26.3 build running on an iOS 26.3
+simulator with screenshots of sign-in, the shell (parent and student), the More sheet and a large Dynamic
+Type setting.
+
+**Not verified:** Android on a device or emulator (no Android SDK here); iOS below 26 and Reduce
+Transparency renderings (logic unit tested only); EAS cloud builds; Parent and Student portals against
+real data (only a Head session was available).
+
+**Local environment finding:** the dev database (Docker `oasis_dev`) has nine pending migrations and a
+diverged history (`20260526120000_student_portal` applied but absent from the repo, plus six unfinished
+rows in `_prisma_migrations`). Not touched. See section 7 of the submission checklist.
+
+**Blockers for submission (need a human):** privacy policy and support URLs, review demo account,
+account-deletion decision, production Clerk key and API URL in EAS, Expo login and `eas init`, store
+accounts and listing assets. See the checklist.
+
+**Next:** run an EAS `internal-ios` and `internal-android` build on the new SDK, smoke test Android on a
+device, pass through screens that still use local 11 to 14 pt font sizes, plan the SDK upgrade past 54.
 
 ## Current session - 2026-06-30 web navigation accordions
 

@@ -1,227 +1,250 @@
+import Feather from '@expo/vector-icons/Feather';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { C } from '../core/mobile-theme';
-import { ErrorText, MutedText } from '../core/mobile-ui';
-import type { Recipient } from './mobile-message-types';
+import { C, elevation, radius, typeRamp } from '../core/mobile-theme';
+import { MutedText } from '../core/mobile-ui';
+import { Avatar } from './mobile-message-ui';
+import type { ConversationKind, Recipient, RecipientGroup } from './mobile-message-types';
 
-interface NewThreadViewProps {
-  activeRecipientId: string;
-  body: string;
-  formError: string | null;
+interface ContactsViewProps {
+  accent: string;
+  groups: RecipientGroup[];
   onBack: () => void;
-  onSend: () => void;
-  openConversationError: string | undefined;
-  pending: boolean;
-  recipients: Recipient[];
-  sendError: string | undefined;
-  setBody: (value: string) => void;
-  setRecipientId: (value: string) => void;
+  onSelect: (recipient: Recipient, kind: ConversationKind) => void;
 }
 
-export function NewThreadView({
-  activeRecipientId,
-  body,
-  formError,
-  onBack,
-  onSend,
-  openConversationError,
-  pending,
-  recipients,
-  sendError,
-  setBody,
-  setRecipientId,
-}: NewThreadViewProps) {
-  const canSend = Boolean(activeRecipientId && body.trim() && !pending);
+/** The contacts page: pick a person and their conversation opens, as in Messages. */
+export function ContactsView({ accent, groups, onBack, onSelect }: ContactsViewProps) {
+  const [groupIndex, setGroupIndex] = useState(0);
+  const [query, setQuery] = useState('');
+  const group = groups[Math.min(groupIndex, Math.max(groups.length - 1, 0))];
+  const contacts = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const all = group?.recipients ?? [];
+    return needle
+      ? all.filter((recipient) => recipient.fullName.toLowerCase().includes(needle))
+      : all;
+  }, [group, query]);
 
   return (
     <View style={styles.screen}>
-      <View style={styles.newThreadHeader}>
+      <View style={styles.topBar}>
         <Pressable
           accessibilityLabel="Cancel new message"
           accessibilityRole="button"
+          hitSlop={8}
           onPress={onBack}
-          style={styles.backButton}
+          style={({ pressed }) => [styles.cancel, pressed ? styles.pressed : null]}
         >
-          <Text style={styles.backButtonText}>Cancel</Text>
+          <Text style={[styles.cancelText, { color: accent }]}>Cancel</Text>
         </Pressable>
-        <Text style={styles.newThreadTitle}>New Message</Text>
-        <Pressable
-          accessibilityRole="button"
-          disabled={!canSend}
-          onPress={onSend}
-          style={[styles.headerSendButton, canSend ? null : styles.sendButtonDisabled]}
-        >
-          <Text style={styles.headerSendButtonText}>{pending ? 'Sending' : 'Send'}</Text>
-        </Pressable>
+        <Text accessibilityRole="header" style={styles.title}>
+          New Message
+        </Text>
+        <View style={styles.cancel} />
+      </View>
+
+      {groups.length > 1 ? (
+        <View accessibilityRole="tablist" style={styles.segments}>
+          {groups.map((item, index) => {
+            const active = index === groupIndex;
+            return (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                key={item.kind}
+                onPress={() => {
+                  setGroupIndex(index);
+                }}
+                style={[styles.segment, active ? styles.segmentActive : null]}
+              >
+                <Text
+                  maxFontSizeMultiplier={1.3}
+                  numberOfLines={1}
+                  style={[styles.segmentText, active ? { color: accent } : null]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
+      <View style={styles.search}>
+        <Feather color={C.textSecondary} name="search" size={17} />
+        <TextInput
+          accessibilityLabel="Search contacts"
+          autoCapitalize="none"
+          autoCorrect={false}
+          onChangeText={setQuery}
+          placeholder="Search"
+          placeholderTextColor={C.textMuted}
+          returnKeyType="search"
+          selectionColor={accent}
+          style={styles.searchInput}
+          value={query}
+        />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.newThreadContent}
+        contentContainerStyle={styles.list}
+        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.formSection}>
-          <Text style={styles.fieldLabel}>To</Text>
-          {recipients.length === 0 ? (
-            <MutedText>No message recipients are currently available.</MutedText>
-          ) : (
-            <View style={styles.recipientList}>
-              {recipients.map((recipient) => {
-                const active = activeRecipientId === recipient.id;
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={recipient.id}
-                    onPress={() => {
-                      setRecipientId(recipient.id);
-                    }}
-                    style={[styles.recipientRow, active ? styles.recipientRowActive : null]}
-                  >
-                    <View style={styles.recipientAvatar}>
-                      <Text style={styles.recipientAvatarText}>
-                        {recipient.fullName.slice(0, 1)}
-                      </Text>
-                    </View>
-                    <View style={styles.recipientText}>
-                      <Text style={styles.recipientName}>{recipient.fullName}</Text>
-                      <Text style={styles.recipientRole}>{recipient.role}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.formSection}>
-          <Text style={styles.fieldLabel}>Message</Text>
-          <TextInput
-            accessibilityLabel="Message body"
-            maxLength={4000}
-            multiline
-            onChangeText={setBody}
-            placeholder="Write your message..."
-            placeholderTextColor={C.textMuted}
-            style={styles.bodyInput}
-            textAlignVertical="top"
-            value={body}
-          />
-        </View>
-
-        {formError ? <ErrorText>{formError}</ErrorText> : null}
-        {openConversationError ? <ErrorText>{openConversationError}</ErrorText> : null}
-        {sendError ? <ErrorText>{sendError}</ErrorText> : null}
+        {contacts.length === 0 ? (
+          <View style={styles.empty}>
+            <MutedText>
+              {query.trim()
+                ? 'No contacts match your search.'
+                : 'No message recipients are currently available.'}
+            </MutedText>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            {contacts.map((recipient, index) => (
+              <View key={recipient.id}>
+                <Pressable
+                  accessibilityLabel={`Message ${recipient.fullName}, ${recipient.role}`}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    if (group) onSelect(recipient, group.kind);
+                  }}
+                  style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+                >
+                  <Avatar name={recipient.fullName} />
+                  <View style={styles.rowText}>
+                    <Text numberOfLines={1} style={styles.name}>
+                      {recipient.fullName}
+                    </Text>
+                    <Text numberOfLines={1} style={styles.role}>
+                      {recipient.role}
+                    </Text>
+                  </View>
+                </Pressable>
+                {index === contacts.length - 1 ? null : <View style={styles.separator} />}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    justifyContent: 'center',
-    minHeight: 36,
-    paddingRight: 8,
-  },
-  backButtonText: {
-    color: C.blue,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  bodyInput: {
+  card: {
     backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    color: C.textPrimary,
-    fontSize: 15,
-    lineHeight: 21,
-    minHeight: 150,
-    padding: 14,
+    borderCurve: 'continuous',
+    borderRadius: radius.lg,
+    boxShadow: elevation.card,
+    overflow: 'hidden',
   },
-  fieldLabel: {
-    color: C.textSecondary,
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  formSection: {
-    gap: 8,
-  },
-  headerSendButton: {
+  cancel: {
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 44,
+    minWidth: 64,
   },
-  headerSendButtonText: {
-    color: C.crimson,
-    fontSize: 14,
-    fontWeight: '800',
+  cancelText: {
+    ...typeRamp.body,
   },
-  newThreadContent: {
-    gap: 18,
-    paddingBottom: 24,
-    paddingTop: 8,
-  },
-  newThreadHeader: {
+  empty: {
     alignItems: 'center',
-    borderBottomColor: C.border,
-    borderBottomWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: 32,
+  },
+  list: {
     paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
-  newThreadTitle: {
+  name: {
+    ...typeRamp.headline,
     color: C.navy,
-    fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '500',
   },
-  recipientAvatar: {
-    alignItems: 'center',
-    backgroundColor: C.crimson,
-    borderRadius: 18,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
+  pressed: {
+    opacity: 0.6,
   },
-  recipientAvatarText: {
-    color: C.surface,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  recipientList: {
-    gap: 8,
-  },
-  recipientName: {
-    color: C.navy,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  recipientRole: {
+  role: {
+    ...typeRamp.footnote,
     color: C.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
   },
-  recipientRow: {
+  row: {
     alignItems: 'center',
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 12,
-    borderWidth: 1,
     flexDirection: 'row',
-    gap: 10,
-    padding: 12,
+    gap: 12,
+    minHeight: 64,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  recipientRowActive: {
-    backgroundColor: C.crimsonLight,
-    borderColor: C.crimson,
+  rowPressed: {
+    backgroundColor: C.fill,
   },
-  recipientText: {
+  rowText: {
     flex: 1,
+    gap: 1,
     minWidth: 0,
   },
   screen: {
     flex: 1,
-    gap: 12,
+    gap: 10,
   },
-  sendButtonDisabled: {
-    opacity: 0.45,
+  search: {
+    alignItems: 'center',
+    backgroundColor: C.fill,
+    borderCurve: 'continuous',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: 8,
+    marginHorizontal: 16,
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    ...typeRamp.body,
+    color: C.textPrimary,
+    flex: 1,
+    paddingVertical: 8,
+  },
+  segment: {
+    alignItems: 'center',
+    borderCurve: 'continuous',
+    borderRadius: radius.sm - 2,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 34,
+  },
+  segmentActive: {
+    backgroundColor: C.surface,
+    boxShadow: elevation.card,
+  },
+  segmentText: {
+    ...typeRamp.footnote,
+    color: C.textSecondary,
+    fontWeight: '600',
+  },
+  segments: {
+    backgroundColor: C.fill,
+    borderCurve: 'continuous',
+    borderRadius: radius.sm,
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    padding: 2,
+  },
+  separator: {
+    backgroundColor: C.hairline,
+    height: 1,
+    marginLeft: 70,
+  },
+  title: {
+    ...typeRamp.headline,
+    color: C.navy,
+  },
+  topBar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
 });

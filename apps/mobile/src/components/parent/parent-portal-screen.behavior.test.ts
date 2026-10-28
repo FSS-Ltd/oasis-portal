@@ -41,7 +41,7 @@ vi.mock('react-native', () => ({
   AppState: { addEventListener: () => ({ remove: () => undefined }) },
   RefreshControl: 'RefreshControl',
   ScrollView: 'ScrollView',
-  StyleSheet: { create: <T>(styles: T) => styles },
+  StyleSheet: { create: <T>(styles: T) => styles, flatten: <T>(style: T) => style },
   View: 'View',
 }));
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));

@@ -49,12 +49,14 @@ export function StaffRotaScreen({
   const monthlyIdentity = useRef(JSON.stringify([user?.id, month]));
   const currentDrafts = useRef({ userId: user?.id, month, weeklyDraft, monthlyDraft });
   currentDrafts.current = { userId: user?.id, month, weeklyDraft, monthlyDraft };
-  const weeklySubmission = useRef<{ userId: string | undefined; rows: AvailabilityDraft[] }>();
+  const weeklySubmission = useRef<{ userId: string | undefined; rows: AvailabilityDraft[] }>(
+    undefined,
+  );
   const monthlySubmission = useRef<{
     userId: string | undefined;
     month: string;
     rows: MonthlyAvailabilityDraft[];
-  }>();
+  }>(undefined);
   const [fromShiftId, setFromShiftId] = useState('');
   const [toShiftId, setToShiftId] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);

@@ -19,6 +19,7 @@ const isClubsRoute = createRouteMatcher([
 ]);
 
 const isHomeworkRoute = createRouteMatcher(['/admin/homework(.*)', '/student/homework(.*)']);
+const isHomeworkApiRoute = createRouteMatcher(['/api/homework(.*)']);
 
 const isProtectedRoute = createRouteMatcher([
   '/admin(.*)',
@@ -36,6 +37,10 @@ const isProtectedRoute = createRouteMatcher([
 export default clerkMiddleware(async (auth, request) => {
   if (isProtectedRoute(request)) {
     await auth.protect();
+  }
+  // The upload and image routes sit outside the page matchers above. API callers get a 404, not a redirect.
+  if (!HOMEWORK_VISIBLE && isHomeworkApiRoute(request)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (
     (!CLUBS_VISIBLE && isClubsRoute(request)) ||
