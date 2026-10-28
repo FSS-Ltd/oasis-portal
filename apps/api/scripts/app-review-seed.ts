@@ -9,7 +9,13 @@
 import { fileURLToPath } from 'node:url';
 import { createClerkClient, type ClerkClient } from '@clerk/backend';
 import { PrismaClient } from '@prisma/client';
-import { REVIEW_SCHEMA, reviewDatabaseUrl, withEncryption } from '@oasis/db';
+import {
+  blindIndex,
+  decryptField,
+  REVIEW_SCHEMA,
+  reviewDatabaseUrl,
+  withEncryption,
+} from '@oasis/db';
 import { requireEnv, type EnvLike } from './client-demo/env.js';
 import { currentSchema, resetIsolatedSchema, seedDatabase } from './client-demo/database.js';
 import { buildClientDemoPlan, type ClientDemoPlan } from './client-demo/plan.js';
@@ -90,6 +96,23 @@ export function validateAppReviewSeedEnvironment(env: EnvLike, schema: string): 
   }
 }
 
+/**
+ * Sandbox rows must be encrypted with the production keys, or the live API cannot read them. Prove
+ * the keys by decrypting one live email and recomputing its blind index. Nothing is printed.
+ */
+export function assertProductionKeys(liveRow: { emailEnc: string; emailBidx: string } | undefined) {
+  if (!liveRow) return; // An empty database (local runs) has nothing to compare against.
+  let email: string;
+  try {
+    email = decryptField(liveRow.emailEnc);
+  } catch {
+    throw new Error('OASIS_MASTER_KEY does not match production. Copy it from Vercel production.');
+  }
+  if (blindIndex(email) !== liveRow.emailBidx) {
+    throw new Error('OASIS_BIDX_PEPPER does not match production. Copy it from Vercel production.');
+  }
+}
+
 async function upsertReviewLogin(
   clerk: ClerkClient,
   plan: ClientDemoPlan,
@@ -139,6 +162,12 @@ async function runAppReviewSeed(): Promise<void> {
   try {
     validateAppReviewSeedEnvironment(process.env, await currentSchema(db));
     const { plan, logins } = buildAppReviewPlan(process.env);
+    const liveRows = await db.$queryRaw<{ emailEnc: string; emailBidx: string }[]>`
+      SELECT "emailEnc", "emailBidx" FROM public."User"
+      WHERE "emailEnc" IS NOT NULL AND "emailBidx" IS NOT NULL
+      LIMIT 1
+    `;
+    assertProductionKeys(liveRows[0]);
 
     const clerk = createClerkClient({ secretKey: requireEnv(process.env, 'CLERK_SECRET_KEY') });
     const loginClerkIds = new Map<string, string>();

@@ -1,6 +1,9 @@
+import { randomBytes } from 'node:crypto';
+import { blindIndex, encryptField } from '@oasis/db';
 import { describe, expect, it } from 'vitest';
 import {
   APP_REVIEW_SEED_CONFIRMATION,
+  assertProductionKeys,
   buildAppReviewPlan,
   reviewClerkIds,
   validateAppReviewSeedEnvironment,
@@ -64,5 +67,40 @@ describe('app review seed', () => {
     expect(() => {
       validateAppReviewSeedEnvironment(seedEnv, 'review');
     }).not.toThrow();
+  });
+});
+
+describe('assertProductionKeys', () => {
+  function liveRowWithFreshKeys() {
+    process.env['OASIS_MASTER_KEY'] = randomBytes(32).toString('base64');
+    process.env['OASIS_MASTER_KEY_VERSION'] = '1';
+    process.env['OASIS_BIDX_PEPPER'] = randomBytes(32).toString('hex');
+    return {
+      emailEnc: encryptField('live.parent@example.com'),
+      emailBidx: blindIndex('live.parent@example.com'),
+    };
+  }
+
+  it('accepts keys that decrypt a live row and reproduce its blind index', () => {
+    const row = liveRowWithFreshKeys();
+    expect(() => {
+      assertProductionKeys(row);
+    }).not.toThrow();
+  });
+
+  it('refuses a master key that cannot decrypt live data', () => {
+    const row = liveRowWithFreshKeys();
+    process.env['OASIS_MASTER_KEY'] = randomBytes(32).toString('base64');
+    expect(() => {
+      assertProductionKeys(row);
+    }).toThrow(/OASIS_MASTER_KEY does not match/);
+  });
+
+  it('refuses a pepper that does not reproduce live blind indexes', () => {
+    const row = liveRowWithFreshKeys();
+    process.env['OASIS_BIDX_PEPPER'] = randomBytes(32).toString('hex');
+    expect(() => {
+      assertProductionKeys(row);
+    }).toThrow(/OASIS_BIDX_PEPPER does not match/);
   });
 });
