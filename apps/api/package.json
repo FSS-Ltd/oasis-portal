@@ -19,6 +19,7 @@
     "email:smoke": "tsx scripts/send-resend-smoke.ts",
     "seed:client-demo": "tsx scripts/client-demo-seed.ts",
     "verify:client-demo": "tsx scripts/client-demo-verify.ts",
+    "seed:app-review": "tsx scripts/app-review-seed.ts",
     "smoke:context-rls": "tsx scripts/smoke-context-rls.ts",
     "reconcile:accepted-parent-invitations": "tsx scripts/reconcile-accepted-parent-invitations.ts"
   },

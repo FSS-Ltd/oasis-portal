@@ -243,6 +243,16 @@ export function createDefaultClerkUserLookupClient(): ClerkUserLookupClient {
 }
 
 /** Repairs a missed Clerk webhook after Clerk has verified the session. */
+/**
+ * App store review accounts live only in the `review` schema. Writing them to `public` would put a
+ * reviewer inside the learning centre's live data.
+ */
+export function isReviewSandboxMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+): boolean {
+  return metadata?.['reviewSandbox'] === true;
+}
+
 export async function reconcileClerkUser(
   clerkUserId: string,
   deps: ClerkUserReconciliationDeps = {},
@@ -250,6 +260,7 @@ export async function reconcileClerkUser(
   const clerk = deps.clerk ?? createDefaultClerkUserLookupClient();
   const store = deps.store ?? createPrismaClerkUserStore();
   const profile = await clerk.getUser(clerkUserId);
+  if (isReviewSandboxMetadata(profile.publicMetadata)) return;
   await store.upsertUser(mapClerkUserProfileToUpsertInput(profile));
 }
 
@@ -425,7 +436,9 @@ export async function processClerkWebhookEvent(
     return;
   }
 
-  await store.upsertUser(mapClerkUserToUpsertInput(event.data));
+  const user = asClerkUserPayload(event.data);
+  if (isReviewSandboxMetadata(user.public_metadata)) return;
+  await store.upsertUser(mapClerkUserPayloadToUpsertInput(user));
 }
 
 const defaultVerifier: ClerkWebhookVerifier = {
