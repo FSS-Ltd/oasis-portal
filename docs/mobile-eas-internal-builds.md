@@ -51,7 +51,7 @@ Console submission.
 
 ## Device Install Checklist
 
-- Confirm the build used the expected profile and channel.
+- Confirm the build used the expected profile.
 - Confirm iOS installs on registered internal test devices.
 - Confirm Android installs from the generated APK for `internal-android`.
 - Confirm the app opens to the Oasis sign-in screen.
