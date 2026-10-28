@@ -38,6 +38,13 @@ pnpm --filter @oasis/mobile eas build --platform ios --profile internal-ios
 pnpm --filter @oasis/mobile eas build --platform android --profile internal-android
 ```
 
+Internal builds are submitted automatically by `.github/workflows/mobile-eas-build.yml`
+whenever mobile code merges to `main`. The workflow queues the build on expo.dev
+and returns, so the build appears in the Expo dashboard a minute or two after the
+merge. It needs one GitHub Actions secret, `EXPO_TOKEN`, created from an Expo
+access token for the `faithful-software-solutions-ltd` organization. To rebuild
+without a code change, run the workflow from the Actions tab.
+
 Release-candidate artifacts:
 
 ```bash

@@ -1,0 +1,66 @@
+name: Mobile EAS build
+
+# Submits the internal iOS and Android builds to expo.dev whenever mobile code lands on main.
+# Release-candidate (store) profiles stay manual: they spend a build number and need human sign-off.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/mobile-eas-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  build:
+    name: EAS ${{ matrix.profile }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ios
+            profile: internal-ios
+          - platform: android
+            profile: internal-android
+
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate EAS build secret
+        run: |
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "Missing required GitHub Actions secret: EXPO_TOKEN" >&2
+            echo "Create an Expo access token and add it before running EAS build jobs." >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: 13.x
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Validate EAS config
+        working-directory: apps/mobile
+        run: node scripts/check-eas-build-config.mjs
+
+      # --no-wait queues the build on expo.dev and returns, so CI minutes are not spent waiting.
+      - name: Submit build to EAS
+        working-directory: apps/mobile
+        run: eas build --platform ${{ matrix.platform }} --profile ${{ matrix.profile }} --non-interactive --no-wait
