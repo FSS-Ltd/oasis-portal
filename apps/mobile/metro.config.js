@@ -9,7 +9,7 @@ const domainSourceRoot = `${path.join(workspaceRoot, 'packages', 'domain', 'src'
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [workspaceRoot];
+config.watchFolders = [...new Set([...config.watchFolders, workspaceRoot])];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),

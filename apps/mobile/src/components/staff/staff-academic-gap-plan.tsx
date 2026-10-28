@@ -42,7 +42,7 @@ export function StaffAcademicGapPlan({
     identity: string;
     version: number | undefined;
     currentPace: number | undefined;
-  }>();
+  }>(undefined);
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
   const [level, setLevel] = useState<number | null>(null);
