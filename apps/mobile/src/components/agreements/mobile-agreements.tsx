@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppState, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { PortalScrollView } from '../core/portal-scroll-view';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
@@ -240,12 +241,12 @@ export function MobileAgreementsContent() {
 
 export function MobileAgreementsScreen({ onBack }: { onBack?: () => void }) {
   return (
-    <View style={styles.shell}>
+    <SafeAreaView style={styles.shell}>
       <PortalScrollView contentContainerStyle={styles.content}>
         {onBack ? <MobileButton label="Back" onPress={onBack} variant="secondary" /> : null}
         <MobileAgreementsContent />
       </PortalScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
