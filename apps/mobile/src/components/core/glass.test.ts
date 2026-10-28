@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveGlassMode } from './glass';
+import { readAccessibilityFlag, resolveGlassMode } from './glass';
 
 vi.mock('react-native', () => ({
   AccessibilityInfo: {},
@@ -42,5 +42,21 @@ describe('resolveGlassMode', () => {
 
   it.each(['ios', 'android', 'web'])('goes opaque on %s when Reduce Transparency is on', (os) => {
     expect(resolveGlassMode({ nativeGlass: true, os, reduceTransparency: true })).toBe('solid');
+  });
+});
+
+describe('readAccessibilityFlag', () => {
+  it('reads the platform preference when it exists', async () => {
+    await expect(
+      readAccessibilityFlag(
+        { isReduceTransparencyEnabled: () => Promise.resolve(true) },
+        'reduceTransparency',
+      ),
+    ).resolves.toBe(true);
+  });
+
+  it('treats a platform without the API as off instead of throwing (react-native-web)', async () => {
+    await expect(readAccessibilityFlag({}, 'reduceTransparency')).resolves.toBe(false);
+    await expect(readAccessibilityFlag({}, 'reduceMotion')).resolves.toBe(false);
   });
 });

@@ -52,32 +52,45 @@ function nativeGlassAvailable(): boolean {
   return nativeGlassCache;
 }
 
+// react-native-web implements only some of these, and its addEventListener can return nothing, so
+// every capability is optional here and an absent one reads as "off".
+type AccessibilityApi = Partial<typeof AccessibilityInfo>;
+
 const accessibilityFlags = {
   reduceMotion: {
     event: 'reduceMotionChanged',
-    read: () => AccessibilityInfo.isReduceMotionEnabled(),
+    read: (info: AccessibilityApi) => info.isReduceMotionEnabled?.(),
   },
   reduceTransparency: {
     event: 'reduceTransparencyChanged',
-    read: () => AccessibilityInfo.isReduceTransparencyEnabled(),
+    read: (info: AccessibilityApi) => info.isReduceTransparencyEnabled?.(),
   },
 } as const;
+
+export function readAccessibilityFlag(
+  info: AccessibilityApi,
+  flag: keyof typeof accessibilityFlags,
+): Promise<boolean> {
+  return accessibilityFlags[flag].read(info) ?? Promise.resolve(false);
+}
 
 function useAccessibilityFlag(flag: keyof typeof accessibilityFlags): boolean {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
     let active = true;
-    const { event, read } = accessibilityFlags[flag];
-    read()
+    readAccessibilityFlag(AccessibilityInfo, flag)
       .then((value) => {
         if (active) setEnabled(value);
       })
       .catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener(event, setEnabled);
+    const subscription = AccessibilityInfo.addEventListener(
+      accessibilityFlags[flag].event,
+      setEnabled,
+    ) as { remove: () => void } | undefined;
     return () => {
       active = false;
-      subscription.remove();
+      subscription?.remove();
     };
   }, [flag]);
 
