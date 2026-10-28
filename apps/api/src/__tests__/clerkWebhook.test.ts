@@ -8,6 +8,7 @@ import {
   handleClerkWebhookRequest,
   mapClerkUserToUpsertInput,
   processClerkWebhookEvent,
+  reconcileClerkUser,
   type ClerkUserStore,
   type PrismaClerkUserStoreDb,
 } from '../routers/clerkWebhook.js';
@@ -251,6 +252,44 @@ describe('processClerkWebhookEvent', () => {
     expect(store.deactivateUser).toHaveBeenCalledWith('user_123');
     expect(store.upsertUser).not.toHaveBeenCalled();
   });
+
+  it('never writes an app store review account into the live schema', async () => {
+    const store = createStore();
+    for (const type of ['user.created', 'user.updated'] as const) {
+      const event = {
+        ...userCreatedEvent,
+        type,
+        data: {
+          ...userCreatedEvent.data,
+          public_metadata: { role: 'Head', tags: [], reviewSandbox: true },
+        },
+      } as unknown as WebhookEvent;
+      await processClerkWebhookEvent(event, store);
+    }
+
+    expect(store.upsertUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('reconcileClerkUser', () => {
+  it('skips app store review accounts instead of creating a live user', async () => {
+    const store = createStore();
+    const getUser = vi.fn().mockResolvedValue({
+      id: 'user_review',
+      firstName: 'Review',
+      lastName: 'Parent',
+      username: null,
+      primaryEmailAddressId: null,
+      emailAddresses: [],
+      primaryPhoneNumberId: null,
+      phoneNumbers: [],
+      publicMetadata: { role: 'Parent', tags: [], reviewSandbox: true },
+    });
+
+    await reconcileClerkUser('user_review', { clerk: { getUser }, store });
+
+    expect(store.upsertUser).not.toHaveBeenCalled();
+  });
 });
 
 describe('loadSessionUser', () => {
@@ -324,6 +363,7 @@ describe('loadAccountAccess', () => {
     ).resolves.toEqual({
       accountAccessState: 'active',
       user: { id: 'user_active', role: 'Parent', tags: [], requires2fa: false },
+      tenant: 'live',
     });
 
     const reconcileDeactivated = vi.fn();
@@ -337,15 +377,54 @@ describe('loadAccountAccess', () => {
         }),
         reconcileUser: reconcileDeactivated,
       }),
-    ).resolves.toEqual({ accountAccessState: 'deactivated', user: null });
+    ).resolves.toEqual({ accountAccessState: 'deactivated', user: null, tenant: 'live' });
     expect(reconcileDeactivated).not.toHaveBeenCalled();
 
     await expect(
       loadAccountAccess('unavailable', false, false, {
         findUser: vi.fn().mockResolvedValue(null),
+        findReviewUser: vi.fn().mockResolvedValue(null),
         reconcileUser: vi.fn().mockResolvedValue(undefined),
       }),
-    ).resolves.toEqual({ accountAccessState: 'unavailable', user: null });
+    ).resolves.toEqual({ accountAccessState: 'unavailable', user: null, tenant: 'live' });
+  });
+
+  it('routes a user found only in the review schema to the review tenant without 2FA', async () => {
+    const reconcileUser = vi.fn();
+    await expect(
+      loadAccountAccess('reviewer', true, false, {
+        findUser: vi.fn().mockResolvedValue(null),
+        findReviewUser: vi
+          .fn()
+          .mockResolvedValue({
+            id: 'clientdemo_user_parent',
+            role: 'Parent',
+            tags: [],
+            active: true,
+          }),
+        reconcileUser,
+      }),
+    ).resolves.toEqual({
+      accountAccessState: 'active',
+      user: { id: 'clientdemo_user_parent', role: 'Parent', tags: [], requires2fa: false },
+      tenant: 'review',
+    });
+    expect(reconcileUser).not.toHaveBeenCalled();
+  });
+
+  it('keeps live users on the live tenant and never queries the review schema for them', async () => {
+    const findReviewUser = vi.fn();
+    const access = await loadAccountAccess('live', true, false, {
+      findUser: vi
+        .fn()
+        .mockResolvedValue({ id: 'user_live', role: 'Head', tags: [], active: true }),
+      findReviewUser,
+      reconcileUser: vi.fn(),
+    });
+
+    expect(access.tenant).toBe('live');
+    expect(access.user?.requires2fa).toBe(true);
+    expect(findReviewUser).not.toHaveBeenCalled();
   });
 });
 

@@ -1,6 +1,7 @@
 import type { SessionUser } from '@oasis/domain';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  admitTenant,
   applyRlsTx,
   applySerializableRlsTx,
   RlsSerializationConflictError,
@@ -21,9 +22,9 @@ describe('applyRlsTx', () => {
       }),
     };
 
-    await expect(applyRlsTx(client as never, HEAD, () => Promise.resolve('complete'))).resolves.toBe(
-      'complete',
-    );
+    await expect(
+      applyRlsTx(client as never, HEAD, () => Promise.resolve('complete')),
+    ).resolves.toBe('complete');
     expect(client.$transaction).toHaveBeenCalledTimes(1);
   });
 });
@@ -66,5 +67,30 @@ describe('applySerializableRlsTx', () => {
       applySerializableRlsTx(client as never, HEAD, () => Promise.resolve('complete')),
     ).rejects.toBeInstanceOf(RlsSerializationConflictError);
     expect(client.$transaction).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('admitTenant', () => {
+  const reviewAccess = {
+    accountAccessState: 'active' as const,
+    user: HEAD,
+    tenant: 'review' as const,
+  };
+
+  it('treats a review account as signed out where the review tenant is not allowed', () => {
+    expect(admitTenant(reviewAccess, false)).toEqual({
+      accountAccessState: 'unavailable',
+      user: null,
+      tenant: 'live',
+    });
+  });
+
+  it('admits a review account where the caller opts in', () => {
+    expect(admitTenant(reviewAccess, true)).toBe(reviewAccess);
+  });
+
+  it('leaves live accounts untouched', () => {
+    const live = { ...reviewAccess, tenant: 'live' as const };
+    expect(admitTenant(live, false)).toBe(live);
   });
 });

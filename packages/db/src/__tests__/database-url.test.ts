@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runtimeDatabaseUrl } from '../database-url.js';
+import { reviewDatabaseUrl, runtimeDatabaseUrl } from '../database-url.js';
 
 describe('runtimeDatabaseUrl', () => {
   it('leaves missing and malformed URLs unchanged', () => {
@@ -38,5 +38,28 @@ describe('runtimeDatabaseUrl', () => {
     const configuredUrl =
       'postgresql://user.project:pass@aws-0-eu-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=3';
     expect(runtimeDatabaseUrl(configuredUrl)).toBe(configuredUrl);
+  });
+});
+
+describe('reviewDatabaseUrl', () => {
+  it('moves the transaction pooler to the session pooler and binds the review schema', () => {
+    const url = new URL(
+      reviewDatabaseUrl(
+        'postgresql://user.project:pass@aws-0-eu-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1',
+      ),
+    );
+    expect(url.port).toBe('5432');
+    expect(url.searchParams.has('pgbouncer')).toBe(false);
+    expect(url.searchParams.get('schema')).toBe('review');
+    expect(url.searchParams.get('connection_limit')).toBe('1');
+  });
+
+  it('overrides an existing schema so the review client can never point at public', () => {
+    const url = new URL(reviewDatabaseUrl('postgresql://u:p@localhost:5432/oasis?schema=public'));
+    expect(url.searchParams.get('schema')).toBe('review');
+  });
+
+  it('refuses to build a URL without DATABASE_URL', () => {
+    expect(() => reviewDatabaseUrl(undefined)).toThrow(/DATABASE_URL/);
   });
 });

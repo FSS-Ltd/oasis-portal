@@ -29,6 +29,42 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
 
+## Current session - 2026-10-28 app store review tenant
+
+Working branch: `feat/app-review-tenant` (from `origin/main`, not pushed). Design: `docs/app-review-tenant.md`.
+
+**Scope:** Staff and parent review logins for Apple and Google, using synthetic data, in the same
+database and deployment as live. The two sets of data cannot see each other, and the logins use a
+password with no second factor.
+
+**Decision:** The owner rejected a separate Supabase project or Vercel deployment. A `tenantId` on all
+127 tables (about 1,560 query sites) was rejected for leak risk. The chosen design is a second Postgres
+schema, `review`, in the same database. Users flagged `reviewSandbox` in Clerk live only there, and
+`createContext` routes them to a review Prisma client.
+
+Completed:
+
+- `@oasis/db`: `reviewDatabaseUrl` and `getReviewPrisma`. The review client uses the Supabase session
+  pooler, because Prisma sends a session-level `SET search_path` under `pgbouncer=true`, which would
+  leak onto shared transaction-pooler connections (verified by a local probe). It fails closed unless
+  `current_schema()` is `review`.
+- `context.ts`: a user not found in `public` is looked up in `review`. Review users are exempt from 2FA.
+  `admitTenant` treats them as signed out unless the caller passes `allowReviewTenant`, and only
+  `/api/trpc` does. This matters because web pages read the global client after auth.
+- `clerkWebhook.ts`: the webhook and the missed-webhook repair skip `reviewSandbox` users.
+- `packages/db/scripts/review-schema.ts` (`review:schema`) and `apps/api/scripts/app-review-seed.ts`
+  (`seed:app-review`) reuse the client-demo fixtures. Only staff and parent get Clerk logins.
+
+**Verified:** lint, typecheck and tests for api, db, web and mobile. End-to-end on a throwaway Postgres
+16: the schema builds (127 tables, 162 policies) and `public` is untouched. The seed succeeds. Reviewer
+staff and parent see only the 2 synthetic children, raw SQL included, with no 2FA. A live Head sees only
+the live child and is still asked for 2FA. A reviewer is denied on web pages. The live `search_path` is
+unchanged after reviewer traffic.
+
+**Not verified:** against Supabase itself (session pooler behaviour, `oasis_app` grants), the Clerk
+production calls in the seeder, and a store build signing in. Clerk dashboard settings for MFA and
+new-device verification need a human check (checklist section 8).
+
 ## Current session - 2026-10-28 mobile store readiness and Liquid Glass
 
 Working branch: `feat/mobile-store-readiness-liquid-glass` (from `origin/main`, not pushed).

@@ -53,6 +53,7 @@ const handler = (req: Request): Promise<Response> =>
         clerkUserId: session.clerkUserId,
         enforceTwoFactor: isTwoFactorEnforcementEnabled(),
         twoFactorSatisfied: session.twoFactorSatisfied,
+        allowReviewTenant: true,
       });
     },
     onError({ error, path, type }) {

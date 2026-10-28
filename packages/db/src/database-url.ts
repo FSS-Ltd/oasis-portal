@@ -32,3 +32,22 @@ export function runtimeDatabaseUrl(databaseUrl: string | undefined): string | un
 
   return changed ? url.toString() : databaseUrl;
 }
+
+export const REVIEW_SCHEMA = 'review';
+
+/**
+ * Connection URL for the app store review tenant: the same database, bound to the `review` schema.
+ *
+ * Prisma applies `schema` as a session-level `SET search_path` when `pgbouncer=true`. On the shared
+ * transaction pooler that setting would stick to server connections that live requests reuse, so the
+ * review client moves to the session pooler (port 5432), where it holds its own connection.
+ */
+export function reviewDatabaseUrl(databaseUrl: string | undefined): string {
+  if (!databaseUrl) throw new Error('DATABASE_URL is required for the review tenant.');
+  const url = new URL(databaseUrl);
+  if (isSupabaseTransactionPooler(url)) url.port = '5432';
+  url.searchParams.delete('pgbouncer');
+  url.searchParams.set('schema', REVIEW_SCHEMA);
+  if (!url.searchParams.has('connection_limit')) url.searchParams.set('connection_limit', '1');
+  return url.toString();
+}

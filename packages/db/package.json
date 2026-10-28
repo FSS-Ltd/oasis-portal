@@ -26,7 +26,8 @@
     "realtime:check": "tsx scripts/realtime-configuration.ts check",
     "realtime:preflight": "tsx scripts/realtime-configuration.ts preflight",
     "test:realtime": "tsx scripts/test-realtime.ts",
-    "test:managed-migration": "tsx scripts/test-managed-postgres-migration.ts"
+    "test:managed-migration": "tsx scripts/test-managed-postgres-migration.ts",
+    "review:schema": "tsx scripts/review-schema.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0"

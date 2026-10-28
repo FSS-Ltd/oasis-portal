@@ -6,7 +6,7 @@
  * `app.full_admin` / `app.compliance_admin` session vars set so the policies in `packages/db/prisma/rls.sql`
  * fire. When no session is present, RLS denies by default (vars cleared).
  */
-import { Prisma, prisma } from '@oasis/db';
+import { getReviewPrisma, Prisma, prisma } from '@oasis/db';
 import type { PrismaClient } from '@oasis/db';
 import { canUseComplianceAdminTag, isFullAdmin, type Role, type SessionUser } from '@oasis/domain';
 import { logOperationalEvent } from './lib/observability.js';
@@ -17,7 +17,15 @@ export interface CreateContextArgs {
   clerkUserId?: string | null;
   enforceTwoFactor?: boolean;
   twoFactorSatisfied?: boolean;
+  /**
+   * Admit app store review accounts. Only the tRPC route sets this: web pages that read the global
+   * client after auth would otherwise show a reviewer live data.
+   */
+  allowReviewTenant?: boolean;
 }
+
+/** `live` is the learning centre (`public` schema); `review` is the app store review sandbox. */
+export type Tenant = 'live' | 'review';
 
 export type RlsTx = Prisma.TransactionClient;
 
@@ -54,6 +62,7 @@ interface UserLookupRow {
 
 export interface LoadSessionUserDeps {
   findUser?: (clerkUserId: string) => Promise<UserLookupRow | null>;
+  findReviewUser?: (clerkUserId: string) => Promise<UserLookupRow | null>;
   reconcileUser?: (clerkUserId: string) => Promise<void>;
 }
 
@@ -62,13 +71,32 @@ export type AccountAccessState = 'active' | 'deactivated' | 'unavailable';
 export interface AccountAccess {
   accountAccessState: AccountAccessState;
   user: SessionUser | null;
+  tenant: Tenant;
 }
 
+const userLookupSelect = { id: true, role: true, tags: true, active: true } as const;
+
 function findLocalUser(clerkUserId: string): Promise<UserLookupRow | null> {
-  return prisma.user.findUnique({
-    where: { clerkId: clerkUserId },
-    select: { id: true, role: true, tags: true, active: true },
-  });
+  return prisma.user.findUnique({ where: { clerkId: clerkUserId }, select: userLookupSelect });
+}
+
+async function findReviewTenantUser(clerkUserId: string): Promise<UserLookupRow | null> {
+  try {
+    const reviewDb = await getReviewPrisma();
+    return await reviewDb.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: userLookupSelect,
+    });
+  } catch (error) {
+    // No review schema (or a misconfigured one) must never block or reroute a live user.
+    logOperationalEvent({
+      event: 'auth.review_tenant_lookup_failed',
+      level: 'warn',
+      message: 'Review tenant lookup failed',
+      meta: { errorType: error instanceof Error ? error.name : 'unknown' },
+    });
+    return null;
+  }
 }
 
 export async function loadAccountAccess(
@@ -79,6 +107,13 @@ export async function loadAccountAccess(
 ): Promise<AccountAccess> {
   const findUser = deps.findUser ?? findLocalUser;
   let user = await findUser(clerkUserId);
+
+  // Live users resolve in public and never touch the review connection. Review accounts have no
+  // public row: the Clerk webhook and the repair below both skip users flagged reviewSandbox.
+  if (!user) {
+    const reviewUser = await (deps.findReviewUser ?? findReviewTenantUser)(clerkUserId);
+    if (reviewUser) return accessFor(reviewUser, 'review', false);
+  }
 
   // A valid Clerk session can outlive a missed asynchronous webhook delivery.
   // Never reconcile an existing inactive user; that state is admin-controlled.
@@ -93,20 +128,21 @@ export async function loadAccountAccess(
         message: 'Unable to reconcile a signed-in Clerk user',
         meta: { errorType: error instanceof Error ? error.name : 'unknown' },
       });
-      return { accountAccessState: 'unavailable', user: null };
+      return { accountAccessState: 'unavailable', user: null, tenant: 'live' };
     }
   }
 
-  if (!user) return { accountAccessState: 'unavailable', user: null };
-  if (!user.active) return { accountAccessState: 'deactivated', user: null };
+  if (!user) return { accountAccessState: 'unavailable', user: null, tenant: 'live' };
+  return accessFor(user, 'live', enforceTwoFactor && !twoFactorSatisfied);
+}
+
+function accessFor(user: UserLookupRow, tenant: Tenant, requires2fa: boolean): AccountAccess {
+  if (!user.active) return { accountAccessState: 'deactivated', user: null, tenant };
   return {
     accountAccessState: 'active',
-    user: {
-      id: user.id,
-      role: user.role,
-      tags: user.tags,
-      requires2fa: enforceTwoFactor && !twoFactorSatisfied,
-    },
+    // Review accounts are exempt from 2FA so store reviewers can sign in with a password alone.
+    user: { id: user.id, role: user.role, tags: user.tags, requires2fa },
+    tenant,
   };
 }
 
@@ -186,21 +222,31 @@ export async function applySerializableRlsTx<T>(
   throw new RlsSerializationConflictError();
 }
 
+/** Review accounts are treated as signed out anywhere that has not opted in to the review tenant. */
+export function admitTenant(access: AccountAccess, allowReviewTenant: boolean): AccountAccess {
+  if (access.tenant === 'review' && !allowReviewTenant) {
+    return { accountAccessState: 'unavailable', user: null, tenant: 'live' };
+  }
+  return access;
+}
+
 export async function createContext(args: CreateContextArgs): Promise<AppContext> {
   const clerkUserId = args.clerkUserId ?? null;
-  const accountAccess = clerkUserId
+  const resolved: AccountAccess = clerkUserId
     ? await loadAccountAccess(
         clerkUserId,
         args.enforceTwoFactor ?? false,
         args.twoFactorSatisfied ?? false,
       )
-    : { accountAccessState: 'unavailable' as const, user: null };
-  const { user } = accountAccess;
+    : { accountAccessState: 'unavailable', user: null, tenant: 'live' };
+  const accountAccess = admitTenant(resolved, args.allowReviewTenant ?? false);
+  const { user, tenant } = accountAccess;
+  const db = tenant === 'review' ? await getReviewPrisma() : prisma;
   return {
-    db: prisma,
+    db,
     user,
     accountAccessState: accountAccess.accountAccessState,
     requestId: newRequestId(),
-    withRls: (fn) => applyRlsTx(prisma, user, fn),
+    withRls: (fn) => applyRlsTx(db, user, fn),
   };
 }
