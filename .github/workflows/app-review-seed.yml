@@ -22,7 +22,6 @@ permissions:
 env:
   NODE_VERSION: '20'
   PNPM_VERSION: '10.0.0'
-  VERCEL_CLI_VERSION: '53.0.1'
 
 jobs:
   seed:
@@ -30,15 +29,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: github.ref == 'refs/heads/main'
-    # Protected environment: add a required reviewer, and hold the two password secrets here.
+    # Protected environment: add a required reviewer. GitHub only exposes a secret that is named
+    # below, so every key the seed needs is mapped here. Vercel withholds sensitive values from
+    # `vercel pull`, so the Clerk and encryption keys must be secrets in this environment, with the
+    # same values as Vercel production. The seed checks the encryption keys against live data.
     environment: Oasis Review
     env:
       DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
       DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_TELEMETRY_DISABLED: '1'
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      OASIS_MASTER_KEY: ${{ secrets.OASIS_MASTER_KEY }}
+      OASIS_MASTER_KEY_VERSION: ${{ secrets.OASIS_MASTER_KEY_VERSION }}
+      OASIS_BIDX_PEPPER: ${{ secrets.OASIS_BIDX_PEPPER }}
       OASIS_APP_REVIEW_STAFF_PASSWORD: ${{ secrets.OASIS_APP_REVIEW_STAFF_PASSWORD }}
       OASIS_APP_REVIEW_PARENT_PASSWORD: ${{ secrets.OASIS_APP_REVIEW_PARENT_PASSWORD }}
       OASIS_APP_REVIEW_SEED_CONFIRMATION: ${{ inputs.confirm }}
@@ -68,22 +70,15 @@ jobs:
           node scripts/require-env-file-keys.mjs --process-env \
             DATABASE_URL \
             DIRECT_URL \
-            VERCEL_ORG_ID \
-            VERCEL_PROJECT_ID \
-            VERCEL_TOKEN \
+            CLERK_SECRET_KEY \
+            OASIS_MASTER_KEY \
+            OASIS_MASTER_KEY_VERSION \
+            OASIS_BIDX_PEPPER \
             OASIS_APP_REVIEW_STAFF_PASSWORD \
             OASIS_APP_REVIEW_PARENT_PASSWORD
 
-      - name: Install Vercel CLI
-        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
-
-      # CLERK_SECRET_KEY and the OASIS_* encryption keys come from the production Vercel environment,
-      # the same way the production deploy reads them.
-      - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production
-
       - name: Rebuild review schema
-        run: node --env-file=.vercel/.env.production.local scripts/with-env.mjs pnpm --filter @oasis/db review:schema --recreate
+        run: pnpm --filter @oasis/db review:schema --recreate
 
       - name: Seed review data and logins
-        run: node --env-file=.vercel/.env.production.local scripts/with-env.mjs pnpm --filter @oasis/api seed:app-review
+        run: pnpm --filter @oasis/api seed:app-review

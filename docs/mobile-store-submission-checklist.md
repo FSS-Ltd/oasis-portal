@@ -152,15 +152,18 @@ Screens that depend on the newer tables may error until this is decided.
 Design: `docs/app-review-tenant.md`. Reviewer data lives in the `review` schema of the production
 database. Live users never see it, and reviewers never see `public`.
 
-1. **One-time GitHub setup.** Under Settings > Environments, create an environment called `Oasis Review`.
-   Add yourself as a required reviewer, and add the secrets `OASIS_APP_REVIEW_STAFF_PASSWORD` and
-   `OASIS_APP_REVIEW_PARENT_PASSWORD` (values from `app-review-credentials.env`).
+1. **One-time GitHub setup.** Under Settings > Environments, create an environment called `Oasis Review`
+   and add yourself as a required reviewer. Add these environment secrets:
+   - `OASIS_APP_REVIEW_STAFF_PASSWORD` and `OASIS_APP_REVIEW_PARENT_PASSWORD`, from
+     `app-review-credentials.env`.
+   - `CLERK_SECRET_KEY`, `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION` and `OASIS_BIDX_PEPPER`, with
+     the same values as Vercel production. Vercel does not return sensitive values to `vercel pull`, so
+     the workflow cannot read them from there. The seed refuses keys that cannot decrypt live data.
 2. Merge to `main`. The production deploy ships the API change, then refreshes the `review` tables with
    "Refresh app review schema". That step never reseeds, and a failure in it does not fail the deploy.
 3. Seed: in Actions, open **App Review Seed**, choose Run workflow on `main` and type
    `reset-review-schema`. Approve the run when GitHub asks. It rebuilds the `review` schema, recreates
-   the synthetic data and sets both logins and passwords. The Clerk and encryption keys come from the
-   production Vercel environment, as in the deploy job.
+   the synthetic data and sets both logins and passwords.
    **Do not run it while a review is in progress:** it wipes sandbox data, resets the passwords and
    signs the reviewers out.
    Manual equivalent: `pnpm --filter @oasis/db review:schema --recreate`, then
