@@ -107,7 +107,7 @@ canvas). Set it to `light` explicitly until a dedicated dark-mode pass. Apple do
 
 ## 4. Store readiness work (in repo)
 
-- `app.json`: version `1.0.0`; icon, adaptive icon (foreground, background, monochrome), splash;
+- `app.json`: version `1.0.1`; icon, adaptive icon (foreground, background, monochrome), splash;
   `ITSAppUsesNonExemptEncryption: false`; permission strings for camera and photo library; microphone
   and other unused Android permissions blocked; `supportsTablet` kept `true` with the width cap;
   Android edge-to-edge on.
