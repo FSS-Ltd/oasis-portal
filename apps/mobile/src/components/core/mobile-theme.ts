@@ -29,6 +29,7 @@ export const C = {
   hairline: 'rgba(27,43,94,0.10)',
   fill: 'rgba(27,43,94,0.06)',
   fillPressed: 'rgba(27,43,94,0.12)',
+  bubble: '#E6E9F1',
   glassTint: 'rgba(125,28,44,0.12)',
   scrim: 'rgba(10,18,42,0.34)',
 } as const;

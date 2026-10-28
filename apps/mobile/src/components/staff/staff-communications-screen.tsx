@@ -5,8 +5,9 @@ import { useClerk } from '@clerk/clerk-expo';
 import { canRespondToParentMessages } from '@oasis/domain/rbac';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
-import { C } from '../core/mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText, MobileButton } from '../core/mobile-ui';
+import type { RecipientGroup } from '../messages/mobile-message-types';
+import { C, elevation, radius, typeRamp } from '../core/mobile-theme';
+import { ErrorText, InlineSpinner } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { StaffNoticesPanel, type StaffNotice } from './staff-notices-panel';
 
@@ -30,8 +31,9 @@ export function StaffCommunicationsScreen({
   user: SessionUser | undefined;
 }) {
   const { signOut } = useClerk();
-  const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<StaffCommunicationsTab>('notices');
+  // A conversation takes the whole screen, like Messages: no header, back row or tabs above it.
+  const [threadOpen, setThreadOpen] = useState(false);
   const canUseSupervisorHead = user?.role === 'Supervisor';
   const canMessageParents = user ? canRespondToParentMessages(user) : false;
   const notices = api.notice.listForStaff.useQuery(undefined, { retry: false });
@@ -56,12 +58,6 @@ export function StaffCommunicationsScreen({
     { kind: 'ParentStaff', direction: 'toParent' },
     { enabled: canMessageParents, retry: false },
   );
-  const openStaffroom = api.message.openStaffroom.useMutation({
-    onSuccess: async () => {
-      setActiveTab('messages');
-      await utils.message.listConversations.invalidate();
-    },
-  });
   const unreadNotices = useMemo(() => unreadCount(notices.data ?? []), [notices.data]);
   const unreadMessages = useMemo(
     () =>
@@ -72,7 +68,48 @@ export function StaffCommunicationsScreen({
       ]
         .filter(isStaffConversation)
         .reduce((count, conversation) => count + conversation.unreadCount, 0),
-    [conversations.data?.items, supervisorHeadConversations.data?.items, parentConversations.data?.items],
+    [
+      conversations.data?.items,
+      supervisorHeadConversations.data?.items,
+      parentConversations.data?.items,
+    ],
+  );
+  const allConversations = useMemo(
+    () =>
+      [
+        ...(conversations.data?.items ?? []).filter(isStaffInboxConversation),
+        ...(supervisorHeadConversations.data?.items ?? []).filter(isSupervisorHeadConversation),
+        ...(parentConversations.data?.items ?? []).filter(isParentStaffConversation),
+      ].sort((a, b) => latestAt(b) - latestAt(a)),
+    [
+      conversations.data?.items,
+      supervisorHeadConversations.data?.items,
+      parentConversations.data?.items,
+    ],
+  );
+  const recipientGroups = useMemo<RecipientGroup[]>(
+    () => [
+      { kind: 'StaffDirect', label: 'Staff', recipients: recipients.data ?? [] },
+      ...(canUseSupervisorHead && headRecipients.data && headRecipients.data.length > 0
+        ? [{ kind: 'SupervisorHead' as const, label: 'Head team', recipients: headRecipients.data }]
+        : []),
+      ...(canMessageParents
+        ? [
+            {
+              kind: 'ParentStaff' as const,
+              label: 'Parents',
+              recipients: parentRecipients.data ?? [],
+            },
+          ]
+        : []),
+    ],
+    [
+      canMessageParents,
+      canUseSupervisorHead,
+      headRecipients.data,
+      parentRecipients.data,
+      recipients.data,
+    ],
   );
   const refreshing =
     notices.isFetching ||
@@ -81,8 +118,7 @@ export function StaffCommunicationsScreen({
     parentConversations.isFetching ||
     recipients.isFetching ||
     headRecipients.isFetching ||
-    parentRecipients.isFetching ||
-    openStaffroom.isPending;
+    parentRecipients.isFetching;
 
   async function refresh() {
     await Promise.all([
@@ -96,54 +132,63 @@ export function StaffCommunicationsScreen({
     ]);
   }
 
+  const messagesReady =
+    !conversations.isLoading && !conversations.error && !recipients.isLoading && !recipients.error;
+
   return (
     <SafeAreaView style={styles.shell}>
-      <PortalMobileHeader
-        actionAccessibilityLabel="Sign out of staff account"
-        actionLabel="Out"
-        avatarLabel="S"
-        eyebrow="Staff Portal"
-        onActionPress={() => {
-          void signOut();
-        }}
-        subtitle={`${user?.role ?? 'Staff'} · Communications`}
-        title="Oasis Learning Centre"
-        variant="dark"
-      />
+      {threadOpen ? null : (
+        <PortalMobileHeader
+          actionAccessibilityLabel="Sign out of staff account"
+          actionLabel="Out"
+          avatarLabel="S"
+          eyebrow="Staff Portal"
+          onActionPress={() => {
+            void signOut();
+          }}
+          subtitle={`${user?.role ?? 'Staff'} · Communications`}
+          title="Oasis Learning Centre"
+          variant="dark"
+        />
+      )}
       <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Pressable
-            accessibilityLabel="Back to staff home"
-            accessibilityRole="button"
-            onPress={onBack}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>Back</Text>
-          </Pressable>
-          <View style={styles.titleGroup}>
-            <Text style={styles.eyebrow}>Daily communications</Text>
-            <Text style={styles.title}>Noticeboard and staff messages</Text>
-          </View>
-        </View>
+        {threadOpen ? null : (
+          <View style={styles.chrome}>
+            <View style={styles.topRow}>
+              <Pressable
+                accessibilityLabel="Back to staff home"
+                accessibilityRole="button"
+                onPress={onBack}
+                style={styles.backButton}
+              >
+                <Text style={styles.backButtonText}>Back</Text>
+              </Pressable>
+              <View style={styles.titleGroup}>
+                <Text style={styles.eyebrow}>Daily communications</Text>
+                <Text style={styles.title}>Noticeboard and staff messages</Text>
+              </View>
+            </View>
 
-        <View style={styles.tabRow}>
-          <TabButton
-            active={activeTab === 'notices'}
-            badge={unreadNotices}
-            label="Notices"
-            onPress={() => {
-              setActiveTab('notices');
-            }}
-          />
-          <TabButton
-            active={activeTab === 'messages'}
-            badge={unreadMessages}
-            label="Messages"
-            onPress={() => {
-              setActiveTab('messages');
-            }}
-          />
-        </View>
+            <View style={styles.tabRow}>
+              <TabButton
+                active={activeTab === 'notices'}
+                badge={unreadNotices}
+                label="Notices"
+                onPress={() => {
+                  setActiveTab('notices');
+                }}
+              />
+              <TabButton
+                active={activeTab === 'messages'}
+                badge={unreadMessages}
+                label="Messages"
+                onPress={() => {
+                  setActiveTab('messages');
+                }}
+              />
+            </View>
+          </View>
+        )}
 
         {activeTab === 'notices' ? (
           <ScrollView
@@ -166,94 +211,49 @@ export function StaffCommunicationsScreen({
           </ScrollView>
         ) : (
           <View style={styles.messagesPane}>
-            <Card style={styles.staffroomCard}>
-              <View style={styles.staffroomText}>
-                <Text style={styles.staffroomTitle}>Staffroom</Text>
-                <MutedText>Open the shared staff conversation for daily team updates.</MutedText>
-              </View>
-              <MobileButton
-                compact
-                disabled={openStaffroom.isPending}
-                label={openStaffroom.isPending ? 'Opening...' : 'Open'}
-                onPress={() => {
-                  openStaffroom.mutate();
-                }}
-                variant="blue"
-              />
-            </Card>
-            {openStaffroom.error ? <ErrorText>{openStaffroom.error.message}</ErrorText> : null}
-            {conversations.isLoading ||
-            recipients.isLoading ||
-            headRecipients.isLoading ||
-            (canMessageParents && (parentConversations.isLoading || parentRecipients.isLoading)) ? (
-              <InlineSpinner label="Loading staff messages" />
-            ) : null}
-            {conversations.error ? <ErrorText>{conversations.error.message}</ErrorText> : null}
-            {supervisorHeadConversations.error ? (
-              <ErrorText>{supervisorHeadConversations.error.message}</ErrorText>
-            ) : null}
-            {parentConversations.error ? (
-              <ErrorText>{parentConversations.error.message}</ErrorText>
-            ) : null}
-            {recipients.error ? <ErrorText>{recipients.error.message}</ErrorText> : null}
-            {headRecipients.error ? <ErrorText>{headRecipients.error.message}</ErrorText> : null}
-            {parentRecipients.error ? <ErrorText>{parentRecipients.error.message}</ErrorText> : null}
-            {!conversations.isLoading && !conversations.error && !recipients.error ? (
+            <View style={styles.messagesStatus}>
+              {conversations.isLoading ||
+              recipients.isLoading ||
+              (canMessageParents &&
+                (parentConversations.isLoading || parentRecipients.isLoading)) ? (
+                <InlineSpinner label="Loading staff messages" />
+              ) : null}
+              {conversations.error ? <ErrorText>{conversations.error.message}</ErrorText> : null}
+              {supervisorHeadConversations.error ? (
+                <ErrorText>{supervisorHeadConversations.error.message}</ErrorText>
+              ) : null}
+              {parentConversations.error ? (
+                <ErrorText>{parentConversations.error.message}</ErrorText>
+              ) : null}
+              {recipients.error ? <ErrorText>{recipients.error.message}</ErrorText> : null}
+              {headRecipients.error ? <ErrorText>{headRecipients.error.message}</ErrorText> : null}
+              {parentRecipients.error ? (
+                <ErrorText>{parentRecipients.error.message}</ErrorText>
+              ) : null}
+            </View>
+            {messagesReady ? (
               <MobileMessagesPanel
+                accent={C.navy}
                 conversationKind="StaffDirect"
-                conversations={(conversations.data?.items ?? []).filter(isStaffInboxConversation)}
-                hasMore={Boolean(conversations.data?.nextCursor)}
-                loadingMore={conversations.isFetching}
+                conversations={allConversations}
+                navClearance={false}
                 onRefresh={refresh}
+                onThreadOpenChange={setThreadOpen}
+                recipientGroups={recipientGroups}
                 recipients={recipients.data ?? []}
                 refreshing={refreshing}
+                showStaffroom
               />
-            ) : null}
-            {canUseSupervisorHead &&
-            !supervisorHeadConversations.isLoading &&
-            !supervisorHeadConversations.error &&
-            headRecipients.data &&
-            headRecipients.data.length > 0 ? (
-              <Card style={styles.headTeamCard}>
-                <Text style={styles.staffroomTitle}>Head team</Text>
-                <MutedText>
-                  Supervisor-to-Head conversations use the same secure message flow.
-                </MutedText>
-                <MobileMessagesPanel
-                  conversationKind="SupervisorHead"
-                  conversations={(supervisorHeadConversations.data?.items ?? []).filter(
-                    isSupervisorHeadConversation,
-                  )}
-                  hasMore={Boolean(supervisorHeadConversations.data?.nextCursor)}
-                  loadingMore={supervisorHeadConversations.isFetching}
-                  onRefresh={refresh}
-                  recipients={headRecipients.data}
-                  refreshing={refreshing}
-                />
-              </Card>
-            ) : null}
-            {canMessageParents && !parentConversations.isLoading && !parentConversations.error ? (
-              <Card style={styles.headTeamCard}>
-                <Text style={styles.staffroomTitle}>Parents</Text>
-                <MutedText>Choose a parent to start a new conversation.</MutedText>
-                <MobileMessagesPanel
-                  conversationKind="ParentStaff"
-                  conversations={(parentConversations.data?.items ?? []).filter(
-                    isParentStaffConversation,
-                  )}
-                  hasMore={Boolean(parentConversations.data?.nextCursor)}
-                  loadingMore={parentConversations.isFetching}
-                  onRefresh={refresh}
-                  recipients={parentRecipients.data ?? []}
-                  refreshing={refreshing}
-                />
-              </Card>
             ) : null}
           </View>
         )}
       </View>
     </SafeAreaView>
   );
+}
+
+function latestAt(conversation: StaffConversation): number {
+  return new Date(conversation.latestMessage?.createdAt ?? conversation.updatedAt).getTime();
 }
 
 function isStaffInboxConversation(conversation: StaffConversation): boolean {
@@ -309,60 +309,51 @@ function TabButton({
 const styles = StyleSheet.create({
   backButton: {
     alignItems: 'center',
-    borderColor: C.border,
-    borderRadius: 10,
+    backgroundColor: C.surface,
+    borderColor: C.hairline,
+    borderCurve: 'continuous',
+    borderRadius: radius.sm,
     borderWidth: 1,
-    minHeight: 40,
-    paddingHorizontal: 12,
     justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 14,
   },
   backButtonText: {
-    color: C.blue,
-    fontSize: 13,
-    fontWeight: '800',
+    ...typeRamp.subhead,
+    color: C.link,
+    fontWeight: '600',
+  },
+  chrome: {
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   content: {
     flex: 1,
     gap: 14,
-    padding: 16,
-  },
-  headTeamCard: {
-    gap: 10,
-    padding: 14,
   },
   eyebrow: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: '900',
+    ...typeRamp.caption,
+    color: C.textSecondary,
+    fontWeight: '700',
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
   messagesPane: {
     flex: 1,
-    gap: 10,
+    gap: 8,
+  },
+  messagesStatus: {
+    paddingHorizontal: 16,
   },
   scrollContent: {
     gap: 12,
     paddingBottom: 28,
+    paddingHorizontal: 16,
   },
   shell: {
     backgroundColor: C.bg,
     flex: 1,
-  },
-  staffroomCard: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-    padding: 14,
-  },
-  staffroomText: {
-    flex: 1,
-    gap: 3,
-  },
-  staffroomTitle: {
-    color: C.navy,
-    fontSize: 15,
-    fontWeight: '900',
   },
   tabBadge: {
     alignItems: 'center',
@@ -374,41 +365,40 @@ const styles = StyleSheet.create({
   tabBadgeText: {
     color: C.surface,
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   tabButton: {
     alignItems: 'center',
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 10,
-    borderWidth: 1,
+    borderCurve: 'continuous',
+    borderRadius: radius.sm - 2,
     flex: 1,
     flexDirection: 'row',
     gap: 6,
     justifyContent: 'center',
-    minHeight: 42,
+    minHeight: 36,
   },
   tabButtonActive: {
-    backgroundColor: C.navy,
-    borderColor: C.navy,
+    backgroundColor: C.surface,
+    boxShadow: elevation.card,
   },
   tabButtonText: {
+    ...typeRamp.footnote,
     color: C.textSecondary,
-    fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   tabButtonTextActive: {
-    color: C.surface,
+    color: C.navy,
   },
   tabRow: {
+    backgroundColor: C.fill,
+    borderCurve: 'continuous',
+    borderRadius: radius.sm,
     flexDirection: 'row',
-    gap: 8,
+    padding: 2,
   },
   title: {
+    ...typeRamp.title3,
     color: C.navy,
-    fontSize: 20,
-    fontWeight: '900',
-    lineHeight: 24,
   },
   titleGroup: {
     flex: 1,

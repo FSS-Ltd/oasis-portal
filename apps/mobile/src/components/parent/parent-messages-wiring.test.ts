@@ -63,7 +63,6 @@ describe('parent messages mobile wiring', () => {
     const panel = readMobile('src/components/messages/mobile-messages-panel.tsx');
 
     for (const text of [
-      'Centre communications',
       'Messages',
       'No messages yet',
       'New Message',
@@ -74,8 +73,7 @@ describe('parent messages mobile wiring', () => {
       'Sent',
       'Read',
       'Cancel',
-      'Recipient and message are required.',
-      'Choose a message and enter a reply.',
+      'Enter a message.',
       'No message recipients are currently available.',
       'Start a message with the centre team.',
     ]) {
