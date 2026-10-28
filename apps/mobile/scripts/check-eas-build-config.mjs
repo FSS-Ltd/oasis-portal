@@ -135,6 +135,20 @@ function checkNativeIds() {
 
   requireValue(appConfig.expo?.ios?.bundleIdentifier, 'uk.oasis.portal', 'ios.bundleIdentifier');
   requireValue(appConfig.expo?.android?.package, 'uk.oasis.portal', 'android.package');
+
+  // 1.0.0 was the PWA. The first store release is 1.0.1. See docs/mobile-versioning.md.
+  const version = appConfig.expo?.version;
+  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) {
+    fail('expo.version must be MAJOR.MINOR.PATCH, for example "1.0.1".');
+  } else if (compareVersions(version, '1.0.1') < 0) {
+    fail('expo.version must be 1.0.1 or higher. 1.0.0 was the PWA.');
+  }
+}
+
+function compareVersions(a, b) {
+  const [left, right] = [a, b].map((value) => value.split('.').map(Number));
+  for (let i = 0; i < 3; i += 1) if (left[i] !== right[i]) return left[i] - right[i];
+  return 0;
 }
 
 checkEasConfig();

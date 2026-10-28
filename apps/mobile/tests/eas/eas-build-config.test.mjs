@@ -90,3 +90,16 @@ test('mobile EAS runbook documents env, commands, UAT paths, and approval gates'
 
   assert.match(docs, /remote\s+app version source/);
 });
+
+test('mobile app version is MAJOR.MINOR.PATCH, starts at 1.0.1, and has documented rules', () => {
+  const { version } = JSON.parse(readMobile('app.json')).expo;
+  const [major, minor, patch] = version.split('.').map(Number);
+
+  assert.match(version, /^\d+\.\d+\.\d+$/);
+  assert.ok(major > 1 || (major === 1 && (minor > 0 || patch >= 1)), `${version} is below 1.0.1`);
+
+  const docs = readRepo('docs/mobile-versioning.md');
+  for (const heading of ['Patch', 'Minor', 'Major', 'Build number', 'Release steps']) {
+    assert.match(docs, new RegExp(heading));
+  }
+});

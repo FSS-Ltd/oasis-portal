@@ -2,7 +2,7 @@
   "expo": {
     "name": "Oasis",
     "slug": "oasis-mobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "oasis",
     "icon": "./assets/icon.png",
