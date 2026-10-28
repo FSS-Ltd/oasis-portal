@@ -373,8 +373,11 @@ function directConversationId(
   return `${kind}:${participantIds.join(':')}`;
 }
 
+/** There is one shared staffroom, so its conversation id is fixed rather than its thread id. */
+const STAFFROOM_CONVERSATION_ID = 'Staffroom';
+
 function conversationIdForThread(thread: ThreadAccessRow): string {
-  if (thread.kind === 'Staffroom') return 'Staffroom';
+  if (thread.kind === 'Staffroom') return STAFFROOM_CONVERSATION_ID;
   if (thread.kind === 'ParentStaff' && thread.parentId && thread.adminId) {
     return `ParentStaff:${thread.parentId}:${thread.adminId}`;
   }
@@ -1143,7 +1146,8 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
 
     openStaffroom: authedProcedure.mutation(async ({ ctx }) => {
       const thread = await ensureStaffroomThread(ctx);
-      return thread;
+      // `id` is the thread (for thread APIs); conversation APIs need `conversationId`.
+      return { conversationId: STAFFROOM_CONVERSATION_ID, id: thread.id };
     }),
 
     openConversation: authedProcedure

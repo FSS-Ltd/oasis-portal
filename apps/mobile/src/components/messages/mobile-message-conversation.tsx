@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -9,12 +9,23 @@ import {
   Text,
   TextInput,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { C, radius, typeRamp } from '../core/mobile-theme';
+import { useReduceMotion } from '../core/glass';
 import { ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
 import { Avatar, GlassBackButton } from './mobile-message-ui';
 import type { ConversationDetail, ConversationMessage } from './mobile-message-types';
 import { buildMessageRows, formatThreadTime, type MessageRow } from './mobile-message-utils';
+
+/** Id of the optimistic bubble shown while a message is on its way. */
+const PENDING_ID = 'pending-send';
+
+type BubbleMessage = Pick<
+  ConversationMessage,
+  'body' | 'createdAt' | 'id' | 'readByOtherParticipant' | 'senderId'
+> & { sender: { fullName: string } };
 
 interface ConversationViewProps {
   accent: string;
@@ -29,6 +40,8 @@ interface ConversationViewProps {
   onBack: () => void;
   onRefresh: () => void;
   onSend: () => void;
+  /** Body of the message being sent, shown at once as a bubble while the server confirms it. */
+  pendingBody: string | null;
   refreshing: boolean;
   replyBody: string;
   sendError: string | undefined;
@@ -50,6 +63,7 @@ export function ConversationView({
   onBack,
   onRefresh,
   onSend,
+  pendingBody,
   refreshing,
   replyBody,
   sendError,
@@ -59,14 +73,27 @@ export function ConversationView({
   unreadTotal,
 }: ConversationViewProps) {
   const scroller = useRef<ScrollView>(null);
-  const currentUserId = detail?.currentUserId ?? null;
-  const rows = useMemo(
-    () => buildMessageRows(detail?.messages ?? [], currentUserId),
-    [detail?.messages, currentUserId],
-  );
+  const scrolledOnce = useRef(false);
+  // A draft has no conversation yet, so it has no user id to compare senders against.
+  const currentUserId = detail?.currentUserId ?? 'me';
+  const rows = useMemo(() => {
+    const messages: BubbleMessage[] = [...(detail?.messages ?? [])];
+    if (pendingBody !== null) {
+      messages.push({
+        body: pendingBody,
+        createdAt: new Date(),
+        id: PENDING_ID,
+        readByOtherParticipant: false,
+        sender: { fullName: '' },
+        senderId: currentUserId,
+      });
+    }
+    return buildMessageRows(messages, currentUserId);
+  }, [detail?.messages, currentUserId, pendingBody]);
   const backLabel =
     unreadTotal > 0 ? `Back to messages, ${String(unreadTotal)} unread` : 'Back to messages';
-  const showEmpty = draft || Boolean(detail && detail.messages.length === 0);
+  const showEmpty =
+    pendingBody === null && (draft || Boolean(detail && detail.messages.length === 0));
 
   return (
     <View style={styles.screen}>
@@ -96,7 +123,9 @@ export function ConversationView({
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => {
-          scroller.current?.scrollToEnd({ animated: false });
+          // Jump to the newest message on open, then glide as new bubbles arrive.
+          scroller.current?.scrollToEnd({ animated: scrolledOnce.current });
+          scrolledOnce.current = true;
         }}
         ref={scroller}
         refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} />}
@@ -145,7 +174,7 @@ function RowView({
 }: {
   accent: string;
   isGroup: boolean;
-  row: MessageRow<ConversationMessage>;
+  row: MessageRow<BubbleMessage>;
 }) {
   if (row.type === 'separator') {
     return <Text style={styles.separator}>{row.label}</Text>;
@@ -154,9 +183,11 @@ function RowView({
   const { message, mine, position, showSender, showStatus } = row;
   const tail = position === 'single' || position === 'last';
   const startsGroup = position === 'single' || position === 'first';
+  const pending = message.id === PENDING_ID;
 
   return (
-    <View
+    <SendRise
+      enabled={pending}
       style={[
         styles.messageRow,
         mine ? styles.rowMine : styles.rowTheirs,
@@ -181,10 +212,60 @@ function RowView({
       </View>
       {mine && showStatus ? (
         <Text style={styles.status}>
-          {message.readByOtherParticipant ? 'Read' : 'Sent'} {formatThreadTime(message.createdAt)}
+          {pending
+            ? 'Sending…'
+            : `${message.readByOtherParticipant ? 'Read' : 'Sent'} ${formatThreadTime(message.createdAt)}`}
         </Text>
       ) : null}
-    </View>
+    </SendRise>
+  );
+}
+
+/**
+ * The just-sent bubble rises out of the composer and settles with a soft spring, as in Messages.
+ * When the server confirms the message the real bubble takes its place without moving.
+ */
+function SendRise({
+  children,
+  enabled,
+  style,
+}: {
+  children: ReactNode;
+  enabled: boolean;
+  style: StyleProp<ViewStyle>;
+}) {
+  const reduceMotion = useReduceMotion();
+  const rise = useRef(new Animated.Value(enabled && !reduceMotion ? 0 : 1)).current;
+
+  useEffect(() => {
+    if (!enabled || reduceMotion) return;
+    Animated.spring(rise, {
+      damping: 18,
+      mass: 0.8,
+      stiffness: 260,
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  }, [enabled, reduceMotion, rise]);
+
+  if (!enabled) return <View style={style}>{children}</View>;
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: rise.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1] }),
+          transform: [
+            { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [36, 0] }) },
+            { scale: rise.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] }) },
+          ],
+          transformOrigin: 'bottom right',
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
@@ -236,11 +317,7 @@ function Composer({
             pressed ? styles.sendPressed : null,
           ]}
         >
-          {sending ? (
-            <ActivityIndicator color={C.surface} size="small" />
-          ) : (
-            <Feather color={C.surface} name="arrow-up" size={20} />
-          )}
+          <Feather color={C.surface} name="arrow-up" size={20} />
         </Pressable>
       </View>
     </View>

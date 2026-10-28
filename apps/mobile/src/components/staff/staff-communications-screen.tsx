@@ -18,6 +18,8 @@ type StaffCommunicationsTab = 'notices' | 'messages';
 const staffInboxConversationKinds = ['Staffroom', 'StaffDirect'] as const;
 const supervisorHeadConversationKinds = ['SupervisorHead'] as const;
 const parentConversationKinds = ['ParentStaff'] as const;
+const messagePageSize = 20;
+const nextPage = (page: { nextCursor?: string | null }) => page.nextCursor ?? undefined;
 
 function unreadCount(notices: StaffNotice[]): number {
   return notices.filter((notice) => !notice.read).length;
@@ -37,18 +39,34 @@ export function StaffCommunicationsScreen({
   const canUseSupervisorHead = user?.role === 'Supervisor';
   const canMessageParents = user ? canRespondToParentMessages(user) : false;
   const notices = api.notice.listForStaff.useQuery(undefined, { retry: false });
-  const conversations = api.message.listConversations.useQuery(
-    { kinds: [...staffInboxConversationKinds], limit: 20 },
-    { retry: false },
+  // Paged like the parent inbox, so older conversations stay reachable with Load more.
+  const conversations = api.message.listConversations.useInfiniteQuery(
+    { kinds: [...staffInboxConversationKinds], limit: messagePageSize },
+    { getNextPageParam: nextPage, retry: false },
   );
-  const supervisorHeadConversations = api.message.listConversations.useQuery(
-    { kinds: [...supervisorHeadConversationKinds], limit: 20 },
-    { enabled: canUseSupervisorHead, retry: false },
+  const supervisorHeadConversations = api.message.listConversations.useInfiniteQuery(
+    { kinds: [...supervisorHeadConversationKinds], limit: messagePageSize },
+    { enabled: canUseSupervisorHead, getNextPageParam: nextPage, retry: false },
   );
-  const parentConversations = api.message.listConversations.useQuery(
-    { kinds: [...parentConversationKinds], limit: 20 },
-    { enabled: canMessageParents, retry: false },
+  const parentConversations = api.message.listConversations.useInfiniteQuery(
+    { kinds: [...parentConversationKinds], limit: messagePageSize },
+    { enabled: canMessageParents, getNextPageParam: nextPage, retry: false },
   );
+  const conversationItems = useMemo(
+    () => conversations.data?.pages.flatMap((page) => page.items) ?? [],
+    [conversations.data],
+  );
+  const supervisorHeadItems = useMemo(
+    () => supervisorHeadConversations.data?.pages.flatMap((page) => page.items) ?? [],
+    [supervisorHeadConversations.data],
+  );
+  const parentItems = useMemo(
+    () => parentConversations.data?.pages.flatMap((page) => page.items) ?? [],
+    [parentConversations.data],
+  );
+  const pagedSources = [conversations, supervisorHeadConversations, parentConversations];
+  const hasMoreMessages = pagedSources.some((source) => source.hasNextPage);
+  const loadingMoreMessages = pagedSources.some((source) => source.isFetchingNextPage);
   const recipients = api.message.listRecipients.useQuery({ kind: 'StaffDirect' }, { retry: false });
   const headRecipients = api.message.listRecipients.useQuery(
     { kind: 'SupervisorHead' },
@@ -61,31 +79,19 @@ export function StaffCommunicationsScreen({
   const unreadNotices = useMemo(() => unreadCount(notices.data ?? []), [notices.data]);
   const unreadMessages = useMemo(
     () =>
-      [
-        ...(conversations.data?.items ?? []),
-        ...(supervisorHeadConversations.data?.items ?? []),
-        ...(parentConversations.data?.items ?? []),
-      ]
+      [...conversationItems, ...supervisorHeadItems, ...parentItems]
         .filter(isStaffConversation)
         .reduce((count, conversation) => count + conversation.unreadCount, 0),
-    [
-      conversations.data?.items,
-      supervisorHeadConversations.data?.items,
-      parentConversations.data?.items,
-    ],
+    [conversationItems, supervisorHeadItems, parentItems],
   );
   const allConversations = useMemo(
     () =>
       [
-        ...(conversations.data?.items ?? []).filter(isStaffInboxConversation),
-        ...(supervisorHeadConversations.data?.items ?? []).filter(isSupervisorHeadConversation),
-        ...(parentConversations.data?.items ?? []).filter(isParentStaffConversation),
+        ...conversationItems.filter(isStaffInboxConversation),
+        ...supervisorHeadItems.filter(isSupervisorHeadConversation),
+        ...parentItems.filter(isParentStaffConversation),
       ].sort((a, b) => latestAt(b) - latestAt(a)),
-    [
-      conversations.data?.items,
-      supervisorHeadConversations.data?.items,
-      parentConversations.data?.items,
-    ],
+    [conversationItems, supervisorHeadItems, parentItems],
   );
   const recipientGroups = useMemo<RecipientGroup[]>(
     () => [
@@ -236,7 +242,16 @@ export function StaffCommunicationsScreen({
                 accent={C.navy}
                 conversationKind="StaffDirect"
                 conversations={allConversations}
+                hasMore={hasMoreMessages}
+                loadingMore={loadingMoreMessages}
                 navClearance={false}
+                onLoadMore={() => {
+                  for (const source of pagedSources) {
+                    if (source.hasNextPage && !source.isFetchingNextPage) {
+                      void source.fetchNextPage();
+                    }
+                  }
+                }}
                 onRefresh={refresh}
                 onThreadOpenChange={setThreadOpen}
                 recipientGroups={recipientGroups}
