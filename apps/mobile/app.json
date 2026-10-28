@@ -2,6 +2,7 @@
   "expo": {
     "name": "Oasis",
     "slug": "oasis-mobile",
+    "owner": "faithful-software-solutions-ltd",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "oasis",
