@@ -44,6 +44,8 @@ interface PortalMobileHeaderProps {
 interface PortalMobileBottomNavProps<T extends string> {
   items: Array<PortalMobileNavItem<T>>;
   activeId: T;
+  /** Slides the bar out of view, as iOS does when a pushed screen needs the whole height. */
+  hidden?: boolean;
   onSelect: (id: T) => void;
   primaryItemLimit?: number | undefined;
   variant?: NavVariant;
@@ -141,6 +143,7 @@ export function PortalMobileHeader({
 
 export function PortalMobileBottomNav<T extends string>({
   activeId,
+  hidden = false,
   items: allItems,
   onSelect,
   primaryItemLimit = 4,
@@ -165,6 +168,7 @@ export function PortalMobileBottomNav<T extends string>({
   const drawerOffset = useRef(new Animated.Value(DRAWER_HIDDEN)).current;
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorPlaced = useRef(false);
+  const hide = useRef(new Animated.Value(hidden ? 1 : 0)).current;
   const visiblePrimaryCount =
     items.length > primaryItemLimit ? Math.max(primaryItemLimit - 1, 1) : items.length;
   const primaryItems = useMemo(
@@ -202,6 +206,22 @@ export function PortalMobileBottomNav<T extends string>({
       useNativeDriver: true,
     }).start();
   }, [activeSlot, indicatorX, reduceMotion, slotWidth]);
+
+  useEffect(() => {
+    const toValue = hidden ? 1 : 0;
+    if (reduceMotion) {
+      hide.setValue(toValue);
+      return;
+    }
+    Animated.spring(hide, {
+      damping: 30,
+      mass: 1,
+      overshootClamping: true,
+      stiffness: 260,
+      toValue,
+      useNativeDriver: true,
+    }).start();
+  }, [hidden, hide, reduceMotion]);
 
   function settleDrawer() {
     Animated.spring(drawerOffset, {
@@ -311,9 +331,28 @@ export function PortalMobileBottomNav<T extends string>({
 
   return (
     <>
-      <View
-        pointerEvents="box-none"
-        style={[styles.navHost, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      <Animated.View
+        accessibilityElementsHidden={hidden}
+        importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+        pointerEvents={hidden ? 'none' : 'box-none'}
+        style={[
+          styles.navHost,
+          {
+            opacity: hide.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] }),
+            paddingBottom: Math.max(insets.bottom, 12),
+            transform: [
+              {
+                translateY: hide.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [
+                    0,
+                    SLOT_HEIGHT + BAR_PADDING * 2 + Math.max(insets.bottom, 12) + 24,
+                  ],
+                }),
+              },
+            ],
+          },
+        ]}
       >
         <View
           onLayout={(event) => {
@@ -370,7 +409,7 @@ export function PortalMobileBottomNav<T extends string>({
             </View>
           </GlassGroup>
         </View>
-      </View>
+      </Animated.View>
       <Modal animationType="none" onRequestClose={closeDrawer} transparent visible={drawerVisible}>
         <View style={styles.drawerRoot}>
           <Pressable

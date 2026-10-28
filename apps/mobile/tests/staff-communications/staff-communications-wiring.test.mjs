@@ -34,7 +34,10 @@ describe('staff communications mobile wiring', () => {
     assert.match(screen, /api\.notice\.listForStaff\.useQuery/);
     assert.match(noticesPanel, /api\.notice\.markRead\.useMutation/);
     assert.match(noticesPanel, /utils\.notice\.listForStaff\.invalidate/);
-    assert.match(screen, /api\.message\.listConversations\.useQuery/);
+    // Paged like the parent inbox so older staff conversations stay reachable.
+    assert.match(screen, /api\.message\.listConversations\.useInfiniteQuery/);
+    assert.match(screen, /hasMore=\{hasMoreMessages\}/);
+    assert.match(screen, /source\.fetchNextPage\(\)/);
     assert.match(screen, /kinds: \[...staffInboxConversationKinds\]/);
     assert.match(screen, /kinds: \[...supervisorHeadConversationKinds\]/);
     assert.match(screen, /api\.message\.listRecipients\.useQuery\(\s*\{\s*kind: 'StaffDirect'/);

@@ -1635,6 +1635,7 @@ describe('message.openStaffroom', () => {
     const { caller } = makeCaller(headUser, db);
 
     await expect(caller.message.openStaffroom()).resolves.toEqual({
+      conversationId: 'Staffroom',
       id: 'cthread000000000000001',
     });
     expect(db.threads[0]).toMatchObject({
@@ -1678,6 +1679,24 @@ describe('message.openStaffroom', () => {
       ]),
     );
     expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('returns a conversation id that opens and sends in the staffroom', async () => {
+    // Regression: mobile opened the staffroom with the thread id and got "conversation not found".
+    const db = makeFakeDb();
+    const headCaller = makeCaller(headUser, db).caller;
+
+    const staffroom = await headCaller.message.openStaffroom();
+    await headCaller.message.sendInConversation({
+      conversationId: staffroom.conversationId,
+      body: 'Morning, team.',
+    });
+
+    const detail = await makeCaller(supervisorUser, db).caller.message.listConversationMessages({
+      conversationId: staffroom.conversationId,
+    });
+    expect(detail.kind).toBe('Staffroom');
+    expect(detail.messages.map((message) => message.body)).toEqual(['Morning, team.']);
   });
 });
 

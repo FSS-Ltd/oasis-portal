@@ -285,6 +285,7 @@ export function ParentPortalScreen({
   const bottomNav = (
     <PortalMobileBottomNav
       activeId={route}
+      hidden={route === 'messages' && messageThreadOpen}
       items={visibleParentTabs.map((tab) => ({
         ...tab,
         badge:
@@ -346,7 +347,7 @@ export function ParentPortalScreen({
             refreshing={refreshing}
           />
         </View>
-        {messageThreadOpen ? null : bottomNav}
+        {bottomNav}
       </SafeAreaView>
     );
   }
