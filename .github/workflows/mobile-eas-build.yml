@@ -34,7 +34,7 @@ jobs:
             profile: internal-android
 
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
 
     steps:
       - uses: actions/checkout@v6
@@ -42,7 +42,7 @@ jobs:
       - name: Validate EAS build secret
         run: |
           if [ -z "${EXPO_TOKEN}" ]; then
-            echo "Missing required GitHub Actions secret: EXPO_TOKEN" >&2
+            echo "Missing required GitHub Actions secret: EXPO_ACCESS_TOKEN" >&2
             echo "Create an Expo access token and add it before running EAS build jobs." >&2
             exit 1
           fi
@@ -54,7 +54,7 @@ jobs:
       - uses: expo/expo-github-action@v8
         with:
           eas-version: 13.x
-          token: ${{ secrets.EXPO_TOKEN }}
+          token: ${{ secrets.EXPO_ACCESS_TOKEN }}
 
       - name: Validate EAS config
         working-directory: apps/mobile
