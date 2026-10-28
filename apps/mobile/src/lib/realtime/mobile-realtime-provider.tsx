@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@clerk/clerk-expo';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient, REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
-import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
 import {
   createRealtimeRefreshCoordinator,
   nextLondonMidnight,
@@ -10,11 +10,8 @@ import {
   REALTIME_CLOCK_AREAS,
 } from '@oasis/domain';
 import { refreshMobileQueries } from './query-refresh';
-import { C } from '../../components/core/mobile-theme';
 import { api } from '../trpc';
 import { SchoolClockContext } from './school-clock';
-
-type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'unconfigured';
 
 export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
   const { getToken, isSignedIn, userId, sessionId } = useAuth();
@@ -27,21 +24,13 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
     () => current.current.utils.health.me.fetch(undefined, { staleTime: 0 }),
     [],
   );
-  const [connection, setConnection] = useState<ConnectionState>('connecting');
-  const [attempt, setAttempt] = useState(0);
   const [schoolNow, setSchoolNow] = useState(() => Date.now());
-  const retry = useCallback(() => {
-    setAttempt((value) => value + 1);
-  }, []);
 
   useEffect(() => {
     if (!isSignedIn || !userId) return;
     const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (!url || !key) {
-      setConnection('unconfigured');
-      return;
-    }
+    if (!url || !key) return;
     const settings = { url, key, userId };
     let stopped = false;
     let stopSession: (() => void) | undefined;
@@ -68,17 +57,14 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
           reconnectAfterMs: (tries: number) => Math.min(1_000 * 2 ** Math.min(tries, 5), 30_000),
         },
       });
-      setConnection('connecting');
       setSchoolNow(Date.now());
       let disposed = false;
-      let subscribed = false;
       const coordinator = createRealtimeRefreshCoordinator({
         refresh: async (areas) => {
           await refreshMobileQueries(queryClient, areas, fetchAuthority, () => !disposed);
-          if (!disposed && subscribed) setConnection('connected');
         },
         onError: () => {
-          if (!disposed) setConnection('disconnected');
+          // Reconnection is automatic (backoff, foreground return); there is nothing to show.
         },
       });
       const channel = client.channel(`oasis:user:${settings.userId}`, {
@@ -89,18 +75,7 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
       );
       channel.subscribe((status) => {
         if (disposed) return;
-        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
-          subscribed = true;
-          coordinator.reconcile();
-        }
-        if (
-          status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
-          status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT ||
-          status === REALTIME_SUBSCRIBE_STATES.CLOSED
-        ) {
-          subscribed = false;
-          setConnection('disconnected');
-        }
+        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) coordinator.reconcile();
       });
       function scheduleMidnight() {
         midnight = setTimeout(() => {
@@ -132,7 +107,7 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
       if (Platform.OS === 'web' && typeof document !== 'undefined')
         document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [attempt, fetchAuthority, isSignedIn, queryClient, userId, sessionId]);
+  }, [fetchAuthority, isSignedIn, queryClient, userId, sessionId]);
 
   // A session swap must never reuse another account's cached data.
   useEffect(
@@ -145,34 +120,11 @@ export function MobileRealtimeProvider({ children }: { children: ReactNode }) {
 
   return (
     <SchoolClockContext.Provider value={schoolNow}>
-      <View style={styles.shell}>
-        {isSignedIn && connection !== 'connected' ? (
-          <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.warning}>
-            <Text style={styles.message}>
-              {connection === 'connecting'
-                ? 'Connecting live updates…'
-                : 'Live updates unavailable. Information may be out of date.'}
-            </Text>
-            {connection !== 'connecting' ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Retry live updates"
-                onPress={retry}
-              >
-                <Text style={styles.retry}>Retry</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        {children}
-      </View>
+      <View style={styles.shell}>{children}</View>
     </SchoolClockContext.Provider>
   );
 }
 
 const styles = StyleSheet.create({
   shell: { flex: 1 },
-  warning: { backgroundColor: C.warningBg, flexDirection: 'row', gap: 12, padding: 12 },
-  message: { color: C.warning, flex: 1, fontSize: 12 },
-  retry: { color: C.warning, fontWeight: '700', paddingHorizontal: 8 },
 });
