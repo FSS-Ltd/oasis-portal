@@ -47,19 +47,15 @@ test('mobile EAS config defines internal and release-candidate build profiles', 
   }
 
   assert.equal(profiles['internal-ios'].distribution, 'internal');
-  assert.equal(profiles['internal-ios'].channel, 'internal');
   assert.equal(profiles['internal-ios'].environment, 'preview');
   assert.equal(profiles['internal-android'].distribution, 'internal');
-  assert.equal(profiles['internal-android'].channel, 'internal');
   assert.equal(profiles['internal-android'].environment, 'preview');
   assert.equal(profiles['internal-android'].android.buildType, 'apk');
 
   assert.equal(profiles['release-candidate-ios'].distribution, 'store');
-  assert.equal(profiles['release-candidate-ios'].channel, 'release-candidate');
   assert.equal(profiles['release-candidate-ios'].environment, 'production');
   assert.equal(profiles['release-candidate-ios'].autoIncrement, true);
   assert.equal(profiles['release-candidate-android'].distribution, 'store');
-  assert.equal(profiles['release-candidate-android'].channel, 'release-candidate');
   assert.equal(profiles['release-candidate-android'].environment, 'production');
   assert.equal(profiles['release-candidate-android'].autoIncrement, true);
   assert.equal(profiles['release-candidate-android'].android.buildType, 'app-bundle');

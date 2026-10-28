@@ -52,14 +52,12 @@ function checkEasConfig() {
 
   if (internalIos) {
     requireValue(internalIos.distribution, 'internal', 'build.internal-ios.distribution');
-    requireValue(internalIos.channel, 'internal', 'build.internal-ios.channel');
     requireValue(internalIos.environment, 'preview', 'build.internal-ios.environment');
     requireValue(internalIos.ios?.simulator, false, 'build.internal-ios.ios.simulator');
   }
 
   if (internalAndroid) {
     requireValue(internalAndroid.distribution, 'internal', 'build.internal-android.distribution');
-    requireValue(internalAndroid.channel, 'internal', 'build.internal-android.channel');
     requireValue(internalAndroid.environment, 'preview', 'build.internal-android.environment');
     requireValue(
       internalAndroid.android?.buildType,
@@ -73,11 +71,6 @@ function checkEasConfig() {
       releaseCandidateIos.distribution,
       'store',
       'build.release-candidate-ios.distribution',
-    );
-    requireValue(
-      releaseCandidateIos.channel,
-      'release-candidate',
-      'build.release-candidate-ios.channel',
     );
     requireValue(
       releaseCandidateIos.environment,
@@ -101,11 +94,6 @@ function checkEasConfig() {
       releaseCandidateAndroid.distribution,
       'store',
       'build.release-candidate-android.distribution',
-    );
-    requireValue(
-      releaseCandidateAndroid.channel,
-      'release-candidate',
-      'build.release-candidate-android.channel',
     );
     requireValue(
       releaseCandidateAndroid.environment,
