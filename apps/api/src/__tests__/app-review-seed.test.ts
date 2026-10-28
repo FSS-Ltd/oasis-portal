@@ -6,25 +6,28 @@ import {
   validateAppReviewSeedEnvironment,
 } from '../../scripts/app-review-seed.js';
 
-const input = { emailDomain: 'appreview.demo.example.com', password: 'review-password-123' };
+const env = {
+  OASIS_APP_REVIEW_STAFF_PASSWORD: 'staff-password-123',
+  OASIS_APP_REVIEW_PARENT_PASSWORD: 'parent-password-456',
+};
 
 describe('app review seed', () => {
-  it('hands out exactly one staff and one parent login', () => {
-    const { plan, logins } = buildAppReviewPlan(input);
+  it('hands out exactly one staff and one parent username, each with its own password', () => {
+    const { plan, logins } = buildAppReviewPlan(env);
 
-    expect(logins.map((login) => login.email)).toEqual([
-      'staff@appreview.demo.example.com',
-      'parent@appreview.demo.example.com',
+    expect(logins.map(({ username, password }) => ({ username, password }))).toEqual([
+      { username: 'oasis-review-staff', password: 'staff-password-123' },
+      { username: 'oasis-review-parent', password: 'parent-password-456' },
     ]);
-    const staff = plan.users.find((user) => user.email === logins[0]?.email);
-    const parent = plan.users.find((user) => user.email === logins[1]?.email);
+    const staff = plan.users.find((user) => user.id === logins[0]?.userId);
+    const parent = plan.users.find((user) => user.id === logins[1]?.userId);
     expect(staff?.role).toBe('Head');
     expect(parent?.role).toBe('Parent');
     expect(plan.students.length).toBeGreaterThanOrEqual(2);
   });
 
   it('gives every non-login user an inert placeholder Clerk id', () => {
-    const { plan, logins } = buildAppReviewPlan(input);
+    const { plan, logins } = buildAppReviewPlan(env);
     const ids = reviewClerkIds(
       plan,
       new Map(logins.map((login) => [login.userId, `user_real_${login.userId}`])),
@@ -38,6 +41,15 @@ describe('app review seed', () => {
     }
   });
 
+  it('requires a strong password for each login', () => {
+    expect(() => buildAppReviewPlan({ ...env, OASIS_APP_REVIEW_PARENT_PASSWORD: '' })).toThrow(
+      /OASIS_APP_REVIEW_PARENT_PASSWORD/,
+    );
+    expect(() => buildAppReviewPlan({ ...env, OASIS_APP_REVIEW_PARENT_PASSWORD: 'short' })).toThrow(
+      /at least 12/,
+    );
+  });
+
   it('refuses to seed without the confirmation phrase', () => {
     expect(() => {
       validateAppReviewSeedEnvironment({}, 'review');
@@ -45,12 +57,12 @@ describe('app review seed', () => {
   });
 
   it('refuses to seed any schema other than review, including public', () => {
-    const env = { OASIS_APP_REVIEW_SEED_CONFIRMATION: APP_REVIEW_SEED_CONFIRMATION };
+    const seedEnv = { OASIS_APP_REVIEW_SEED_CONFIRMATION: APP_REVIEW_SEED_CONFIRMATION };
     expect(() => {
-      validateAppReviewSeedEnvironment(env, 'public');
+      validateAppReviewSeedEnvironment(seedEnv, 'public');
     }).toThrow(/expected "review"/);
     expect(() => {
-      validateAppReviewSeedEnvironment(env, 'review');
+      validateAppReviewSeedEnvironment(seedEnv, 'review');
     }).not.toThrow();
   });
 });

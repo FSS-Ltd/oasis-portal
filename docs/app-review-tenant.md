@@ -43,8 +43,12 @@ copy in `review`. `oasis_app` is granted access, and `anon` and `authenticated` 
 
 Seeded logins:
 
-- `staff@<domain>`: Head role, the full staff experience inside the sandbox.
-- `parent@<domain>`: Parent with two synthetic children.
+- `oasis-review-staff`: Head role, the full staff experience inside the sandbox.
+- `oasis-review-parent`: Parent with two synthetic children.
+
+Both are username-only Clerk accounts with no email address, the same way student logins are created.
+Each has its own password (`OASIS_APP_REVIEW_STAFF_PASSWORD` and `OASIS_APP_REVIEW_PARENT_PASSWORD`),
+which is supplied at seed time and never committed.
 
 The other synthetic people (pastor, supervisor, students and so on) exist only as rows. They get
 placeholder Clerk IDs (`review_noclerk_*`) and cannot sign in.

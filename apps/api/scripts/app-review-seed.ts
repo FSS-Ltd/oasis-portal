@@ -17,31 +17,52 @@ import type { PrismaWithEncryption } from './client-demo/types.js';
 
 export const APP_REVIEW_SEED_CONFIRMATION = 'reset-review-schema';
 
-/** Demo plan user id → the login handed to Apple and Google. */
+/** Demo plan user id → the username handed to Apple and Google, and its password variable. */
 const REVIEW_LOGINS = {
-  clientdemo_user_head_parent: 'staff',
-  clientdemo_user_parent: 'parent',
+  clientdemo_user_head_parent: {
+    username: 'oasis-review-staff',
+    passwordEnv: 'OASIS_APP_REVIEW_STAFF_PASSWORD',
+  },
+  clientdemo_user_parent: {
+    username: 'oasis-review-parent',
+    passwordEnv: 'OASIS_APP_REVIEW_PARENT_PASSWORD',
+  },
 } as const;
+
+/**
+ * Reviewers sign in with a username only; their Clerk accounts have no email, like student logins.
+ * The synthetic address on this domain exists only in the sandbox database rows.
+ */
+const INTERNAL_EMAIL_DOMAIN = 'appreview.demo.oasisportal.space';
 
 export interface AppReviewLogin {
   userId: string;
-  email: string;
+  username: string;
+  password: string;
 }
 
-export function buildAppReviewPlan(input: { emailDomain: string; password: string }): {
+export function buildAppReviewPlan(env: EnvLike): {
   plan: ClientDemoPlan;
   logins: AppReviewLogin[];
 } {
-  const base = buildClientDemoPlan(input);
+  // Only the two logins get Clerk accounts, so the shared plan password is never used to sign in.
+  const base = buildClientDemoPlan({
+    emailDomain: INTERNAL_EMAIL_DOMAIN,
+    password: requireEnv(env, REVIEW_LOGINS.clientdemo_user_head_parent.passwordEnv),
+  });
   const logins: AppReviewLogin[] = [];
   const plan: ClientDemoPlan = {
     ...base,
     users: base.users.map((user) => {
-      const login = REVIEW_LOGINS[user.id as keyof typeof REVIEW_LOGINS] as string | undefined;
+      const login = (
+        REVIEW_LOGINS as Record<string, (typeof REVIEW_LOGINS)[keyof typeof REVIEW_LOGINS]>
+      )[user.id];
       if (!login) return user;
-      const email = `${login}@${base.emailDomain}`;
-      logins.push({ userId: user.id, email });
-      return { ...user, email };
+      const password = requireEnv(env, login.passwordEnv);
+      if (password.length < 12)
+        throw new Error(`${login.passwordEnv} must be at least 12 characters.`);
+      logins.push({ userId: user.id, username: login.username, password });
+      return { ...user, email: `${login.username}@${base.emailDomain}`, password };
     }),
   };
   if (logins.length !== Object.keys(REVIEW_LOGINS).length) {
@@ -80,13 +101,13 @@ async function upsertReviewLogin(
   const [firstName, ...rest] = user.fullName.split(' ');
   const name = { firstName: firstName ?? 'Review', lastName: rest.join(' ') || 'User' };
 
-  const existing = (await clerk.users.getUserList({ emailAddress: [login.email], limit: 1 }))
+  const existing = (await clerk.users.getUserList({ username: [login.username], limit: 1 }))
     .data[0];
   if (!existing) {
     const created = await clerk.users.createUser({
       ...name,
-      emailAddress: [login.email],
-      password: user.password,
+      username: login.username,
+      password: login.password,
       publicMetadata,
       skipLegalChecks: true,
     });
@@ -95,11 +116,12 @@ async function upsertReviewLogin(
 
   // Never convert a real account into a sandbox one.
   if (existing.publicMetadata['reviewSandbox'] !== true) {
-    throw new Error(`${login.email} is an existing non-review Clerk user. Pick another domain.`);
+    throw new Error(`${login.username} is an existing non-review Clerk user.`);
   }
   await clerk.users.updateUser(existing.id, {
     ...name,
-    password: user.password,
+    username: login.username,
+    password: login.password,
     publicMetadata,
     signOutOfOtherSessions: true,
     skipLegalChecks: true,
@@ -116,10 +138,7 @@ async function runAppReviewSeed(): Promise<void> {
   ) as unknown as PrismaWithEncryption;
   try {
     validateAppReviewSeedEnvironment(process.env, await currentSchema(db));
-    const { plan, logins } = buildAppReviewPlan({
-      emailDomain: requireEnv(process.env, 'OASIS_APP_REVIEW_EMAIL_DOMAIN'),
-      password: requireEnv(process.env, 'OASIS_APP_REVIEW_PASSWORD'),
-    });
+    const { plan, logins } = buildAppReviewPlan(process.env);
 
     const clerk = createClerkClient({ secretKey: requireEnv(process.env, 'CLERK_SECRET_KEY') });
     const loginClerkIds = new Map<string, string>();
@@ -140,7 +159,7 @@ async function runAppReviewSeed(): Promise<void> {
     console.warn(
       [
         `Seeded review schema (${String(truncated)} tables reset).`,
-        `Review logins: ${logins.map((login) => login.email).join(', ')}.`,
+        `Review usernames: ${logins.map((login) => login.username).join(', ')}.`,
       ].join('\n'),
     );
   } finally {

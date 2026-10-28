@@ -24,7 +24,7 @@ it('exposes unique sign-in input IDs while preserving accessible labels', () => 
   const renderer = mobileTestRenderer.create(createElement(SignInPanel));
   try {
     for (const [id, label] of [
-      ['sign-in-email', 'Email'],
+      ['sign-in-email', 'Email or username'],
       ['sign-in-password', 'Password'],
     ]) {
       const input = renderer.root.find((node) => {

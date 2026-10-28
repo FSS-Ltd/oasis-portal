@@ -274,7 +274,7 @@ export function SignInPanel() {
             </View>
             <Field
               keyboardType="email-address"
-              label="Email"
+              label="Email or username"
               onChangeText={setEmail}
               placeholder="supervisor@example.com"
               testID="sign-in-email"
