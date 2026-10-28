@@ -5488,3 +5488,10 @@ No product blockers currently. Phase 1 is code-complete and merged through PR-1.
 
 Technical Agent (Codex). No Strategic Agent work needed until we hit
 shop pricing policy and tithe/investment comms copy in Phase 2.
+
+## Session: mobile versioning (2026-10-28)
+
+- Mobile version is `expo.version` in `apps/mobile/app.json` only. Started at 1.0.1 because the PWA was 1.0.0.
+- Rules for Patch, Minor and Major, release steps and tagging (`mobile-vX.Y.Z`) are in `docs/mobile-versioning.md`.
+- `eas:check` now fails on a malformed version or anything below 1.0.1.
+- Gaps recorded there: no minimum-app-version gate on the API, and no `expo-updates`, so every fix is a store release.

@@ -2,8 +2,9 @@
 
 **Status:** The app is build-ready. Submission is blocked on the items in section 1, none of which can be
 done from the repository.
-**Applies to:** `apps/mobile`, Expo SDK 54, bundle ID and package `uk.oasis.portal`, version `1.0.0`.
+**Applies to:** `apps/mobile`, Expo SDK 54, bundle ID and package `uk.oasis.portal`, version `1.0.1`.
 **Design and rationale:** `docs/mobile-store-readiness-and-liquid-glass.md`.
+**Versioning rules:** `docs/mobile-versioning.md`. 1.0.0 was the PWA, so the first store release is 1.0.1.
 
 Human approval is required before any store submission. There is deliberately no `submit` profile in
 `eas.json`.

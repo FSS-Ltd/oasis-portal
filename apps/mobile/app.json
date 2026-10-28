@@ -3,7 +3,7 @@
     "name": "Oasis",
     "slug": "oasis-mobile",
     "owner": "faithful-software-solutions-ltd",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "oasis",
     "icon": "./assets/icon.png",
