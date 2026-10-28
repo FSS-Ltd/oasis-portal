@@ -152,11 +152,20 @@ Screens that depend on the newer tables may error until this is decided.
 Design: `docs/app-review-tenant.md`. Reviewer data lives in the `review` schema of the production
 database. Live users never see it, and reviewers never see `public`.
 
-1. Deploy the API change first, so the Clerk webhook skips `reviewSandbox` users before they exist.
-2. Create the schema (owner connection):
-   `DIRECT_URL=<owner url> pnpm --filter @oasis/db review:schema`
-3. Seed it. The production Clerk secret is required, because the store build signs in against production:
-   `DIRECT_URL=<owner url> CLERK_SECRET_KEY=<sk_live> OASIS_MASTER_KEY=... OASIS_MASTER_KEY_VERSION=... OASIS_BIDX_PEPPER=... OASIS_APP_REVIEW_STAFF_PASSWORD=... OASIS_APP_REVIEW_PARENT_PASSWORD=... OASIS_APP_REVIEW_SEED_CONFIRMATION=reset-review-schema pnpm --filter @oasis/api seed:app-review`
+1. **One-time GitHub setup.** Under Settings > Environments, create an environment called `App Review`.
+   Add yourself as a required reviewer, and add the secrets `OASIS_APP_REVIEW_STAFF_PASSWORD` and
+   `OASIS_APP_REVIEW_PARENT_PASSWORD` (values from `app-review-credentials.env`).
+2. Merge to `main`. The production deploy ships the API change, then refreshes the `review` tables with
+   "Refresh app review schema". That step never reseeds, and a failure in it does not fail the deploy.
+3. Seed: in Actions, open **App Review Seed**, choose Run workflow on `main` and type
+   `reset-review-schema`. Approve the run when GitHub asks. It rebuilds the `review` schema, recreates
+   the synthetic data and sets both logins and passwords. The Clerk and encryption keys come from the
+   production Vercel environment, as in the deploy job.
+   **Do not run it while a review is in progress:** it wipes sandbox data, resets the passwords and
+   signs the reviewers out.
+   Manual equivalent: `pnpm --filter @oasis/db review:schema --recreate`, then
+   `pnpm --filter @oasis/api seed:app-review`, with the production env and
+   `OASIS_APP_REVIEW_SEED_CONFIRMATION=reset-review-schema`.
 4. Clerk dashboard, production instance. These cannot be set from code:
    - **Multi-factor:** leave "Require MFA" off. The seeder strips any factor from the two review users.
    - **New-device verification (Client Trust):** the review accounts have no email, so Clerk has
@@ -165,6 +174,7 @@ database. Live users never see it, and reviewers never see `public`.
    - **Username:** the review accounts are username-only, like student logins, so Clerk usernames
      must stay enabled. The sign-in field is labelled "Email or username".
 5. Sign in with both accounts on a TestFlight build before submitting.
-6. After each release that changes `schema.prisma`, re-run steps 2 and 3.
+6. If a deploy's "Refresh app review schema" step fails (a change it cannot apply in place), run
+   **App Review Seed** again between reviews.
 
 Rollback: delete the two Clerk users, then run `DROP SCHEMA review CASCADE`.

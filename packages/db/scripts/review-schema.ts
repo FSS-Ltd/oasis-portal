@@ -71,6 +71,11 @@ async function main(): Promise<void> {
 
   const owner = new PrismaClient({ datasources: { db: { url: ownerUrl } } });
   try {
+    // --recreate rebuilds the sandbox when a schema change cannot be pushed in place. The
+    // identifier is the hardcoded constant, never input, so this can only ever drop `review`.
+    if (process.argv.includes('--recreate')) {
+      await owner.$executeRawUnsafe(`DROP SCHEMA IF EXISTS ${REVIEW_SCHEMA} CASCADE`);
+    }
     await owner.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS ${REVIEW_SCHEMA}`);
   } finally {
     await owner.$disconnect();

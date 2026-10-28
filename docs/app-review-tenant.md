@@ -61,7 +61,7 @@ placeholder Clerk IDs (`review_noclerk_*`) and cannot sign in.
 | Reviewer reaches `public`               | Reviewer sees live data        | The review schema is looked up first, the webhook skips flagged users, and a test covers both.                 |
 | Raw SQL in a review transaction         | Reads from `public`            | `search_path` is set inside each review transaction.                                                           |
 | `review` schema missing or not migrated | Reviewer requests fail         | Live users are not affected, because the review client is created lazily.                                      |
-| Schema drift after a migration          | Reviewer errors on new columns | Re-run `review:schema` and `seed:app-review` after each release.                                               |
+| Schema drift after a migration          | Reviewer errors on new columns | The deploy refreshes `review`. If that cannot apply a change, rerun App Review Seed.                           |
 
 ## Known limitations
 
@@ -78,8 +78,11 @@ sign-ins are audit-logged in `review."AuditLog"`, which keeps them apart from th
 
 ## Rollout and rollback
 
-1. Deploy the API change. With no `review` schema, behaviour is unchanged.
-2. Run `pnpm --filter @oasis/db review:schema`, then `pnpm --filter @oasis/api seed:app-review`.
+1. Deploy the API change. With no `review` schema, behaviour is unchanged. Each production deploy then
+   runs `review:schema` to keep the `review` tables in step with migrations. It never reseeds.
+2. Seed with the manual **App Review Seed** workflow, which runs behind the protected `App Review`
+   GitHub environment. It runs `review:schema --recreate` and `seed:app-review`. Seeding is never
+   automatic, because it wipes sandbox data and signs reviewers out.
 3. Put the two logins in App Store Connect and the Play Console.
 
 Rollback: delete the two Clerk users and run `DROP SCHEMA review CASCADE`. The code path goes inert.

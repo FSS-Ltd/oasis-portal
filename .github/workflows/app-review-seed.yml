@@ -1,0 +1,89 @@
+name: App Review Seed
+
+# Rebuilds the app store review sandbox in the production database: the `review` schema and the
+# two username-only Clerk logins (docs/app-review-tenant.md). Run it before a store submission.
+# Do not run it while Apple or Google are reviewing: it wipes sandbox data, resets both passwords and
+# signs the reviewers out.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "reset-review-schema" to wipe and reseed the review sandbox.
+        required: true
+        type: string
+
+concurrency:
+  group: app-review-seed
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.0.0'
+  VERCEL_CLI_VERSION: '53.0.1'
+
+jobs:
+  seed:
+    name: Seed app review sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.ref == 'refs/heads/main'
+    # Protected environment: add a required reviewer, and hold the two password secrets here.
+    environment: App Review
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TELEMETRY_DISABLED: '1'
+      OASIS_APP_REVIEW_STAFF_PASSWORD: ${{ secrets.OASIS_APP_REVIEW_STAFF_PASSWORD }}
+      OASIS_APP_REVIEW_PARENT_PASSWORD: ${{ secrets.OASIS_APP_REVIEW_PARENT_PASSWORD }}
+      OASIS_APP_REVIEW_SEED_CONFIRMATION: ${{ inputs.confirm }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @oasis/db generate
+
+      - name: Validate seed secrets
+        run: |
+          node scripts/require-env-file-keys.mjs --process-env \
+            DATABASE_URL \
+            DIRECT_URL \
+            VERCEL_ORG_ID \
+            VERCEL_PROJECT_ID \
+            VERCEL_TOKEN \
+            OASIS_APP_REVIEW_STAFF_PASSWORD \
+            OASIS_APP_REVIEW_PARENT_PASSWORD
+
+      - name: Install Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      # CLERK_SECRET_KEY and the OASIS_* encryption keys come from the production Vercel environment,
+      # the same way the production deploy reads them.
+      - name: Pull Vercel production environment
+        run: vercel pull --yes --environment=production
+
+      - name: Rebuild review schema
+        run: node --env-file=.vercel/.env.production.local scripts/with-env.mjs pnpm --filter @oasis/db review:schema --recreate
+
+      - name: Seed review data and logins
+        run: node --env-file=.vercel/.env.production.local scripts/with-env.mjs pnpm --filter @oasis/api seed:app-review
