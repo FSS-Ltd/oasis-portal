@@ -1051,13 +1051,7 @@ CREATE POLICY permission_slip_parent_select ON "PermissionSlip"
       'ClubsAdmin',
       'Supervisor'
     )
-    AND EXISTS (
-      SELECT 1
-      FROM "PermissionSlipRecipient" psr
-      JOIN "Guardian" g ON g."studentId" = psr."studentId"
-      WHERE psr."slipId" = "PermissionSlip"."id"
-        AND g."userId" = current_setting('app.user_id', true)
-    )
+    AND public.oasis_guardian_can_see_permission_slip("PermissionSlip"."id")
   );
 
 CREATE POLICY permission_slip_manager_insert ON "PermissionSlip"
