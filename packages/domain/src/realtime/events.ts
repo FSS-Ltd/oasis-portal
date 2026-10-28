@@ -41,6 +41,7 @@ export const REALTIME_AREAS = [
   'library',
   'compliance',
   'userAgreement',
+  'accountDeletion',
 ] as const;
 
 export type RealtimeArea = (typeof REALTIME_AREAS)[number];
