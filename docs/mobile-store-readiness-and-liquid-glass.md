@@ -58,8 +58,8 @@ New `src/components/core/glass.tsx` is the only place that knows about glass. Ev
 | Condition | Renders |
 | --- | --- |
 | iOS 26+, reduce transparency off | native `GlassView` (`expo-glass-effect`) |
-| iOS below 26, reduce transparency off | `BlurView` (`expo-blur`) with a surface tint |
-| Android, web, or reduce transparency on | opaque `C.surface` with a hairline border |
+| iOS below 26 or web, reduce transparency off | `BlurView` (`expo-blur`; CSS backdrop-filter on web) |
+| Android, or reduce transparency on | opaque `C.surface` with a hairline border |
 
 Android gets the opaque path on purpose. `expo-blur` on Android is experimental and the platform has no
 glass idiom. Faking one would look worse than flat.
