@@ -152,7 +152,7 @@ Screens that depend on the newer tables may error until this is decided.
 Design: `docs/app-review-tenant.md`. Reviewer data lives in the `review` schema of the production
 database. Live users never see it, and reviewers never see `public`.
 
-1. **One-time GitHub setup.** Under Settings > Environments, create an environment called `App Review`.
+1. **One-time GitHub setup.** Under Settings > Environments, create an environment called `Oasis Review`.
    Add yourself as a required reviewer, and add the secrets `OASIS_APP_REVIEW_STAFF_PASSWORD` and
    `OASIS_APP_REVIEW_PARENT_PASSWORD` (values from `app-review-credentials.env`).
 2. Merge to `main`. The production deploy ships the API change, then refreshes the `review` tables with

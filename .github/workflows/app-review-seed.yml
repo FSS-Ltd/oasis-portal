@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 20
     if: github.ref == 'refs/heads/main'
     # Protected environment: add a required reviewer, and hold the two password secrets here.
-    environment: App Review
+    environment: Oasis Review
     env:
       DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
       DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}

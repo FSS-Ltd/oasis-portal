@@ -80,7 +80,7 @@ sign-ins are audit-logged in `review."AuditLog"`, which keeps them apart from th
 
 1. Deploy the API change. With no `review` schema, behaviour is unchanged. Each production deploy then
    runs `review:schema` to keep the `review` tables in step with migrations. It never reseeds.
-2. Seed with the manual **App Review Seed** workflow, which runs behind the protected `App Review`
+2. Seed with the manual **App Review Seed** workflow, which runs behind the protected `Oasis Review`
    GitHub environment. It runs `review:schema --recreate` and `seed:app-review`. Seeding is never
    automatic, because it wipes sandbox data and signs reviewers out.
 3. Put the two logins in App Store Connect and the Play Console.
