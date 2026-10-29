@@ -17,6 +17,7 @@ import {
   SectionTitle,
 } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
+import { PushNotificationsCard } from '../core/push-notifications-card';
 import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import { canOpenAcademicInventory } from './staff-academic-inventory-utils';
 import {
@@ -355,6 +356,7 @@ export function StaffHomeScreen({
             </Card>
 
             <PwaHomeActions />
+            <PushNotificationsCard about="new messages from parents and staff" />
           </>
         ) : null}
       </ScrollView>

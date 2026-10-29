@@ -42,9 +42,11 @@ import { timetableRouter } from './routers/timetable.js';
 import { libraryRouter } from './routers/library.js';
 import { complianceRouter } from './routers/compliance.js';
 import { userAgreementRouter } from './routers/userAgreement.js';
+import { pushNotificationRouter } from './routers/pushNotification.js';
 
 export const appRouter = router({
   accountDeletion: accountDeletionRouter,
+  pushNotification: pushNotificationRouter,
   admin: adminRouter,
   audit: auditRouter,
   health: healthRouter,

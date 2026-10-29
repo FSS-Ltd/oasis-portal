@@ -8,6 +8,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { MobileTrpcProvider } from '../src/lib/trpc-provider';
 import { C } from '../src/components/core/mobile-theme';
 import { LaunchSplash } from '../src/components/core/launch-splash';
+import { PushNotificationsSignOutWatcher } from '../src/components/core/push-notifications-card';
 import { PwaServiceWorkerRegistration } from '../src/components/pwa/pwa-service-worker-registration';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -39,6 +40,7 @@ export default function RootLayout() {
       <ClerkProvider publishableKey={publishableKey}>
         <PwaServiceWorkerRegistration />
         <MobileTrpcProvider>
+          <PushNotificationsSignOutWatcher />
           <AppStack />
         </MobileTrpcProvider>
       </ClerkProvider>
@@ -49,6 +51,7 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <PwaServiceWorkerRegistration />
       <MobileTrpcProvider>
+        <PushNotificationsSignOutWatcher />
         <AppStack />
       </MobileTrpcProvider>
     </ClerkProvider>

@@ -13,6 +13,7 @@ vi.mock('react-native', () => ({
   View: 'View',
 }));
 vi.mock('../core/account-deletion-card', () => ({ AccountDeletionCard: () => null }));
+vi.mock('../core/push-notifications-card', () => ({ PushNotificationsCard: () => null }));
 
 vi.mock('../core/mobile-ui', () => ({
   Badge: 'Badge',

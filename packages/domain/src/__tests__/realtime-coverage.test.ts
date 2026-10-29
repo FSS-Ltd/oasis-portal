@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import ts from 'typescript';
@@ -53,14 +53,14 @@ describe('Realtime model coverage', () => {
       if (item.areas.length === 0) expect(item.exclusion?.length).toBeGreaterThan(20);
     }
   });
-  it('matches all dependency areas and audiences installed by the migration', () => {
-    const sql = readFileSync(
-      resolve(
-        import.meta.dirname,
-        '../../../db/prisma/migrations/20261023150200_realtime_change_capture/migration.sql',
-      ),
-      'utf8',
-    );
+  it('matches all dependency areas and audiences installed by the migrations', () => {
+    // Later migrations add rows for new models, so read them all.
+    const migrations = resolve(import.meta.dirname, '../../../db/prisma/migrations');
+    const sql = readdirSync(migrations)
+      .map((name) => resolve(migrations, name, 'migration.sql'))
+      .filter((path) => existsSync(path))
+      .map((path) => readFileSync(path, 'utf8'))
+      .join('\n');
     for (const [model, coverage] of Object.entries(REALTIME_MODEL_COVERAGE)) {
       const values = coverage.areas.map((area) => `'${area}'`).join(',');
       expect(sql).toContain(`('${model}',ARRAY[${values}]::text[],'${coverage.audience}')`);

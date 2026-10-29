@@ -5,6 +5,8 @@ export const REALTIME_AREA_EXCLUSIONS = {
   email: 'Command-only email delivery; visible agreement delivery status belongs to userAgreement.',
   accountDeletion:
     'Requests live in two User columns and refetch after each request, cancel or decision; no table of their own.',
+  pushNotification:
+    'Device push registrations are per device; the settings card refetches after each change.',
 } as const satisfies Partial<Record<RealtimeArea, string>>;
 
 export type RealtimeAudience =
@@ -172,6 +174,11 @@ export const REALTIME_MODEL_COVERAGE = {
   },
   LibraryBook: { areas: ['library', 'staffHome'], audience: 'library' },
   LibraryLoan: { areas: ['library', 'staffHome'], audience: 'library' },
+  PushDeviceToken: {
+    areas: [],
+    audience: 'excluded',
+    exclusion: "Per-device delivery registrations; nothing on screen reads another device's row.",
+  },
   LibraryEmailReminder: {
     areas: [],
     audience: 'excluded',
