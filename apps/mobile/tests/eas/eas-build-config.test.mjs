@@ -110,7 +110,7 @@ test('release-candidate profiles upload to the stores but never send for review'
   assert.equal(submit['release-candidate-android'].android.releaseStatus, 'draft');
 });
 
-test('the release workflow runs on a version bump, main-only, auto-submits and tags', () => {
+test('the release workflow runs on a version bump, main-only, builds natively, uploads and tags', () => {
   const workflow = readRepo('.github/workflows/mobile-release.yml');
 
   assert.match(workflow, /workflow_dispatch:/);
@@ -118,8 +118,13 @@ test('the release workflow runs on a version bump, main-only, auto-submits and t
   assert.match(workflow, /git push origin "refs\/tags\/\$\{tag\}"/);
   assert.match(workflow, /environment: mobile-release/);
   assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
-  assert.match(workflow, /--profile release-candidate-\$\{\{ matrix\.platform \}\}/);
-  assert.match(workflow, /--auto-submit --non-interactive$/m);
+  assert.doesNotMatch(workflow, /eas build/);
+  assert.match(workflow, /npx expo prebuild --platform ios --clean/);
+  assert.match(workflow, /xcodebuild -exportArchive/);
+  assert.match(workflow, /<key>destination<\/key><string>upload<\/string>/);
+  assert.match(workflow, /\.\/gradlew :app:bundleRelease/);
+  assert.match(workflow, /android\.injected\.signing\.store\.file/);
+  assert.match(workflow, /track: production\n\s+status: draft/);
   assert.match(workflow, /refs\/tags\/mobile-v\$\{version\}/);
 });
 

@@ -74,8 +74,9 @@ When in doubt between two levels, take the higher.
 3. Add one row to the history table below.
 4. Open a PR. CI runs `eas:check`, lint, typecheck and tests. Merge when green.
 5. Merging the version change starts the **Mobile release** workflow with no further approval:
-   the reviewed version PR is the sign-off. It builds with the `release-candidate` profiles and uploads
-   through EAS Submit: iOS to App Store Connect (TestFlight), Android as a draft production release.
+   the reviewed version PR is the sign-off. It builds natively (Xcode archive, Gradle app bundle, see
+   `docs/mobile-native-builds.md`) and uploads iOS to App Store Connect (TestFlight) and Android as a
+   draft production release.
    When both uploads finish it tags the merge commit `mobile-vX.Y.Z`. A version that already has the
    tag is skipped.
 6. Test the build on TestFlight, and check the draft release in Play Console.
