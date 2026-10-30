@@ -52,9 +52,10 @@ pnpm --filter @oasis/mobile eas build --platform ios --profile release-candidate
 pnpm --filter @oasis/mobile eas build --platform android --profile release-candidate-android
 ```
 
-Human approval is required before any store submission. This PR only configures
-build profiles; it does not add `submit` profiles or automate App Store or Play
-Console submission.
+Human approval is required before any store submission. Release candidates are
+built and uploaded by the approval-gated Mobile release workflow, using the
+`submit` profiles in `eas.json`. Sending a build for review stays manual in App
+Store Connect and Play Console.
 
 ## Device Install Checklist
 
@@ -92,7 +93,7 @@ platform, account role, and blocker.
   not stored in the repository.
 - iOS internal distribution requires registered devices or the approved Apple
   team setup.
-- Release-candidate profiles create store-format artifacts but do not submit
-  them.
+- Release-candidate builds upload to the stores (TestFlight, and a draft Play
+  production release) but are never sent for review automatically.
 - Mutating UAT steps should only run against synthetic fixtures that can be
   reset after testing.

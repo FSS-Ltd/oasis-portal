@@ -112,8 +112,25 @@ function checkEasConfig() {
     );
   }
 
-  if (easConfig.submit) {
-    fail('Store submit profiles must not be added before human approval.');
+  // Submission only uploads: iOS lands in App Store Connect (TestFlight), Android as a draft
+  // production release. Sending either for review stays a manual step in the store consoles.
+  const submitIos = easConfig.submit?.['release-candidate-ios']?.ios;
+  const submitAndroid = easConfig.submit?.['release-candidate-android']?.android;
+  requireValue(submitIos?.ascAppId, '6828101515', 'submit.release-candidate-ios.ios.ascAppId');
+  requireValue(
+    submitAndroid?.releaseStatus,
+    'draft',
+    'submit.release-candidate-android.android.releaseStatus',
+  );
+  requireValue(
+    submitAndroid?.track,
+    'production',
+    'submit.release-candidate-android.android.track',
+  );
+  for (const name of Object.keys(easConfig.submit ?? {})) {
+    if (!name.startsWith('release-candidate-')) {
+      fail(`submit.${name} is not allowed; only release-candidate profiles submit.`);
+    }
   }
 }
 
