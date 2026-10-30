@@ -38,12 +38,9 @@ pnpm --filter @oasis/mobile eas build --platform ios --profile internal-ios
 pnpm --filter @oasis/mobile eas build --platform android --profile internal-android
 ```
 
-Internal builds are submitted automatically by `.github/workflows/mobile-eas-build.yml`
-whenever mobile code merges to `main`. The workflow queues the build on expo.dev
-and returns, so the build appears in the Expo dashboard a minute or two after the
-merge. It needs one GitHub Actions secret, `EXPO_ACCESS_TOKEN`, created from an Expo
-access token for the `faithful-software-solutions-ltd` organization. To rebuild
-without a code change, run the workflow from the Actions tab.
+CI no longer builds on EAS. Merges to `main` and version bumps build natively with Xcode and
+Gradle on GitHub Actions, see `docs/mobile-native-builds.md`. The EAS commands here are a manual
+fallback.
 
 Release-candidate artifacts:
 
@@ -53,8 +50,8 @@ pnpm --filter @oasis/mobile eas build --platform android --profile release-candi
 ```
 
 Human approval is required before any store submission. Release candidates are
-built and uploaded by the Mobile release workflow when a version bump lands on `main`, using the
-`submit` profiles in `eas.json`. Sending a build for review stays manual in App
+built natively and uploaded by the Mobile release workflow when a version bump lands on `main`
+(`docs/mobile-native-builds.md`). Sending a build for review stays manual in App
 Store Connect and Play Console.
 
 ## Device Install Checklist

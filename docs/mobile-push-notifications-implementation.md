@@ -23,10 +23,12 @@ Not built yet: opening the exact thread from a tap; push receipt polling (only s
 ## Setup before a build
 
 - Android: download `google-services.json` from the Firebase project that issued the FCM V1 key
-  uploaded to EAS, and add it as an EAS **file** environment variable named `GOOGLE_SERVICES_JSON`
-  for the preview and production environments. `apps/mobile/app.config.js` passes it to the build.
+  uploaded to Expo, and store its contents as the GitHub secret `GOOGLE_SERVICES_JSON` in the
+  `mobile-preview` and `mobile-release` environments (CI writes it to a file and
+  `apps/mobile/app.config.js` passes it to the build, see `docs/mobile-native-builds.md`).
   Without it Android cannot get a push token; the card shows the error.
-- iOS: the APNs key on EAS is enough. The `expo-notifications` plugin adds the push entitlement.
+- iOS: the APNs key on the Expo project is enough for sending. The `expo-notifications` plugin adds
+  the push entitlement, and the App Store export switches it to production.
 - API: if Expo "enhanced push security" is on, set `EXPO_PUSH_ACCESS_TOKEN` on the API.
 - Run the new migration (`pnpm --filter @oasis/db migrate`).
 - This adds a native module, so it needs new store builds. An OTA update cannot deliver it.
