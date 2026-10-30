@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 /** Native push only. The PWA keeps its in-app Updates. */
@@ -68,4 +69,23 @@ export async function requestPushToken(): Promise<string | null> {
       ? current
       : await Notifications.requestPermissionsAsync();
   return granted ? expoPushToken() : null;
+}
+
+export type PushArea = 'messages' | 'updates';
+
+// Taps already acted on, so remounting a portal does not jump back to the same screen.
+const handledTaps = new Set<string>();
+
+/** Calls `onTap` with the area of a tapped notification, including the one that opened the app. */
+export function usePushTap(onTap: (area: PushArea) => void) {
+  const response = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!PUSH_SUPPORTED || !response) return;
+    if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+    const { identifier, content } = response.notification.request;
+    if (handledTaps.has(identifier)) return;
+    handledTaps.add(identifier);
+    const area: unknown = content.data.area;
+    if (area === 'messages' || area === 'updates') onTap(area);
+  }, [onTap, response]);
 }

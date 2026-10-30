@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
+import { usePushTap } from '../../lib/push-notifications';
 import { type RouterOutputs, api } from '../../lib/trpc';
 import { UserAccessScreen } from '../access/user-access-screen';
 import { C } from '../core/mobile-theme';
@@ -61,6 +62,9 @@ export function TechnicalSupportPortalScreen({
 }) {
   const { signOut } = useClerk();
   const [route, setRoute] = useState<SupportPortalRoute>('access');
+  usePushTap((area) => {
+    if (area === 'messages') setRoute('communications');
+  });
   const agreementPending = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
 
   const calendarQuery = api.calendar.listVisible.useQuery(undefined, {

@@ -14,8 +14,11 @@ Status: First slice implemented (2026-10-29)
   Permission is asked only when the user turns the switch on. If iOS or Android has blocked it,
   the card links to phone Settings.
 
-Not built yet: tapping a notification opens the app but does not jump to the screen; push
-receipt polling (only send-time ticket errors are handled); parent behaviour, notice and report pushes.
+Tapping a notification opens its screen: a message opens Messages (parents) or Communications (staff
+and technical support), an update opens the student Updates tab. `usePushTap` in
+`apps/mobile/src/lib/push-notifications.ts` reads the tap, including the one that launched the app.
+
+Not built yet: opening the exact thread from a tap; push receipt polling (only send-time ticket errors are handled); parent behaviour, notice and report pushes.
 
 ## Setup before a build
 

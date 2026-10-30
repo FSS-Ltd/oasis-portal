@@ -49,6 +49,7 @@ vi.mock('@clerk/clerk-expo', () => ({ useClerk: () => ({ signOut: vi.fn() }) }))
 vi.mock('@oasis/domain', () => ({
   canUseParentVolunteerNavigation: (access: 'parent' | 'staff' | null) => access !== null,
 }));
+vi.mock('../../lib/push-notifications', () => ({ usePushTap: () => undefined }));
 vi.mock('../../lib/trpc', () => ({
   api: {
     calendar: { listForParents: { useQuery: () => mocks.queryResult } },

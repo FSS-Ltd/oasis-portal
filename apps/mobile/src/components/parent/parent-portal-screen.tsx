@@ -4,6 +4,7 @@ import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { canUseParentVolunteerNavigation, type ParentVolunteerAccess } from '@oasis/domain';
+import { usePushTap } from '../../lib/push-notifications';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -89,6 +90,9 @@ export function ParentPortalScreen({
   const { signOut } = useClerk();
   const canUseParentVolunteer = canUseParentVolunteerNavigation(parentVolunteerAccess);
   const [route, setRoute] = useState<ParentPortalRoute>('home');
+  usePushTap((area) => {
+    if (area === 'messages') setRoute('messages');
+  });
   // A message thread takes the whole screen: the header and tab bar would cover its composer.
   const [messageThreadOpen, setMessageThreadOpen] = useState(false);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);

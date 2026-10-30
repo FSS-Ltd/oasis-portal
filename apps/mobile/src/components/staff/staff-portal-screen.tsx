@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { usePushTap } from '../../lib/push-notifications';
 import { type RouterOutputs } from '../../lib/trpc';
 import { UserAccessScreen } from '../access/user-access-screen';
 import { Badge, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -46,6 +47,9 @@ export function StaffPortalScreen({
   user: SessionUser | undefined;
 }) {
   const [route, setRoute] = useState<StaffPortalRoute>('home');
+  usePushTap((area) => {
+    if (area === 'messages') setRoute('communications');
+  });
 
   if (route === 'academic-inventory') {
     return (
