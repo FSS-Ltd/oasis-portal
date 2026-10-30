@@ -7,8 +7,8 @@ done from the repository.
 **Versioning rules:** `docs/mobile-versioning.md`. 1.0.0 was the PWA, so the first store release is 1.0.1.
 
 Human approval is required before any store submission. The **Mobile release** workflow
-(`.github/workflows/mobile-release.yml`) builds the release candidates and uploads them through EAS
-Submit after a reviewer approves the run. It never sends a build for review: iOS stops in App Store
+(`.github/workflows/mobile-release.yml`) starts when a version bump lands on `main`, builds the
+release candidates and uploads them through EAS Submit. It never sends a build for review: iOS stops in App Store
 Connect (TestFlight) and Android stops as a draft production release. Submitting for review stays a
 manual step in each store console.
 

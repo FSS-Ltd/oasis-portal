@@ -25,9 +25,9 @@ pnpm --filter @oasis/mobile eas:check
 ```
 
 The package exposes `pnpm --filter @oasis/mobile eas ...`, which runs the
-configured `eas-cli@^13.0.0` through `pnpm dlx`. The EAS config uses the remote
-app version source so release-candidate build numbers and version codes are
-persisted by EAS instead of relying on local file mutations.
+configured `eas-cli@^13.0.0` through `pnpm dlx`. The EAS config uses the local
+app version source: `app.config.js` sets the build number and version code from
+the version (1.1.0 is 1100). See `docs/mobile-versioning.md`.
 
 ## Build Commands
 
@@ -53,7 +53,7 @@ pnpm --filter @oasis/mobile eas build --platform android --profile release-candi
 ```
 
 Human approval is required before any store submission. Release candidates are
-built and uploaded by the approval-gated Mobile release workflow, using the
+built and uploaded by the Mobile release workflow when a version bump lands on `main`, using the
 `submit` profiles in `eas.json`. Sending a build for review stays manual in App
 Store Connect and Play Console.
 

@@ -35,7 +35,7 @@ test('mobile EAS config defines internal and release-candidate build profiles', 
   const easConfig = JSON.parse(readMobile('eas.json'));
   const profiles = easConfig.build;
 
-  assert.equal(easConfig.cli.appVersionSource, 'remote');
+  assert.equal(easConfig.cli.appVersionSource, 'local');
 
   for (const profile of [
     'internal-ios',
@@ -54,10 +54,8 @@ test('mobile EAS config defines internal and release-candidate build profiles', 
 
   assert.equal(profiles['release-candidate-ios'].distribution, 'store');
   assert.equal(profiles['release-candidate-ios'].environment, 'production');
-  assert.equal(profiles['release-candidate-ios'].autoIncrement, true);
   assert.equal(profiles['release-candidate-android'].distribution, 'store');
   assert.equal(profiles['release-candidate-android'].environment, 'production');
-  assert.equal(profiles['release-candidate-android'].autoIncrement, true);
   assert.equal(profiles['release-candidate-android'].android.buildType, 'app-bundle');
 });
 
@@ -84,7 +82,7 @@ test('mobile EAS runbook documents env, commands, UAT paths, and approval gates'
     assert.match(docs, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 
-  assert.match(docs, /remote\s+app version source/);
+  assert.match(docs, /local\s+app version source/);
 });
 
 test('mobile app version is MAJOR.MINOR.PATCH, starts at 1.0.1, and has documented rules', () => {
@@ -112,14 +110,24 @@ test('release-candidate profiles upload to the stores but never send for review'
   assert.equal(submit['release-candidate-android'].android.releaseStatus, 'draft');
 });
 
-test('the release workflow is manual, approval-gated, main-only and auto-submits', () => {
+test('the release workflow runs on a version bump, main-only, auto-submits and tags', () => {
   const workflow = readRepo('.github/workflows/mobile-release.yml');
 
   assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /^\s+push:/m);
+  assert.match(workflow, /paths: \['apps\/mobile\/app\.json'\]/);
+  assert.match(workflow, /git push origin "refs\/tags\/\$\{tag\}"/);
   assert.match(workflow, /environment: mobile-release/);
   assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /--profile release-candidate-\$\{\{ matrix\.platform \}\}/);
-  assert.match(workflow, /--auto-submit --non-interactive --no-wait/);
+  assert.match(workflow, /--auto-submit --non-interactive$/m);
   assert.match(workflow, /refs\/tags\/mobile-v\$\{version\}/);
+});
+
+test('build numbers follow the version', async () => {
+  const { buildNumberFor } = (await import('../../app.config.js')).default;
+  assert.equal(buildNumberFor('1.1.0'), 1100);
+  assert.equal(buildNumberFor('1.2.3'), 1203);
+  assert.equal(buildNumberFor('2.0.0'), 2000);
+  assert.throws(() => buildNumberFor('1.10.0'), /does not fit/);
+  assert.throws(() => buildNumberFor('1.0.100'), /does not fit/);
 });
