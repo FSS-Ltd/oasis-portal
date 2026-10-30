@@ -1,7 +1,7 @@
 name: Mobile EAS build
 
 # Submits the internal iOS and Android builds to expo.dev whenever mobile code lands on main.
-# Release-candidate (store) profiles stay manual: they spend a build number and need human sign-off.
+# Store builds run from mobile-release.yml when the version in apps/mobile/app.json changes.
 on:
   push:
     branches: [main]

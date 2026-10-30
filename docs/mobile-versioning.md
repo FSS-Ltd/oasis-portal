@@ -14,10 +14,12 @@ The mobile app uses [semantic versioning](https://semver.org): `MAJOR.MINOR.PATC
 
 - **Source of truth:** `expo.version` in `apps/mobile/app.json`. Nothing else holds the version.
   `apps/mobile/package.json` stays at `0.0.0` because it is private and never published.
-- **Build number:** iOS `buildNumber` and Android `versionCode` are separate from the version. EAS
-  increments them on every release-candidate build (`appVersionSource: remote`, `autoIncrement: true`).
-  Never edit them by hand. One version can have many builds, for example 1.0.1 build 3 after two
-  rejected uploads.
+- **Build number:** iOS `buildNumber` and Android `versionCode` come from the version in
+  `apps/mobile/app.config.js`: `MAJOR * 1000 + MINOR * 100 + PATCH`, so 1.1.0 is build 1100 and 1.2.3
+  is build 1203. EAS uses them as set (`appVersionSource: local`, no `autoIncrement`). Never edit them
+  by hand. Each version has exactly one store build, so a rejected upload needs a Patch bump. The
+  scheme allows MINOR up to 9 and PATCH up to 99; widen it before 1.10.0. Builds before 1.1.0 used
+  the old EAS counter (iOS build 7).
 - **Guard:** `pnpm --filter @oasis/mobile eas:check` fails if the version is not `X.Y.Z` or is below
   1.0.1. CI runs it.
 
@@ -71,16 +73,17 @@ When in doubt between two levels, take the higher.
 2. Change `expo.version` in `apps/mobile/app.json`. Change nothing else for the version.
 3. Add one row to the history table below.
 4. Open a PR. CI runs `eas:check`, lint, typecheck and tests. Merge when green.
-5. Run the **Mobile release** workflow from `main` (Actions, then Run workflow) and approve it in the
-   `mobile-release` environment. It refuses a version that already has a `mobile-vX.Y.Z` tag, builds
-   with the `release-candidate` profiles and uploads through EAS Submit: iOS to App Store Connect,
-   Android as a draft production release.
+5. Merging the version change starts the **Mobile release** workflow. Approve it in the
+   `mobile-release` environment if it asks. It builds with the `release-candidate` profiles and uploads
+   through EAS Submit: iOS to App Store Connect (TestFlight), Android as a draft production release.
+   When both uploads finish it tags the merge commit `mobile-vX.Y.Z`. A version that already has the
+   tag is skipped.
 6. Test the build on TestFlight, and check the draft release in Play Console.
-7. Submit for review by hand in App Store Connect and Play Console. When a store accepts it, tag the
-   merge commit `mobile-vX.Y.Z` and push the tag.
+7. Submit for review by hand in App Store Connect and Play Console.
 
-Do not reuse a version the App Store has accepted. If a release is rejected before approval, the same
-version can be uploaded again with a new build number.
+If one platform fails, run **Mobile release** by hand (Actions, then Run workflow) for just that
+platform. The tag is created once it uploads. Do not reuse a version that has been uploaded: the
+store already holds its build number, so bump the Patch version instead.
 
 ## Store paperwork per level
 

@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 const mobileRoot = process.cwd();
 const easPath = path.join(mobileRoot, 'eas.json');
@@ -40,7 +43,13 @@ function checkEasConfig() {
   const easConfig = readJson(easPath);
   if (!easConfig) return;
 
-  requireValue(easConfig.cli?.appVersionSource, 'remote', 'cli.appVersionSource');
+  // Build numbers come from the version in app.config.js (1.1.0 -> 1100), not an EAS counter.
+  requireValue(easConfig.cli?.appVersionSource, 'local', 'cli.appVersionSource');
+  for (const [name, profile] of Object.entries(easConfig.build ?? {})) {
+    if (profile?.autoIncrement !== undefined) {
+      fail(`build.${name}.autoIncrement is not allowed; app.config.js sets the build number.`);
+    }
+  }
   if (typeof easConfig.cli?.version !== 'string' || !easConfig.cli.version.startsWith('>=')) {
     fail('cli.version must pin a minimum EAS CLI version.');
   }
@@ -78,11 +87,6 @@ function checkEasConfig() {
       'build.release-candidate-ios.environment',
     );
     requireValue(
-      releaseCandidateIos.autoIncrement,
-      true,
-      'build.release-candidate-ios.autoIncrement',
-    );
-    requireValue(
       releaseCandidateIos.ios?.simulator,
       false,
       'build.release-candidate-ios.ios.simulator',
@@ -99,11 +103,6 @@ function checkEasConfig() {
       releaseCandidateAndroid.environment,
       'production',
       'build.release-candidate-android.environment',
-    );
-    requireValue(
-      releaseCandidateAndroid.autoIncrement,
-      true,
-      'build.release-candidate-android.autoIncrement',
     );
     requireValue(
       releaseCandidateAndroid.android?.buildType,
@@ -147,6 +146,12 @@ function checkNativeIds() {
     fail('expo.version must be MAJOR.MINOR.PATCH, for example "1.0.1".');
   } else if (compareVersions(version, '1.0.1') < 0) {
     fail('expo.version must be 1.0.1 or higher. 1.0.0 was the PWA.');
+  } else {
+    try {
+      require(path.join(mobileRoot, 'app.config.js')).buildNumberFor(version);
+    } catch (error) {
+      fail(error.message);
+    }
   }
 }
 

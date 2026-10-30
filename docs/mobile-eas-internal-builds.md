@@ -25,9 +25,9 @@ pnpm --filter @oasis/mobile eas:check
 ```
 
 The package exposes `pnpm --filter @oasis/mobile eas ...`, which runs the
-configured `eas-cli@^13.0.0` through `pnpm dlx`. The EAS config uses the remote
-app version source so release-candidate build numbers and version codes are
-persisted by EAS instead of relying on local file mutations.
+configured `eas-cli@^13.0.0` through `pnpm dlx`. The EAS config uses the local
+app version source: `app.config.js` sets the build number and version code from
+the version (1.1.0 is 1100). See `docs/mobile-versioning.md`.
 
 ## Build Commands
 

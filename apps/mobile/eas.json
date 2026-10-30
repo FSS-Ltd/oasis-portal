@@ -1,6 +1,6 @@
 {
   "cli": {
-    "appVersionSource": "remote",
+    "appVersionSource": "local",
     "version": ">= 13.0.0"
   },
   "build": {
@@ -25,7 +25,6 @@
       "environment": "preview"
     },
     "release-candidate-ios": {
-      "autoIncrement": true,
       "distribution": "store",
       "env": {
         "OASIS_BUILD_PROFILE": "release-candidate-ios"
@@ -39,7 +38,6 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "autoIncrement": true,
       "distribution": "store",
       "env": {
         "OASIS_BUILD_PROFILE": "release-candidate-android"
