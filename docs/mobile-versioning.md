@@ -73,8 +73,8 @@ When in doubt between two levels, take the higher.
 2. Change `expo.version` in `apps/mobile/app.json`. Change nothing else for the version.
 3. Add one row to the history table below.
 4. Open a PR. CI runs `eas:check`, lint, typecheck and tests. Merge when green.
-5. Merging the version change starts the **Mobile release** workflow. Approve it in the
-   `mobile-release` environment if it asks. It builds with the `release-candidate` profiles and uploads
+5. Merging the version change starts the **Mobile release** workflow with no further approval:
+   the reviewed version PR is the sign-off. It builds with the `release-candidate` profiles and uploads
    through EAS Submit: iOS to App Store Connect (TestFlight), Android as a draft production release.
    When both uploads finish it tags the merge commit `mobile-vX.Y.Z`. A version that already has the
    tag is skipped.

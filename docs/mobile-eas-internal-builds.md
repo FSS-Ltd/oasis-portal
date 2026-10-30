@@ -53,7 +53,7 @@ pnpm --filter @oasis/mobile eas build --platform android --profile release-candi
 ```
 
 Human approval is required before any store submission. Release candidates are
-built and uploaded by the approval-gated Mobile release workflow, using the
+built and uploaded by the Mobile release workflow when a version bump lands on `main`, using the
 `submit` profiles in `eas.json`. Sending a build for review stays manual in App
 Store Connect and Play Console.
 
