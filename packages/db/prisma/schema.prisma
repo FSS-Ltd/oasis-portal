@@ -239,6 +239,7 @@ model User {
   clubsCreated                     Club[]                           @relation("ClubsCreated")
   clubSignupsCreated               ClubSignup[]                     @relation("SignupsCreated")
   clubNotifications                ClubNotification[]               @relation("ClubNotificationsSent")
+  pushDeviceTokens                 PushDeviceToken[]
   clubAttendanceRecords            ClubAttendance[]                 @relation("RecordedClubAttendance")
   clubLeadAssignments              ClubLeadAssignment[]             @relation("ClubLeadAssignedUsers")
   clubLeadAssignmentsMade          ClubLeadAssignment[]             @relation("ClubLeadAssignmentsMade")
@@ -717,6 +718,28 @@ model StudentNotification {
   @@index([studentId, kind, createdAt])
   @@index([sourceEntity, sourceId])
   @@index([createdById, createdAt])
+}
+
+enum PushPlatform {
+  Ios
+  Android
+}
+
+// One row per device with push turned on. Turning push off, signing out or Expo reporting
+// DeviceNotRegistered deletes the row. tokenBidx lets a device re-register without decrypting.
+model PushDeviceToken {
+  id         String       @id @default(cuid())
+  userId     String
+  tokenEnc   String
+  tokenBidx  String       @unique
+  platform   PushPlatform
+  lastSeenAt DateTime     @default(now())
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum HomeworkSubmissionMethod {

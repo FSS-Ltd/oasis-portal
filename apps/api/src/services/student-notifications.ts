@@ -2,6 +2,7 @@ import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { TRPCError } from '@trpc/server';
 import type { Prisma, StudentNotificationKind } from '@oasis/db';
 import type { AppContext, RlsTx } from '../context.js';
+import { NEW_UPDATE_PUSH, sendPushToStudents } from './push-notifications.js';
 
 export interface StudentNotificationDto {
   id: string;
@@ -179,6 +180,7 @@ export async function createStudentNotification(
     },
   });
 
+  await sendPushToStudents(ctx, [input.studentId], NEW_UPDATE_PUSH);
   return notification;
 }
 
@@ -209,5 +211,10 @@ export async function createStudentNotifications(
     },
   });
 
+  await sendPushToStudents(
+    ctx,
+    input.notifications.map((notification) => notification.studentId),
+    NEW_UPDATE_PUSH,
+  );
   return { count: input.notifications.length };
 }

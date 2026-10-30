@@ -1,8 +1,34 @@
 # Mobile Push Notifications Implementation
 
-Status: Proposed
-Created: 2026-06-21
-Owner: Technical Agent
+Status: First slice implemented (2026-10-29)
+
+## What shipped
+
+- `PushDeviceToken` table (encrypted token plus blind index, one row per device). Turning push off,
+  signing out, or Expo returning `DeviceNotRegistered` deletes the row.
+- `pushNotification` router: `status`, `register` (signed in) and `forget` (public, so the app can
+  call it after Clerk signs out; the Expo token is the credential and it can only stop pushes).
+- Pushes go out on new direct messages (all thread kinds except Staffroom) and on every new
+  student Update. Copy is generic: "You have a new message in Oasis." No names or details.
+- Mobile: a "Push notifications" card on the parent Profile, staff Home and student Updates screens.
+  Permission is asked only when the user turns the switch on. If iOS or Android has blocked it,
+  the card links to phone Settings.
+
+Not built yet: tapping a notification opens the app but does not jump to the screen; push
+receipt polling (only send-time ticket errors are handled); parent behaviour, notice and report pushes.
+
+## Setup before a build
+
+- Android: download `google-services.json` from the Firebase project that issued the FCM V1 key
+  uploaded to EAS, and add it as an EAS **file** environment variable named `GOOGLE_SERVICES_JSON`
+  for the preview and production environments. `apps/mobile/app.config.js` passes it to the build.
+  Without it Android cannot get a push token; the card shows the error.
+- iOS: the APNs key on EAS is enough. The `expo-notifications` plugin adds the push entitlement.
+- API: if Expo "enhanced push security" is on, set `EXPO_PUSH_ACCESS_TOKEN` on the API.
+- Run the new migration (`pnpm --filter @oasis/db migrate`).
+- This adds a native module, so it needs new store builds. An OTA update cannot deliver it.
+  Created: 2026-06-21
+  Owner: Technical Agent
 
 ## Decision
 

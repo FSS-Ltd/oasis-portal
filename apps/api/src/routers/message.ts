@@ -18,6 +18,7 @@ import {
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { shouldSendParentEmailNotification } from '../services/parent-email-notifications.js';
+import { NEW_MESSAGE_PUSH, sendPushToUsers } from '../services/push-notifications.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -978,6 +979,10 @@ async function createMessageInThread({
       sender,
       thread,
     });
+  }
+  // Staffroom is a group chat; pushing every staff member for each line would be noise.
+  if (thread.kind !== 'Staffroom') {
+    await sendPushToUsers(ctx, [targetForMessage(thread, sender.id).id], NEW_MESSAGE_PUSH);
   }
 
   return {

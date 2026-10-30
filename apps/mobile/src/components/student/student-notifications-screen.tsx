@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
+import { PushNotificationsCard } from '../core/push-notifications-card';
 import { StudentNotificationDetail } from './student-notification-detail';
 import { StudentNotificationsList } from './student-notifications-list';
 import {
@@ -108,6 +109,8 @@ export function StudentNotificationsScreen({
         pendingNotificationId={pendingNotificationId}
         selectedId={selectedId}
       />
+
+      <PushNotificationsCard about="new updates" />
 
       <StudentNotificationDetail
         notification={selectedNotification}
