@@ -1,0 +1,107 @@
+name: Mobile release
+
+# Builds the store versions and uploads them through EAS Submit. Nothing is sent for review:
+# iOS lands in App Store Connect (TestFlight) and Android as a draft production release.
+# "Submit for review" in App Store Connect and "Send for review" in Play Console stay manual.
+# The mobile-release environment holds every run until a required reviewer approves it.
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Store builds to make
+        type: choice
+        options: [all, ios, android]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.0.0'
+
+jobs:
+  release:
+    name: Release ${{ matrix.platform }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: mobile-release
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platform == 'all' && '["ios","android"]' || format('["{0}"]', inputs.platform)) }}
+
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate EAS build secret
+        run: |
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "Missing required GitHub Actions secret: EXPO_ACCESS_TOKEN" >&2
+            exit 1
+          fi
+
+      # A store will not take a version it has already accepted. Accepted versions are tagged
+      # mobile-vX.Y.Z (docs/mobile-versioning.md), so bump app.json before releasing again.
+      - name: Refuse an already released version
+        run: |
+          version="$(node -p "require('./apps/mobile/app.json').expo.version")"
+          if git ls-remote --exit-code --tags origin "refs/tags/mobile-v${version}" >/dev/null; then
+            echo "Version ${version} is already released (tag mobile-v${version}). Bump expo.version first." >&2
+            exit 1
+          fi
+          echo "Releasing version ${version}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      # eas-cli runs `expo config` locally, which resolves plugins such as expo-router from node_modules.
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter "@oasis/mobile..."
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: 13.x
+          token: ${{ secrets.EXPO_ACCESS_TOKEN }}
+
+      - name: Validate EAS config
+        working-directory: apps/mobile
+        run: node scripts/check-eas-build-config.mjs
+
+      # --auto-submit uses the submit profile of the same name once the build finishes on expo.dev,
+      # so --no-wait does not skip the upload and CI minutes are not spent waiting.
+      - name: Build and submit through EAS
+        working-directory: apps/mobile
+        run: >-
+          eas build --platform ${{ matrix.platform }}
+          --profile release-candidate-${{ matrix.platform }}
+          --auto-submit --non-interactive --no-wait
+
+      - name: Next steps
+        run: |
+          {
+            echo "### ${{ matrix.platform }}: queued on expo.dev"
+            echo "Follow the build and its submission on expo.dev. When the upload finishes:"
+            if [ "${{ matrix.platform }}" = "ios" ]; then
+              echo "- App Store Connect: test on TestFlight, then attach the build and press Submit for Review."
+            else
+              echo "- Play Console: open the draft production release, check it, then Send for review."
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"

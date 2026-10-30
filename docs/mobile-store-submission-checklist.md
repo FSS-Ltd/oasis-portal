@@ -6,8 +6,11 @@ done from the repository.
 **Design and rationale:** `docs/mobile-store-readiness-and-liquid-glass.md`.
 **Versioning rules:** `docs/mobile-versioning.md`. 1.0.0 was the PWA, so the first store release is 1.0.1.
 
-Human approval is required before any store submission. There is deliberately no `submit` profile in
-`eas.json`.
+Human approval is required before any store submission. The **Mobile release** workflow
+(`.github/workflows/mobile-release.yml`) builds the release candidates and uploads them through EAS
+Submit after a reviewer approves the run. It never sends a build for review: iOS stops in App Store
+Connect (TestFlight) and Android stops as a draft production release. Submitting for review stays a
+manual step in each store console.
 
 ## 1. Blockers that need a decision or an account
 
@@ -30,7 +33,7 @@ Work these first. Each one can cause a rejection on its own.
 - [ ] Signing: let EAS manage credentials (`eas credentials`) or supply your own.
 - [ ] Build: `pnpm --filter @oasis/mobile eas build --platform ios --profile release-candidate-ios`.
       SDK 54 uses the Xcode 26 image by default, which satisfies Apple's SDK requirement.
-- [ ] Upload to TestFlight (`eas submit` by hand, or Transporter) and run the UAT matrix in
+- [ ] Upload to TestFlight (the Mobile release workflow, or `eas submit` by hand) and run the UAT matrix in
       `docs/mobile-phase-6-closeout.md`.
 - [ ] **Export compliance.** `ITSAppUsesNonExemptEncryption` is set to `false`. Confirm the app uses only
       HTTPS and operating-system cryptography. If anything else is added, this must change.

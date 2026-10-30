@@ -99,3 +99,27 @@ test('mobile app version is MAJOR.MINOR.PATCH, starts at 1.0.1, and has document
     assert.match(docs, new RegExp(heading));
   }
 });
+
+test('release-candidate profiles upload to the stores but never send for review', () => {
+  const { submit } = JSON.parse(readMobile('eas.json'));
+
+  assert.deepEqual(Object.keys(submit).sort(), [
+    'release-candidate-android',
+    'release-candidate-ios',
+  ]);
+  assert.equal(submit['release-candidate-ios'].ios.ascAppId, '6828101515');
+  assert.equal(submit['release-candidate-android'].android.track, 'production');
+  assert.equal(submit['release-candidate-android'].android.releaseStatus, 'draft');
+});
+
+test('the release workflow is manual, approval-gated, main-only and auto-submits', () => {
+  const workflow = readRepo('.github/workflows/mobile-release.yml');
+
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s+push:/m);
+  assert.match(workflow, /environment: mobile-release/);
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /--profile release-candidate-\$\{\{ matrix\.platform \}\}/);
+  assert.match(workflow, /--auto-submit --non-interactive --no-wait/);
+  assert.match(workflow, /refs\/tags\/mobile-v\$\{version\}/);
+});

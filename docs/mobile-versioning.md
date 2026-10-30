@@ -71,10 +71,13 @@ When in doubt between two levels, take the higher.
 2. Change `expo.version` in `apps/mobile/app.json`. Change nothing else for the version.
 3. Add one row to the history table below.
 4. Open a PR. CI runs `eas:check`, lint, typecheck and tests. Merge when green.
-5. Build with the `release-candidate` profiles (see `docs/mobile-store-submission-checklist.md`).
-6. Test the build on TestFlight and the Play internal track.
-7. After human approval, submit. When a store accepts it, tag the merge commit `mobile-vX.Y.Z` and push
-   the tag.
+5. Run the **Mobile release** workflow from `main` (Actions, then Run workflow) and approve it in the
+   `mobile-release` environment. It refuses a version that already has a `mobile-vX.Y.Z` tag, builds
+   with the `release-candidate` profiles and uploads through EAS Submit: iOS to App Store Connect,
+   Android as a draft production release.
+6. Test the build on TestFlight, and check the draft release in Play Console.
+7. Submit for review by hand in App Store Connect and Play Console. When a store accepts it, tag the
+   merge commit `mobile-vX.Y.Z` and push the tag.
 
 Do not reuse a version the App Store has accepted. If a release is rejected before approval, the same
 version can be uploaded again with a new build number.
