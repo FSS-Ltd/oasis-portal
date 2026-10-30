@@ -12,6 +12,7 @@ import {
   PortalMobileHeader,
   type PortalMobileNavItem,
 } from '../core/portal-mobile-shell';
+import { PushNotificationsCard } from '../core/push-notifications-card';
 import { ParentCalendarScreen } from '../parent/parent-calendar-screen';
 import { StaffAttendanceScreen } from '../staff/staff-attendance-screen';
 import { StaffBehaviourScreen } from '../staff/staff-behaviour-screen';
@@ -151,6 +152,7 @@ export function TechnicalSupportPortalScreen({
               />
             </Card>
           ) : null}
+          <PushNotificationsCard about="new messages from parents and staff" />
           <SectionTitle>User Access</SectionTitle>
           <MutedText>
             Manage account invitations, profiles, roles, permissions, and sign-in status.
