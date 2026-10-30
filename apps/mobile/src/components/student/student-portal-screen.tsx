@@ -4,6 +4,7 @@ import { RefreshControl, StyleSheet, View } from 'react-native';
 import { PortalScrollView } from '../core/portal-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
+import { usePushTap } from '../../lib/push-notifications';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -71,6 +72,9 @@ export function StudentPortalScreen({ user }: { user: SessionUser }) {
 function StudentPortalContent({ user }: { user: SessionUser }) {
   const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<StudentMobileTab>('home');
+  usePushTap((area) => {
+    if (area === 'updates') setActiveTab('updates');
+  });
   const [transferError, setTransferError] = useState<string | null>(null);
   const [transferPending, setTransferPending] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
