@@ -153,6 +153,7 @@ const userAccountSelect = Prisma.validator<Prisma.UserSelect>()({
   phoneEnc: true,
   addressEnc: true,
   active: true,
+  deletionRequestedAt: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -499,6 +500,7 @@ function mapUserAccount(
     phone: ctx.db.$enc.decrypt(user.phoneEnc),
     address: ctx.db.$enc.decrypt(user.addressEnc),
     active: user.active,
+    deletionRequestedAt: user.deletionRequestedAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

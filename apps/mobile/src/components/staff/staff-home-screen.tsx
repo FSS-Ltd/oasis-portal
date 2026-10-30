@@ -17,6 +17,7 @@ import {
   SectionTitle,
 } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
+import { DeletionRequestAlert } from '../access/deletion-requests-card';
 import { AccountDeletionCard } from '../core/account-deletion-card';
 import { PushNotificationsCard } from '../core/push-notifications-card';
 import { PwaHomeActions } from '../pwa/pwa-home-actions';
@@ -109,6 +110,7 @@ export function StaffHomeScreen({
   onOpenShop,
   onOpenTimetables,
   onOpenUserAccess,
+  onReviewDeletion,
   onSwitchToParent,
   user,
 }: {
@@ -127,6 +129,8 @@ export function StaffHomeScreen({
   onOpenShop?: () => void;
   onOpenTimetables?: (() => void) | undefined;
   onOpenUserAccess?: (() => void) | undefined;
+  /** Head only: opens a profile with a pending deletion request. */
+  onReviewDeletion?: ((userId: string) => void) | undefined;
   onSwitchToParent?: () => void;
   user: SessionUser | undefined;
 }) {
@@ -185,6 +189,7 @@ export function StaffHomeScreen({
         }
         style={styles.scroller}
       >
+        {onReviewDeletion ? <DeletionRequestAlert onOpen={onReviewDeletion} /> : null}
         <Card style={styles.compactCard}>
           <SectionTitle>
             User Agreements

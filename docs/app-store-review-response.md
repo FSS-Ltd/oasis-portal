@@ -39,7 +39,7 @@ Every signed-in parent, staff member and adult student can request deletion in t
 - Parent: Profile tab > "Delete my account" > Request account deletion > Yes, request deletion.
 - Staff: Home > "Delete my account" card.
 - A parent can also request deletion of a child's account: Settings > "Delete this child's account".
-A school administrator then approves the request in the app (Staff > User Access > Account deletion requests > Approve deletion > Confirm deletion). Approval removes the sign-in account and the person can no longer sign in. Attendance, safeguarding and audit records are kept because the school is legally required to keep them under UK education and safeguarding law.
+The Head and Technical Support are alerted in the app, by push notification and by email, and the alert opens the person's profile. An administrator then approves the request there (Staff Home > Review > Approve deletion > Confirm deletion). Approval removes the sign-in account and the person can no longer sign in. Attendance, safeguarding and audit records are kept because the school is legally required to keep them under UK education and safeguarding law.
 To test the full cycle without losing the main logins: sign in as oasis-review-delete, request deletion, sign out, sign in as oasis-review-staff, open User Access and approve it, then try to sign in as oasis-review-delete again. Please use account 3 for this, not accounts 1 or 2.
 
 PAYMENTS
@@ -119,9 +119,12 @@ Keep it under about 5 minutes and do not cut in the middle of a flow.
 4. **Deletion request.** Sign in as `oasis-review-delete`. Open Profile > Delete my account >
    Request account deletion. Read the retention text on screen, tap Yes, request deletion.
    Show the "Deletion requested" state. Sign out.
-5. **Deletion approval.** Sign in as `oasis-review-staff`. Open User Access. Under
-   "Account deletion requests" tap Approve deletion, then Confirm deletion. Show the
-   "Account deleted" message. Sign out.
+5. **Deletion approval.** Sign in as `oasis-review-staff`. Staff Home shows an "Action needed:
+   Account deletion request" alert for Dana Delete Demo (the same request also goes to the Head and
+   Technical Support as a push notification and to support@faithfulsoftware.dev as an email; tapping
+   the push opens the same profile). Tap Review Dana Delete Demo. The profile opens with its
+   deletion request on top. Tap Approve deletion, then Confirm deletion. Show the "Account deleted"
+   message. Sign out. Optionally show the alert email in the support inbox.
 6. **Proof.** Try to sign in as `oasis-review-delete` with the same password. Show that it fails.
 7. Stop the recording.
 

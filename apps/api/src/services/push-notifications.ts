@@ -10,7 +10,7 @@ export interface PushMessage {
   title: string;
   body: string;
   /** Lets the app decide where a tap should land. */
-  data: { area: 'messages' | 'updates' };
+  data: { area: 'messages' | 'updates' } | { area: 'account-deletion'; userId: string };
 }
 
 export const NEW_MESSAGE_PUSH: PushMessage = {

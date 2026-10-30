@@ -5,6 +5,8 @@ import {
   createAccountDeletionRouter,
   type AccountDeletionClerkAdapter,
 } from '../routers/accountDeletion.js';
+import type { EmailClient, SendEmailInput } from '../lib/email.js';
+import { TECHNICAL_SUPPORT_EMAIL } from '../services/account-deletion-alerts.js';
 import { router } from '../trpc.js';
 
 const user = (id: string, role: SessionUser['role']): SessionUser => ({
@@ -40,6 +42,8 @@ interface SetupOptions {
     deletionRequestedAt?: Date | null;
   } | null;
   clerkFails?: boolean;
+  admins?: { id: string; emailEnc: string }[];
+  devices?: { id: string; tokenEnc: string }[];
 }
 
 function setup({
@@ -48,6 +52,8 @@ function setup({
   ownStudentDob = null,
   subject,
   clerkFails,
+  admins = [],
+  devices = [],
 }: SetupOptions) {
   const target = subject === undefined ? { id: actor.id } : subject;
   const userFindUnique = vi.fn().mockResolvedValue(
@@ -55,6 +61,7 @@ function setup({
       ? {
           clerkId: 'clerk_target',
           role: 'Parent',
+          fullNameEnc: 'Dana Delete Demo',
           deletedAt: null,
           deletionRequestedAt: null,
           ...target,
@@ -66,7 +73,15 @@ function setup({
     .mockResolvedValue({ id: target?.id ?? 'x' });
   const audit = vi.fn<(args: AuditArgs) => Promise<object>>().mockResolvedValue({});
   const db = {
-    user: { findUnique: userFindUnique, update: userUpdate, findMany: vi.fn() },
+    user: {
+      findUnique: userFindUnique,
+      update: userUpdate,
+      findMany: vi.fn().mockResolvedValue(admins),
+    },
+    pushDeviceToken: {
+      findMany: vi.fn().mockResolvedValue(devices),
+      deleteMany: vi.fn(),
+    },
     guardian: { findFirst: vi.fn().mockResolvedValue(guardian) },
     student: {
       findUnique: vi.fn().mockResolvedValue(ownStudentDob ? { dobEnc: ownStudentDob } : null),
@@ -77,11 +92,18 @@ function setup({
   const deleteUser = vi.fn<AccountDeletionClerkAdapter['deleteUser']>(() =>
     clerkFails ? Promise.reject(new Error('clerk down')) : Promise.resolve(),
   );
+  const sentEmails: SendEmailInput[] = [];
+  const emailClient: EmailClient = {
+    send(input) {
+      sentEmails.push(input);
+      return Promise.resolve({ id: 'email_1' });
+    },
+  };
   const ctx = makeTestContext({ db, user: actor, rls: { kind: 'db', db } });
   const caller = router({
-    accountDeletion: createAccountDeletionRouter({ clerk: { deleteUser } }),
+    accountDeletion: createAccountDeletionRouter({ clerk: { deleteUser }, emailClient }),
   }).createCaller(ctx);
-  return { caller, db, userFindUnique, userUpdate, audit, deleteUser };
+  return { caller, db, userFindUnique, userUpdate, audit, deleteUser, sentEmails };
 }
 
 describe('accountDeletion.request', () => {
@@ -98,6 +120,58 @@ describe('accountDeletion.request', () => {
       entityId: 'p1',
       meta: { source: 'accountDeletion.request' },
     });
+  });
+
+  it('alerts Head and Technical Support by push and email, skipping synthetic addresses', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ status: 'ok' }] }), { status: 200 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { caller, db, sentEmails } = setup({
+        actor: user('p1', 'Parent'),
+        admins: [
+          { id: 'h1', emailEnc: 'Head@School.org' },
+          { id: 't1', emailEnc: 'oasis-review-staff@appreview.demo.oasisportal.space' },
+        ],
+        devices: [{ id: 'd1', tokenEnc: 'ExponentPushToken[abc]' }],
+      });
+      await caller.accountDeletion.request({});
+
+      expect(db.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { role: { in: ['Head', 'TechnicalSupport'] }, active: true, deletedAt: null },
+        }),
+      );
+      expect(db.pushDeviceToken.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ userId: { in: ['h1', 't1'] } }) as unknown,
+        }),
+      );
+      const init = fetchMock.mock.calls[0]?.[1] as { body: string };
+      expect(JSON.parse(init.body)).toEqual([
+        expect.objectContaining({
+          to: 'ExponentPushToken[abc]',
+          data: { area: 'account-deletion', userId: 'p1' },
+        }),
+      ]);
+      expect(sentEmails.map((email) => email.to)).toEqual([
+        TECHNICAL_SUPPORT_EMAIL,
+        'head@school.org',
+      ]);
+      expect(sentEmails[0]?.text).toContain('Dana Delete Demo (Parent)');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('still saves the request when the alert cannot be sent', async () => {
+    const { caller, db, userUpdate } = setup({ actor: user('p1', 'Parent') });
+    db.user.findMany.mockRejectedValue(new Error('db down'));
+    await expect(caller.accountDeletion.request({})).resolves.toEqual({ id: 'p1' });
+    expect(userUpdate).toHaveBeenCalledOnce();
   });
 
   it('rejects a second pending request', async () => {

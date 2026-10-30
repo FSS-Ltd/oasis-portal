@@ -47,8 +47,16 @@ export function StaffPortalScreen({
   user: SessionUser | undefined;
 }) {
   const [route, setRoute] = useState<StaffPortalRoute>('home');
-  usePushTap((area) => {
+  const [focusAccountId, setFocusAccountId] = useState<string | undefined>();
+  function openAccountForDeletion(userId: string) {
+    setFocusAccountId(userId);
+    setRoute('user-access');
+  }
+  usePushTap((area, userId) => {
     if (area === 'messages') setRoute('communications');
+    if (area === 'account-deletion' && userId && user?.role === 'Head') {
+      openAccountForDeletion(userId);
+    }
   });
 
   if (route === 'academic-inventory') {
@@ -205,6 +213,7 @@ export function StaffPortalScreen({
     return (
       <UserAccessScreen
         currentUserId={user.id}
+        focusAccountId={focusAccountId}
         header={
           <PortalMobileHeader
             actionAccessibilityLabel="Return to staff home"
@@ -212,6 +221,7 @@ export function StaffPortalScreen({
             avatarLabel="H"
             eyebrow="Staff Portal"
             onActionPress={() => {
+              setFocusAccountId(undefined);
               setRoute('home');
             }}
             subtitle="User Access"
@@ -291,6 +301,7 @@ export function StaffPortalScreen({
             }
           : undefined
       }
+      onReviewDeletion={user?.role === 'Head' ? openAccountForDeletion : undefined}
       user={user}
       {...(onSwitchToParent ? { onSwitchToParent } : {})}
     />

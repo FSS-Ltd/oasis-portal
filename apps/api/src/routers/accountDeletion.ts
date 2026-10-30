@@ -6,7 +6,9 @@ import {
 } from '@oasis/domain/studentPortalSettings';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
+import { createResendEmailClient, type EmailClient } from '../lib/email.js';
 import { logOperationalEvent } from '../lib/observability.js';
+import { notifyDeletionRequest } from '../services/account-deletion-alerts.js';
 import { deleteUserAccount } from '../services/delete-user-account.js';
 import { authedProcedure, router, userAccountAdminProcedure } from '../trpc.js';
 
@@ -16,6 +18,7 @@ export interface AccountDeletionClerkAdapter {
 
 export interface AccountDeletionRouterDeps {
   clerk?: AccountDeletionClerkAdapter;
+  emailClient?: EmailClient;
 }
 
 const subjectInput = z.object({ studentId: z.string().min(1).optional() });
@@ -81,7 +84,14 @@ async function resolveSubjectUserId(
 async function loadSubject(ctx: AuthedCtx, userId: string) {
   const subject = await ctx.db.user.findUnique({
     where: { id: userId },
-    select: { id: true, clerkId: true, deletedAt: true, deletionRequestedAt: true },
+    select: {
+      id: true,
+      clerkId: true,
+      role: true,
+      fullNameEnc: true,
+      deletedAt: true,
+      deletionRequestedAt: true,
+    },
   });
   if (!subject || subject.deletedAt) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'account not found' });
@@ -104,6 +114,9 @@ function audit(ctx: AuthedCtx, entityId: string, source: string) {
 }
 
 export function createAccountDeletionRouter(deps: AccountDeletionRouterDeps = {}) {
+  let emailClient = deps.emailClient ?? null;
+  const getEmailClient = (): EmailClient => (emailClient ??= createResendEmailClient());
+
   return router({
     status: authedProcedure.input(subjectInput).query(async ({ ctx, input }) => {
       const userId = await resolveSubjectUserId(ctx, input).catch((error: unknown) => {
@@ -127,6 +140,15 @@ export function createAccountDeletionRouter(deps: AccountDeletionRouterDeps = {}
         select: { id: true },
       });
       await audit(ctx, userId, 'accountDeletion.request');
+      await notifyDeletionRequest(
+        ctx,
+        {
+          userId,
+          fullName: ctx.db.$enc.decrypt(subject.fullNameEnc),
+          role: subject.role,
+        },
+        getEmailClient,
+      );
       return { id: userId };
     }),
 

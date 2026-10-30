@@ -71,13 +71,16 @@ export async function requestPushToken(): Promise<string | null> {
   return granted ? expoPushToken() : null;
 }
 
-export type PushArea = 'messages' | 'updates';
+export type PushArea = 'messages' | 'updates' | 'account-deletion';
 
 // Taps already acted on, so remounting a portal does not jump back to the same screen.
 const handledTaps = new Set<string>();
 
-/** Calls `onTap` with the area of a tapped notification, including the one that opened the app. */
-export function usePushTap(onTap: (area: PushArea) => void) {
+/**
+ * Calls `onTap` with the area of a tapped notification, including the one that opened the app.
+ * `userId` is set for account deletion alerts: the account to open.
+ */
+export function usePushTap(onTap: (area: PushArea, userId?: string) => void) {
   const response = Notifications.useLastNotificationResponse();
   useEffect(() => {
     if (!PUSH_SUPPORTED || !response) return;
@@ -85,7 +88,8 @@ export function usePushTap(onTap: (area: PushArea) => void) {
     const { identifier, content } = response.notification.request;
     if (handledTaps.has(identifier)) return;
     handledTaps.add(identifier);
-    const area: unknown = content.data.area;
+    const { area, userId } = content.data as { area?: unknown; userId?: unknown };
+    if (area === 'account-deletion' && typeof userId === 'string') onTap(area, userId);
     if (area === 'messages' || area === 'updates') onTap(area);
   }, [onTap, response]);
 }

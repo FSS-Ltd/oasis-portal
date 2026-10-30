@@ -45,6 +45,19 @@ describe('push notifications mobile wiring', () => {
     expect(tap).toContain(navigation);
   });
 
+  it.each([
+    'src/components/staff/staff-portal-screen.tsx',
+    'src/components/support/technical-support-portal-screen.tsx',
+  ])('opens the requester profile from a tapped deletion alert on %s', (file) => {
+    const source = readMobile(file);
+    const tap = source.slice(
+      source.indexOf('usePushTap(('),
+      source.indexOf('  });', source.indexOf('usePushTap((')),
+    );
+    expect(tap).toContain("area === 'account-deletion' && userId");
+    expect(source).toContain('focusAccountId={focusAccountId}');
+  });
+
   it('declares the notifications plugin', () => {
     expect(readMobile('app.json')).toContain('"expo-notifications"');
   });

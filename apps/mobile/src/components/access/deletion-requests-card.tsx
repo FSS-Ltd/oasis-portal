@@ -7,8 +7,45 @@ function requestedOn(value: Date): string {
   return value.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Mobile twin of the web Deletion Requests panel: account admins approve or decline requests. */
-export function DeletionRequestsCard() {
+/**
+ * In-app notice for account admins: one row per pending deletion request, opening that profile.
+ * Renders nothing when the queue is empty or the viewer is not an account admin.
+ */
+export function DeletionRequestAlert({ onOpen }: { onOpen: (userId: string) => void }) {
+  const queue = api.accountDeletion.queue.useQuery(undefined, { retry: false });
+  const requests = queue.data ?? [];
+  if (requests.length === 0) return null;
+  return (
+    <Card>
+      <Badge variant="warning">Action needed</Badge>
+      <SectionTitle>
+        {requests.length === 1
+          ? 'Account deletion request'
+          : `${String(requests.length)} account deletion requests`}
+      </SectionTitle>
+      {requests.map((request) => (
+        <View key={request.userId} style={{ gap: 8 }}>
+          <MutedText>
+            {`${request.fullName} (${request.role}) asked to delete their account on ${requestedOn(request.requestedAt)}.`}
+          </MutedText>
+          <MobileButton
+            label={`Review ${request.fullName}`}
+            onPress={() => {
+              onOpen(request.userId);
+            }}
+            variant="danger"
+          />
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+/**
+ * Mobile twin of the web Deletion Requests panel: account admins approve or decline requests.
+ * With `userId`, shows only that person's request, for their profile.
+ */
+export function DeletionRequestsCard({ userId }: { userId?: string } = {}) {
   const utils = api.useUtils();
   const queue = api.accountDeletion.queue.useQuery(undefined, { retry: false });
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -46,7 +83,7 @@ export function DeletionRequestsCard() {
     },
   });
   const pending = approve.isPending || decline.isPending;
-  const requests = queue.data ?? [];
+  const requests = (queue.data ?? []).filter((request) => !userId || request.userId === userId);
 
   if (requests.length === 0 && !message) return null;
 

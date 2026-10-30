@@ -15,7 +15,7 @@ import {
   SectionTitle,
   StatCard,
 } from '../core/mobile-ui';
-import { DeletionRequestsCard } from './deletion-requests-card';
+import { DeletionRequestAlert, DeletionRequestsCard } from './deletion-requests-card';
 import { UserAccessAccountDetail } from './user-access-account-detail';
 import {
   accessFilters,
@@ -27,6 +27,8 @@ import {
 
 interface UserAccessScreenProps {
   currentUserId: string;
+  /** Opens this account's profile at the top, e.g. from a tapped deletion alert. */
+  focusAccountId?: string | undefined;
   footer?: ReactNode | undefined;
   header: ReactNode;
   introduction: ReactNode;
@@ -38,7 +40,9 @@ function rowTitle(row: DirectoryRow): string {
 
 function rowSubtitle(row: DirectoryRow): string {
   if (row.kind === 'invitation') return `${roleLabel(row.invitation.role)} · Pending`;
-  return `${roleLabel(row.account.role)} · ${row.account.active ? 'Active' : 'Inactive'}`;
+  const status = row.account.active ? 'Active' : 'Inactive';
+  const deletion = row.account.deletionRequestedAt ? ' · Deletion requested' : '';
+  return `${roleLabel(row.account.role)} · ${status}${deletion}`;
 }
 
 function rowMatches(row: DirectoryRow, query: string): boolean {
@@ -59,6 +63,7 @@ function rowMatchesFilter(row: DirectoryRow, filter: AccessFilter): boolean {
 
 export function UserAccessScreen({
   currentUserId,
+  focusAccountId,
   footer,
   header,
   introduction,
@@ -66,7 +71,10 @@ export function UserAccessScreen({
   const utils = api.useUtils();
   const [filter, setFilter] = useState<AccessFilter>('all');
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(focusAccountId ? `account:${focusAccountId}` : '');
+  // The account opened from an alert: its profile shows first, and its deletion card stays mounted
+  // after approval so the confirmation is still visible once the account leaves the list.
+  const [focusedId, setFocusedId] = useState<string | null>(focusAccountId ?? null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<Role>('Parent');
   const accountsQuery = api.admin.listUserAccounts.useQuery(undefined, { retry: false });
@@ -106,22 +114,52 @@ export function UserAccessScreen({
   const errorMessage = accountsQuery.error?.message ?? invitationsQuery.error?.message ?? null;
   const activeCount = accounts.filter((account) => account.active).length;
 
+  function focusAccount(accountId: string) {
+    setFilter('all');
+    setSearch('');
+    setSelectedId(`account:${accountId}`);
+    setFocusedId(accountId);
+  }
+
   useEffect(() => {
+    if (focusAccountId) focusAccount(focusAccountId);
+  }, [focusAccountId]);
+
+  useEffect(() => {
+    // Wait for the list before falling back, or an alert's profile is replaced by the first row.
+    if (loading) return;
     if (selectedRow && selectedRow.id !== selectedId) setSelectedId(selectedRow.id);
     if (!selectedRow) setSelectedId('');
-  }, [selectedId, selectedRow]);
+  }, [loading, selectedId, selectedRow]);
+
+  const selectedAccountId = selectedRow?.kind === 'account' ? selectedRow.account.id : null;
+  const deletionCardId = focusedId ?? selectedAccountId;
+  const detail = (
+    <>
+      {deletionCardId ? (
+        <DeletionRequestsCard key={deletionCardId} userId={deletionCardId} />
+      ) : null}
+      {selectedRow?.kind === 'account' && (!focusedId || focusedId === selectedAccountId) ? (
+        <UserAccessAccountDetail account={selectedRow.account} currentUserId={currentUserId} />
+      ) : null}
+      {selectedRow?.kind === 'invitation' && !focusedId ? (
+        <InvitationDetail invitation={selectedRow.invitation} />
+      ) : null}
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.shell}>
       {header}
       <ScrollView contentContainerStyle={styles.content} style={styles.scroller}>
         {introduction}
+        {focusedId ? detail : null}
         <View style={styles.statsGrid}>
           <StatCard label="Accounts and invites" value={String(rows.length)} />
           <StatCard accent={C.success} label="Active accounts" value={String(activeCount)} />
         </View>
         {errorMessage ? <ErrorText>{errorMessage}</ErrorText> : null}
-        <DeletionRequestsCard />
+        {focusedId ? null : <DeletionRequestAlert onOpen={focusAccount} />}
         <Card>
           <SectionTitle>Invite account</SectionTitle>
           <Field
@@ -201,6 +239,7 @@ export function UserAccessScreen({
                 key={row.id}
                 onPress={() => {
                   setSelectedId(row.id);
+                  setFocusedId(null);
                 }}
                 style={[
                   styles.directoryRow,
@@ -218,12 +257,7 @@ export function UserAccessScreen({
             ))}
           </View>
         </Card>
-        {selectedRow?.kind === 'account' ? (
-          <UserAccessAccountDetail account={selectedRow.account} currentUserId={currentUserId} />
-        ) : null}
-        {selectedRow?.kind === 'invitation' ? (
-          <InvitationDetail invitation={selectedRow.invitation} />
-        ) : null}
+        {focusedId ? null : detail}
       </ScrollView>
       {footer}
     </SafeAreaView>
