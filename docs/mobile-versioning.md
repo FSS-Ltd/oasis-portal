@@ -110,7 +110,8 @@ and never change what the app does in a Minor or Major way.
 
 ## History
 
-| Version | Date | Notes                                                  |
-| ------- | ---- | ------------------------------------------------------ |
-| 1.0.1   |      | First store release (date on approval).                |
-| 1.1.0   |      | Push notifications (new permission and native module). |
+| Version | Date | Notes                                                          |
+| ------- | ---- | -------------------------------------------------------------- |
+| 1.0.1   |      | First store release (date on approval).                        |
+| 1.1.0   |      | Push notifications (new permission and native module).         |
+| 1.1.1   |      | Deletion request alerts; first build through Xcode and Gradle. |
