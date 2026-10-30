@@ -57,11 +57,10 @@ Required deployment settings:
   remains the production web portal and API deployment.
 - Set `EXPO_PUBLIC_TRPC_URL` to the deployed `apps/web` `/api/trpc` endpoint,
   not to the static PWA origin.
-- GitHub Actions deploys this PWA through `deploy-pwa-preview` on pull requests
-  and `deploy-pwa-production` on pushes to `main`.
-- Required repository secrets for the PWA deploy jobs:
-  `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `OASIS_APP_VERCEL_PROJECT_ID`,
-  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `EXPO_PUBLIC_TRPC_URL`.
+- GitHub Actions no longer deploys the PWA. The CI jobs were removed because the PWA is not being
+  updated; the last deployed version stays live on Vercel until the project is removed. To ship it
+  again, build with `pnpm --filter @oasis/mobile build:web` and run
+  `vercel deploy dist --cwd apps/mobile --prod` against `OASIS_APP_VERCEL_PROJECT_ID`.
 - Set `OASIS_APP_VERCEL_PROJECT_ID=prj_NKVfmtciWnsA2Xw8WacKBHVY39LP`.
 - DNS for `app.oasisportal.space` must point to Vercel with:
   `A app.oasisportal.space 76.76.21.21`.
