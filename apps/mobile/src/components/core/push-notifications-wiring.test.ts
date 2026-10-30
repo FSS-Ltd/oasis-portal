@@ -13,6 +13,7 @@ describe('push notifications mobile wiring', () => {
     'src/components/parent/parent-profile-registration-screen.tsx',
     'src/components/staff/staff-home-screen.tsx',
     'src/components/student/student-notifications-screen.tsx',
+    'src/components/support/technical-support-portal-screen.tsx',
   ])('offers the push toggle on %s', (file) => {
     expect(readMobile(file)).toContain('<PushNotificationsCard');
   });
