@@ -17,6 +17,7 @@ import {
   SectionTitle,
 } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
+import { AccountDeletionCard } from '../core/account-deletion-card';
 import { PushNotificationsCard } from '../core/push-notifications-card';
 import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import { canOpenAcademicInventory } from './staff-academic-inventory-utils';
@@ -357,6 +358,7 @@ export function StaffHomeScreen({
 
             <PwaHomeActions />
             <PushNotificationsCard about="new messages from parents and staff" />
+            <AccountDeletionCard title="Delete my account" />
           </>
         ) : null}
       </ScrollView>

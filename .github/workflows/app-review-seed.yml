@@ -1,9 +1,9 @@
 name: App Review Seed
 
 # Rebuilds the app store review sandbox in the production database: the `review` schema and the
-# two username-only Clerk logins (docs/app-review-tenant.md). Run it before a store submission.
-# Do not run it while Apple or Google are reviewing: it wipes sandbox data, resets both passwords and
-# signs the reviewers out.
+# three username-only Clerk logins (docs/app-review-tenant.md). Run it before a store submission.
+# Do not run it while Apple or Google are reviewing: it wipes sandbox data, resets all three
+# passwords and signs the reviewers out.
 on:
   workflow_dispatch:
     inputs:
@@ -43,6 +43,7 @@ jobs:
       OASIS_BIDX_PEPPER: ${{ secrets.OASIS_BIDX_PEPPER }}
       OASIS_APP_REVIEW_STAFF_PASSWORD: ${{ secrets.OASIS_APP_REVIEW_STAFF_PASSWORD }}
       OASIS_APP_REVIEW_PARENT_PASSWORD: ${{ secrets.OASIS_APP_REVIEW_PARENT_PASSWORD }}
+      OASIS_APP_REVIEW_DELETE_PASSWORD: ${{ secrets.OASIS_APP_REVIEW_DELETE_PASSWORD }}
       OASIS_APP_REVIEW_SEED_CONFIRMATION: ${{ inputs.confirm }}
 
     steps:
@@ -75,7 +76,8 @@ jobs:
             OASIS_MASTER_KEY_VERSION \
             OASIS_BIDX_PEPPER \
             OASIS_APP_REVIEW_STAFF_PASSWORD \
-            OASIS_APP_REVIEW_PARENT_PASSWORD
+            OASIS_APP_REVIEW_PARENT_PASSWORD \
+            OASIS_APP_REVIEW_DELETE_PASSWORD
 
       - name: Rebuild review schema
         run: pnpm --filter @oasis/db review:schema --recreate

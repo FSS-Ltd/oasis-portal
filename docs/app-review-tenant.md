@@ -45,10 +45,14 @@ Seeded logins:
 
 - `oasis-review-staff`: Head role, the full staff experience inside the sandbox.
 - `oasis-review-parent`: Parent with two synthetic children.
+- `oasis-review-delete`: Parent with no children, used only to show account deletion end to end. It
+  requests deletion in the app and the staff login approves it in User Access. Approval deletes its
+  Clerk user; the next App Review Seed recreates it.
 
-Both are username-only Clerk accounts with no email address, the same way student logins are created.
-Each has its own password (`OASIS_APP_REVIEW_STAFF_PASSWORD` and `OASIS_APP_REVIEW_PARENT_PASSWORD`),
-which is supplied at seed time and never committed.
+All three are username-only Clerk accounts with no email address, the same way student logins are
+created. Each has its own password (`OASIS_APP_REVIEW_STAFF_PASSWORD`,
+`OASIS_APP_REVIEW_PARENT_PASSWORD` and `OASIS_APP_REVIEW_DELETE_PASSWORD`), which is supplied at seed
+time and never committed.
 
 The other synthetic people (pastor, supervisor, students and so on) exist only as rows. They get
 placeholder Clerk IDs (`review_noclerk_*`) and cannot sign in.
@@ -83,12 +87,12 @@ sign-ins are audit-logged in `review."AuditLog"`, which keeps them apart from th
 2. Seed with the manual **App Review Seed** workflow, which runs behind the protected `Oasis Review`
    GitHub environment. It runs `review:schema --recreate` and `seed:app-review`. Seeding is never
    automatic, because it wipes sandbox data and signs reviewers out.
-3. Put the two logins in App Store Connect and the Play Console.
+3. Put the three logins in App Store Connect and the Play Console (`docs/app-store-review-response.md`).
 
-Rollback: delete the two Clerk users and run `DROP SCHEMA review CASCADE`. The code path goes inert.
+Rollback: delete the three Clerk users and run `DROP SCHEMA review CASCADE`. The code path goes inert.
 
 ## Success metrics
 
-- Both logins reach their portals on a store build with no MFA prompt.
+- All three logins reach their portals on a store build with no MFA prompt.
 - Tests prove a reviewer resolves to `review`, a live user resolves to `public`, and the webhook never
   writes a flagged user to `public`.

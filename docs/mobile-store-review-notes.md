@@ -44,7 +44,6 @@ Rotate the passwords after review.
 > request and, once approved, the account can no longer sign in. Attendance, safeguarding and audit
 > records are retained because Oasis is required to keep them. See /support and /privacy.
 
-In-app deletion is built for Parent accounts only. Staff and Student screens do not have the control
-yet. Staff and students over 18 are told on /support to email, and an admin can delete the account
-from People & Profiles. Add the control to those portals before relying on the Staff demo account
-for review.
+In-app deletion requests now cover parents (Profile), staff (Home) and students aged 18 or over
+(Notifications). Account admins approve them in User Access on mobile or People & Profiles on web.
+The current App Store review copy is in `docs/app-store-review-response.md`.

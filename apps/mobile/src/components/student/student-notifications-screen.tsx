@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
+import { AccountDeletionCard } from '../core/account-deletion-card';
 import { PushNotificationsCard } from '../core/push-notifications-card';
 import { StudentNotificationDetail } from './student-notification-detail';
 import { StudentNotificationsList } from './student-notifications-list';
@@ -111,6 +112,7 @@ export function StudentNotificationsScreen({
       />
 
       <PushNotificationsCard about="new updates" />
+      <AccountDeletionCard title="Delete my account" />
 
       <StudentNotificationDetail
         notification={selectedNotification}
