@@ -12,20 +12,25 @@ import {
 const env = {
   OASIS_APP_REVIEW_STAFF_PASSWORD: 'staff-password-123',
   OASIS_APP_REVIEW_PARENT_PASSWORD: 'parent-password-456',
+  OASIS_APP_REVIEW_DELETE_PASSWORD: 'delete-password-789',
 };
 
 describe('app review seed', () => {
-  it('hands out exactly one staff and one parent username, each with its own password', () => {
+  it('hands out staff, parent and deletion-demo usernames, each with its own password', () => {
     const { plan, logins } = buildAppReviewPlan(env);
 
     expect(logins.map(({ username, password }) => ({ username, password }))).toEqual([
       { username: 'oasis-review-staff', password: 'staff-password-123' },
       { username: 'oasis-review-parent', password: 'parent-password-456' },
+      { username: 'oasis-review-delete', password: 'delete-password-789' },
     ]);
     const staff = plan.users.find((user) => user.id === logins[0]?.userId);
     const parent = plan.users.find((user) => user.id === logins[1]?.userId);
     expect(staff?.role).toBe('Head');
     expect(parent?.role).toBe('Parent');
+    const deletion = plan.users.find((user) => user.id === logins[2]?.userId);
+    expect(deletion?.role).toBe('Parent');
+    expect(deletion?.email).toBe('oasis-review-delete@appreview.demo.oasisportal.space');
     expect(plan.students.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -38,13 +43,23 @@ describe('app review seed', () => {
 
     expect(ids.size).toBe(plan.users.length);
     const real = [...ids.values()].filter((id) => id.startsWith('user_real_'));
-    expect(real).toHaveLength(2);
+    expect(real).toHaveLength(3);
     for (const [userId, clerkId] of ids) {
       if (!clerkId.startsWith('user_real_')) expect(clerkId).toBe(`review_noclerk_${userId}`);
     }
   });
 
+  it('never links the deletion-demo login to a child, so deleting it touches no child record', () => {
+    const { plan, logins } = buildAppReviewPlan(env);
+    const deletion = plan.users.find((user) => user.id === logins[2]?.userId);
+    expect(deletion?.linkedAsGuardian).toBeFalsy();
+    expect(plan.students.some((student) => student.userId === deletion?.id)).toBe(false);
+  });
+
   it('requires a strong password for each login', () => {
+    expect(() => buildAppReviewPlan({ ...env, OASIS_APP_REVIEW_DELETE_PASSWORD: '' })).toThrow(
+      /OASIS_APP_REVIEW_DELETE_PASSWORD/,
+    );
     expect(() => buildAppReviewPlan({ ...env, OASIS_APP_REVIEW_PARENT_PASSWORD: '' })).toThrow(
       /OASIS_APP_REVIEW_PARENT_PASSWORD/,
     );

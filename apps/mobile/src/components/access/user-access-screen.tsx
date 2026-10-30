@@ -15,6 +15,7 @@ import {
   SectionTitle,
   StatCard,
 } from '../core/mobile-ui';
+import { DeletionRequestsCard } from './deletion-requests-card';
 import { UserAccessAccountDetail } from './user-access-account-detail';
 import {
   accessFilters,
@@ -120,6 +121,7 @@ export function UserAccessScreen({
           <StatCard accent={C.success} label="Active accounts" value={String(activeCount)} />
         </View>
         {errorMessage ? <ErrorText>{errorMessage}</ErrorText> : null}
+        <DeletionRequestsCard />
         <Card>
           <SectionTitle>Invite account</SectionTitle>
           <Field

@@ -21,6 +21,26 @@ describe('account deletion mobile wiring', () => {
     expect(settings).toContain('studentId={selectedChild.studentId}');
   });
 
+  it('lets staff and adult students request deletion of their own account', () => {
+    for (const file of [
+      'src/components/staff/staff-home-screen.tsx',
+      'src/components/student/student-notifications-screen.tsx',
+    ]) {
+      const screen = readMobile(file);
+      expect(screen).toContain('<AccountDeletionCard title="Delete my account" />');
+    }
+  });
+
+  it('lets account admins approve or decline requests from User Access on mobile', () => {
+    const access = readMobile('src/components/access/user-access-screen.tsx');
+    expect(access).toContain('<DeletionRequestsCard />');
+    const card = readMobile('src/components/access/deletion-requests-card.tsx');
+    expect(card).toContain('api.accountDeletion.queue.useQuery');
+    expect(card).toContain('api.accountDeletion.approve.useMutation');
+    expect(card).toContain('api.accountDeletion.decline.useMutation');
+    expect(card).toContain('Confirm deletion');
+  });
+
   it('uses the request, cancel and status procedures and asks for confirmation first', () => {
     const card = readMobile('src/components/core/account-deletion-card.tsx');
     expect(card).toContain('api.accountDeletion.status.useQuery');

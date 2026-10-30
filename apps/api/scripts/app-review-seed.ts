@@ -2,8 +2,9 @@
  * Seeds the app store review tenant (`review` schema, same database as live). See
  * docs/app-review-tenant.md.
  *
- * Two production Clerk logins are created, staff and parent, flagged `reviewSandbox` so the webhook
- * keeps them out of `public` and the API routes them to `review`. Every other synthetic person is a
+ * Three production Clerk logins are created, staff, parent and a throwaway parent for the account
+ * deletion demo, flagged `reviewSandbox` so the webhook keeps them out of `public` and the API routes
+ * them to `review`. Every other synthetic person is a
  * row only, with a placeholder Clerk ID, and cannot sign in.
  */
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,12 @@ import type { PrismaWithEncryption } from './client-demo/types.js';
 
 export const APP_REVIEW_SEED_CONFIRMATION = 'reset-review-schema';
 
+/**
+ * A parent with no children, here only to be deleted: it requests deletion in the app and the staff
+ * login approves it, so the reviewers' own logins are never consumed. Reseeding recreates it.
+ */
+const DELETION_DEMO_USER_ID = 'appreview_user_deletion_demo';
+
 /** Demo plan user id → the username handed to Apple and Google, and its password variable. */
 const REVIEW_LOGINS = {
   clientdemo_user_head_parent: {
@@ -32,6 +39,10 @@ const REVIEW_LOGINS = {
   clientdemo_user_parent: {
     username: 'oasis-review-parent',
     passwordEnv: 'OASIS_APP_REVIEW_PARENT_PASSWORD',
+  },
+  [DELETION_DEMO_USER_ID]: {
+    username: 'oasis-review-delete',
+    passwordEnv: 'OASIS_APP_REVIEW_DELETE_PASSWORD',
   },
 } as const;
 
@@ -59,7 +70,17 @@ export function buildAppReviewPlan(env: EnvLike): {
   const logins: AppReviewLogin[] = [];
   const plan: ClientDemoPlan = {
     ...base,
-    users: base.users.map((user) => {
+    users: [
+      ...base.users,
+      {
+        id: DELETION_DEMO_USER_ID,
+        role: 'Parent' as const,
+        email: '',
+        fullName: 'Dana Delete Demo',
+        password: '',
+        tags: [],
+      },
+    ].map((user) => {
       const login = (
         REVIEW_LOGINS as Record<string, (typeof REVIEW_LOGINS)[keyof typeof REVIEW_LOGINS]>
       )[user.id];
@@ -72,12 +93,12 @@ export function buildAppReviewPlan(env: EnvLike): {
     }),
   };
   if (logins.length !== Object.keys(REVIEW_LOGINS).length) {
-    throw new Error('Client demo plan no longer contains the staff and parent review users.');
+    throw new Error('Client demo plan no longer contains every review login user.');
   }
   return { plan, logins };
 }
 
-/** Clerk IDs for every plan user: real ones for the two logins, inert placeholders for the rest. */
+/** Clerk IDs for every plan user: real ones for the review logins, inert placeholders for the rest. */
 export function reviewClerkIds(plan: ClientDemoPlan, loginClerkIds: Map<string, string>) {
   return new Map(
     plan.users.map((user) => [user.id, loginClerkIds.get(user.id) ?? `review_noclerk_${user.id}`]),
