@@ -62,8 +62,13 @@ export function TechnicalSupportPortalScreen({
 }) {
   const { signOut } = useClerk();
   const [route, setRoute] = useState<SupportPortalRoute>('access');
-  usePushTap((area) => {
+  const [focusAccountId, setFocusAccountId] = useState<string | undefined>();
+  usePushTap((area, userId) => {
     if (area === 'messages') setRoute('communications');
+    if (area === 'account-deletion' && userId) {
+      setFocusAccountId(userId);
+      setRoute('access');
+    }
   });
   const agreementPending = api.userAgreement.pendingCount.useQuery(undefined, { retry: false });
 
@@ -126,6 +131,7 @@ export function TechnicalSupportPortalScreen({
   return (
     <UserAccessScreen
       currentUserId={user.id}
+      focusAccountId={focusAccountId}
       footer={bottomNav}
       header={
         <TechnicalSupportHeader

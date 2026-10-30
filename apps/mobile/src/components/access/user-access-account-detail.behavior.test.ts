@@ -46,6 +46,7 @@ const initialAccount: AccessAccount = {
   role: 'Parent',
   tags: [],
   active: true,
+  deletionRequestedAt: null,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
 };
