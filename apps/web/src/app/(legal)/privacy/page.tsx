@@ -28,28 +28,53 @@ export default function PrivacyPage() {
       <h2 id="collect">What we collect</h2>
       <ul>
         <li>
-          <strong>Account details:</strong> name, email address and a user ID, for parents, staff
-          and students invited by Oasis.
+          <strong>Account details:</strong> name, email address, phone number, home address, date of
+          birth and a user ID, for parents, staff and students invited by Oasis. If you sign in with
+          Google, we receive your Google account name and email.
         </li>
         <li>
-          <strong>Student records:</strong> attendance, behaviour, academic progress, fees and the
-          Oasis calendar, shown to the linked parent or the staff member who needs them.
+          <strong>Other people&rsquo;s email addresses:</strong> when a parent invites a spouse or
+          partner, or staff invite a new user, we store the email address they enter so we can send
+          the invitation.
+        </li>
+        <li>
+          <strong>Student records:</strong> attendance, behaviour, academic progress and the Oasis
+          calendar, shown to the linked parent or the staff member who needs them.
+        </li>
+        <li>
+          <strong>Health information:</strong> medical or allergy details a parent chooses to give,
+          so staff can keep the child safe.
+        </li>
+        <li>
+          <strong>Photos:</strong> photos you choose to upload in the app.
+        </li>
+        <li>
+          <strong>Financial information:</strong> fees, invoices and purchase history. We do not
+          collect or store card details.
+        </li>
+        <li>
+          <strong>Agreements and permission slips:</strong> the signatures you give and when you
+          gave them.
         </li>
         <li>
           <strong>Messages:</strong> messages between parents and staff sent through the app.
         </li>
+        <li>
+          <strong>Device information:</strong> a push notification token for your device, and the IP
+          address and device details our sign-in provider records when you log in.
+        </li>
       </ul>
       <p>
-        We do not collect your location, contacts, health information or browsing history. The app
-        has no advertising or analytics tracking and does not use identifiers to follow you across
-        other apps.
+        The camera is used only to scan barcodes, and those images stay on your device. We do not
+        collect your location, contacts or browsing history. The app has no advertising or analytics
+        tracking and does not use identifiers to follow you across other apps.
       </p>
 
       <h2>Why we use it</h2>
       <p>
-        Only to provide the portal: signing you in, showing the right records to the right person,
-        and letting families and staff talk to each other. We do not sell it or share it for
-        advertising.
+        Only to provide the portal: signing you in, managing your account, showing the right records
+        to the right person, letting families and staff talk to each other, and sending you
+        notifications and emails about Oasis. We do not sell it or share it for advertising.
       </p>
 
       <h2>Who sees it</h2>
@@ -60,11 +85,27 @@ export default function PrivacyPage() {
       </p>
       <p>The service runs on a small number of suppliers that process data for us:</p>
       <ul>
-        <li>Clerk, for sign-in.</li>
+        <li>
+          Clerk, for sign-in. It receives your email, password, phone number for login codes, Google
+          account details if you use Google sign-in, and your IP address and device details.
+        </li>
         <li>Supabase, for the database, hosted in the EU.</li>
         <li>Vercel, for hosting the website and API.</li>
-        <li>Sentry, for error reports so we can fix faults.</li>
+        <li>Resend, for sending notification and invitation emails.</li>
+        <li>
+          Expo, for push notifications. On Android these are delivered through Google&rsquo;s
+          Firebase Cloud Messaging. Notifications contain only generic text such as &ldquo;You have
+          a new message&rdquo;.
+        </li>
+        <li>
+          Sentry, for error reports so we can fix faults. We remove email addresses, IP addresses
+          and request details before reports are sent.
+        </li>
       </ul>
+      <p>
+        These suppliers process data only on our instructions. We do not share your information with
+        anyone else.
+      </p>
 
       <h2 id="keeping">How long we keep it</h2>
       <p>
