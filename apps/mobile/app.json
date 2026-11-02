@@ -3,8 +3,8 @@
     "name": "Oasis",
     "slug": "oasis-mobile",
     "owner": "faithful-software-solutions-ltd",
-    "version": "1.1.1",
-    "orientation": "portrait",
+    "version": "1.1.2",
+    "orientation": "default",
     "scheme": "oasis",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -84,7 +84,17 @@
         {
           "color": "#1B2B5E"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
+      "./plugins/with-unlocked-scanner-orientation"
     ],
     "experiments": {
       "typedRoutes": true

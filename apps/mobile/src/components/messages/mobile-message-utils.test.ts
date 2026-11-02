@@ -5,6 +5,7 @@ import {
   findConversationForRecipient,
   formatSeparator,
   initials,
+  startsAtLeftEdge,
 } from './mobile-message-utils';
 
 const NOW = new Date('2026-10-28T15:00:00');
@@ -144,5 +145,18 @@ describe('contacts', () => {
     expect(findConversationForRecipient(conversations, 'p1', 'StaffDirect')?.id).toBe('c2');
     expect(findConversationForRecipient(conversations, 'p1', 'ParentStaff')?.id).toBe('c1');
     expect(findConversationForRecipient(conversations, 'p2', 'ParentStaff')).toBeUndefined();
+  });
+});
+
+describe('startsAtLeftEdge', () => {
+  it('measures the edge from the panel, not the window, so it works in a centred iPad column', () => {
+    // Column starts at x=343 on a landscape iPad; the touch began 10pt inside it.
+    expect(startsAtLeftEdge(373, 20, 343)).toBe(true);
+    // Same touch measured against the window edge would have been rejected before.
+    expect(startsAtLeftEdge(373, 20, 0)).toBe(false);
+  });
+
+  it('ignores swipes that start away from the edge', () => {
+    expect(startsAtLeftEdge(500, 20, 343)).toBe(false);
   });
 });
