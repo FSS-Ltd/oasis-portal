@@ -41,10 +41,12 @@ export default function SupportPage() {
 
       <h2>Deleting your account</h2>
       <p>
-        In the Oasis app, parents can request deletion of their own account from Profile, and of a
-        child&rsquo;s account from Settings. Oasis reviews each request and confirms with you. You
-        can cancel a request any time before it is approved. If you are staff or a student aged 18
-        or over, email us from the address on the account and we will start the request for you.
+        Every user can request deletion in the Oasis app or by email. In the app, parents use
+        Profile, and Settings for a child&rsquo;s account. Staff use Home, and students aged 18 or
+        over use Notifications. To request by email, write to{' '}
+        <a href={`mailto:${SUPPORT_EMAIL}?subject=Delete%20my%20account`}>{SUPPORT_EMAIL}</a> from
+        the address on the account. Oasis reviews each request and confirms with you. You can cancel
+        a request any time before it is approved.
       </p>
       <div className="legal__card">
         <p>
