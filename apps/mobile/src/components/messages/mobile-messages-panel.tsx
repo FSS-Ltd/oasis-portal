@@ -23,13 +23,10 @@ import type {
   Recipient,
   RecipientGroup,
 } from './mobile-message-types';
-import { findConversationForRecipient } from './mobile-message-utils';
+import { findConversationForRecipient, startsAtLeftEdge } from './mobile-message-utils';
 
 /** The screens pushed over the inbox. The inbox itself stays mounted underneath. */
 type MessageScreen = 'contacts' | 'conversation';
-
-// Back-swipe starts within this distance of the left edge, as in iOS navigation.
-const EDGE_WIDTH = 28;
 
 interface DraftConversation {
   kind: ConversationKind;
@@ -76,8 +73,12 @@ export function MobileMessagesPanel({
 }: MobileMessagesPanelProps) {
   const utils = api.useUtils();
   const frame = useRef<View>(null);
-  const [topOffset, setTopOffset] = useState(0);
-  const { width } = useWindowDimensions();
+  // The panel's place in the window. On iPad and tablets it sits in a centred column, so the
+  // slide distance and back-swipe edge come from the panel, not the window.
+  const [panel, setPanel] = useState({ left: 0, top: 0, width: 0 });
+  const topOffset = panel.top;
+  const windowSize = useWindowDimensions();
+  const width = panel.width || windowSize.width;
   const reduceMotion = useReduceMotion();
   // 0 shows the inbox, 1 shows the pushed screen. Driven natively so the slide stays smooth.
   const push = useRef(new Animated.Value(0)).current;
@@ -202,7 +203,7 @@ export function MobileMessagesPanel({
   // Swipe right from the left edge to go back, following the finger.
   const backSwipe = PanResponder.create({
     onMoveShouldSetPanResponderCapture: (event, gesture) =>
-      event.nativeEvent.pageX - gesture.dx < EDGE_WIDTH &&
+      startsAtLeftEdge(event.nativeEvent.pageX, gesture.dx, panel.left) &&
       gesture.dx > 10 &&
       gesture.dx > Math.abs(gesture.dy) * 2,
     onPanResponderMove: (_event, gesture) => {
@@ -319,8 +320,8 @@ export function MobileMessagesPanel({
   return (
     <View
       onLayout={() => {
-        frame.current?.measureInWindow((_x, y) => {
-          setTopOffset(y);
+        frame.current?.measureInWindow((left, top, panelWidth) => {
+          setPanel({ left, top, width: panelWidth });
         });
       }}
       ref={frame}

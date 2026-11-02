@@ -182,3 +182,10 @@ export function findConversationForRecipient<
       conversation.participants.some((participant) => participant.id === recipientId),
   );
 }
+
+const EDGE_WIDTH = 28;
+
+/** True when a swipe began within EDGE_WIDTH of the panel's left edge (window coordinates). */
+export function startsAtLeftEdge(pageX: number, dx: number, panelLeft: number): boolean {
+  return pageX - dx - panelLeft < EDGE_WIDTH;
+}

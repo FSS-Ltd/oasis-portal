@@ -115,3 +115,4 @@ and never change what the app does in a Minor or Major way.
 | 1.0.1   |      | First store release (date on approval).                        |
 | 1.1.0   |      | Push notifications (new permission and native module).         |
 | 1.1.1   |      | Deletion request alerts; first build through Xcode and Gradle. |
+| 1.1.2   |      | Tablet and iPad rotation, R8 obfuscation, messages swipe fix.  |
