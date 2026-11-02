@@ -219,6 +219,8 @@ jobs:
           releaseFiles: apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
           track: production
           status: draft
+          # Play refuses to auto-send API edits for review; Send for review stays manual.
+          changesNotSentForReview: true
 
       - name: Next steps
         run: |
