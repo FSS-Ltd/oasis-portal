@@ -42,11 +42,11 @@ Because the model only rephrases supplied facts, a phone-sized model is enough.
 
 Gemma 4 is Apache 2.0 and comes in on-device sizes (E2B, E4B) and server sizes (12B, 26B A4B, 31B).
 
-| Option | Verdict |
-|---|---|
+| Option                                      | Verdict                                                                                                                                                                                                                       |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A. On-device E2B or E4B in the Expo app** | **Recommended for Phase 1.** The Head's phone already receives the decrypted report data to display it, so no data leaves the app that does not already. No GPU bill, which suits the free-tier stack. No new data processor. |
-| B. Server 26B on a UK/EU GPU | Not needed for Phase 1. Revisit only if on-device quality falls short, or for batch work a phone cannot do. |
-| C. Google's hosted Gemma API | Rejected: children's PII, data terms, processing location. |
+| B. Server 26B on a UK/EU GPU                | Not needed for Phase 1. Revisit only if on-device quality falls short, or for batch work a phone cannot do.                                                                                                                   |
+| C. Google's hosted Gemma API                | Rejected: children's PII, data terms, processing location.                                                                                                                                                                    |
 
 On-device constraints:
 
@@ -65,24 +65,24 @@ On-device constraints:
 Priority: **P1** = Phase 1, **P2** = next, **P3** = later, **No** = leave as is.
 "Rules" means plain code, no model.
 
-| # | Workflow (router) | Who | Assist | Priority |
-|---|---|---|---|---|
-| 1 | **Term reports** (`report`) | Head, admin operations | Code computes per-subject level, ahead or behind, pace this term, and projection. Gemma on the Head's phone writes `progressComment`, `behaviourNotes` and `generalNotes` from those facts plus allow-listed child notes. The Head edits, then uses the existing review and send. | **P1** |
-| 2 | **School fee invoices** (`invoice`) | Full admins, `finance-admin` tag | Rules only. Roll forward last period's invoices into next period Drafts per family through the existing generator, then flag: new sibling without discount, student left but still billed, fee config changed, discount opt-out still set. Template text for discount explanations. | **P1** |
-| 3 | **Approvals inbox on mobile** (new) | Finance, Head | Mobile has no staff invoice or report screens today. One "Drafts to approve" list on staff home: flags first, then edit, approve or reject. | **P1** |
-| 4 | **Incident reports** (`incident`) | All staff write, Head signs off | Structure rough notes into the draft fields and list missing facts. Check the parent copy for other children's names (rules, from the name index) and suggest neutral wording (Gemma). | P2 |
-| 5 | **Notices and calendar** (`notice`, `calendar`) | Admin, ClubsAdmin | Turn bullet points or a calendar event into a notice in the school's tone. | P2 |
-| 6 | **Permission slips** (`permissionSlip`) | Admin | Start from the last slip for the same venue (rules), Gemma tidies wording. | P2 |
-| 7 | **Parent and staff messages** (`message`) | All staff | Reply draft, tone check before send, translation for families using another language. Staff press send. | P2 |
-| 8 | **PACE gap plans and diagnostics** (`academicInventory`, `pace`) | Supervisors, admin | Draft a gap plan from a diagnostic result. Next-PACE ordering stays rules. | P2 |
-| 9 | **Behaviour** (`behaviour`) | All staff, HeadOfDiscipline | Category suggestion while logging. Pattern summary before a demerit escalation. | P3 |
-| 10 | **Child notes and child log** (`childNotes`, `childLog`) | Staff with access | One-page brief before a parent meeting from non-sensitive data. Sensitive review queue excluded. | P3 |
-| 11 | **Attendance** (`attendance`) | Admin | Weekly narrative on top of the existing `insights`. Drafted absence follow-up for staff to send. | P3 |
-| 12 | **Homework** (`homework`) | Supervisors | Draft feedback and assignment instructions for the supervisor to edit. | P3 |
-| 13 | **Staff home and tasks** (`staffHome`, `personalTask`) | All staff | Morning "needs your attention" summary. | P3 |
-| 14 | **Club notices** (`club`) | ClubsLead, ClubsAdmin | Same as 5. | P3 |
-| 15 | Rota and cover (`rota`) | Admin | **No.** A scheduling problem; code does it better. | No |
-| 16 | Attendance marking, shop counter, library, timetable building, user access, agreements, audit log, compliance register | Various | **No.** Taps, scans and rules. | No |
+| #   | Workflow (router)                                                                                                      | Who                              | Assist                                                                                                                                                                                                                                                                              | Priority |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1   | **Term reports** (`report`)                                                                                            | Head, admin operations           | Code computes per-subject level, ahead or behind, pace this term, and projection. Gemma on the Head's phone writes `progressComment`, `behaviourNotes` and `generalNotes` from those facts plus allow-listed child notes. The Head edits, then uses the existing review and send.   | **P1**   |
+| 2   | **School fee invoices** (`invoice`)                                                                                    | Full admins, `finance-admin` tag | Rules only. Roll forward last period's invoices into next period Drafts per family through the existing generator, then flag: new sibling without discount, student left but still billed, fee config changed, discount opt-out still set. Template text for discount explanations. | **P1**   |
+| 3   | **Approvals inbox on mobile** (new)                                                                                    | Finance, Head                    | Mobile has no staff invoice or report screens today. One "Drafts to approve" list on staff home: flags first, then edit, approve or reject.                                                                                                                                         | **P1**   |
+| 4   | **Incident reports** (`incident`)                                                                                      | All staff write, Head signs off  | Structure rough notes into the draft fields and list missing facts. Check the parent copy for other children's names (rules, from the name index) and suggest neutral wording (Gemma).                                                                                              | P2       |
+| 5   | **Notices and calendar** (`notice`, `calendar`)                                                                        | Admin, ClubsAdmin                | Turn bullet points or a calendar event into a notice in the school's tone.                                                                                                                                                                                                          | P2       |
+| 6   | **Permission slips** (`permissionSlip`)                                                                                | Admin                            | Start from the last slip for the same venue (rules), Gemma tidies wording.                                                                                                                                                                                                          | P2       |
+| 7   | **Parent and staff messages** (`message`)                                                                              | All staff                        | Reply draft, tone check before send, translation for families using another language. Staff press send.                                                                                                                                                                             | P2       |
+| 8   | **PACE gap plans and diagnostics** (`academicInventory`, `pace`)                                                       | Supervisors, admin               | Draft a gap plan from a diagnostic result. Next-PACE ordering stays rules.                                                                                                                                                                                                          | P2       |
+| 9   | **Behaviour** (`behaviour`)                                                                                            | All staff, HeadOfDiscipline      | Category suggestion while logging. Pattern summary before a demerit escalation.                                                                                                                                                                                                     | P3       |
+| 10  | **Child notes and child log** (`childNotes`, `childLog`)                                                               | Staff with access                | One-page brief before a parent meeting from non-sensitive data. Sensitive review queue excluded.                                                                                                                                                                                    | P3       |
+| 11  | **Attendance** (`attendance`)                                                                                          | Admin                            | Weekly narrative on top of the existing `insights`. Drafted absence follow-up for staff to send.                                                                                                                                                                                    | P3       |
+| 12  | **Homework** (`homework`)                                                                                              | Supervisors                      | Draft feedback and assignment instructions for the supervisor to edit.                                                                                                                                                                                                              | P3       |
+| 13  | **Staff home and tasks** (`staffHome`, `personalTask`)                                                                 | All staff                        | Morning "needs your attention" summary.                                                                                                                                                                                                                                             | P3       |
+| 14  | **Club notices** (`club`)                                                                                              | ClubsLead, ClubsAdmin            | Same as 5.                                                                                                                                                                                                                                                                          | P3       |
+| 15  | Rota and cover (`rota`)                                                                                                | Admin                            | **No.** A scheduling problem; code does it better.                                                                                                                                                                                                                                  | No       |
+| 16  | Attendance marking, shop counter, library, timetable building, user access, agreements, audit log, compliance register | Various                          | **No.** Taps, scans and rules.                                                                                                                                                                                                                                                      | No       |
 
 ## 5. Phase 1 design
 
@@ -143,14 +143,14 @@ No job queue is needed in Phase 1: generation happens on the phone, one report a
 
 ## 7. Failure modes
 
-| Failure | Handling |
-|---|---|
-| Phone unsupported, model not downloaded, or out of memory | Fields stay blank, Head writes as today. |
-| Output invalid or wrong shape | Schema check rejects it, one retry, then blank fields. |
-| Model states something not in the facts | Facts shown beside the text. Prompt forbids new numbers; a check rejects output containing numbers not in the fact sheet. Track edit rates per prompt version. |
-| Projection data missing | Projection returns `null`, the fact sheet omits it, no claim is made. |
-| Invoice rule misses a case | Finance still reviews every draft; add the rule once found. |
-| Prompt injection through a note | Inputs passed as data; output only fills editable draft fields. |
+| Failure                                                   | Handling                                                                                                                                                       |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phone unsupported, model not downloaded, or out of memory | Fields stay blank, Head writes as today.                                                                                                                       |
+| Output invalid or wrong shape                             | Schema check rejects it, one retry, then blank fields.                                                                                                         |
+| Model states something not in the facts                   | Facts shown beside the text. Prompt forbids new numbers; a check rejects output containing numbers not in the fact sheet. Track edit rates per prompt version. |
+| Projection data missing                                   | Projection returns `null`, the fact sheet omits it, no claim is made.                                                                                          |
+| Invoice rule misses a case                                | Finance still reviews every draft; add the rule once found.                                                                                                    |
+| Prompt injection through a note                           | Inputs passed as data; output only fills editable draft fields.                                                                                                |
 
 ## 8. Security and privacy
 
@@ -184,6 +184,7 @@ No job queue is needed in Phase 1: generation happens on the phone, one report a
 **Phase 0, decisions (no code):** open questions below, DPIA, evaluation set.
 
 **Phase 1:**
+
 1. `projectPaceProgress` and fact-sheet builder in domain, with unit tests.
 2. Device spike: run Gemma 4 E2B and E4B in an EAS dev build on one iPhone and one Android. Measure
    memory, speed and quality on the evaluation set. Go or no-go on model size.
