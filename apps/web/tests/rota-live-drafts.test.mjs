@@ -13,6 +13,8 @@ const { act, create } = require('react-test-renderer');
 const window = { id: 'window', dayOfWeek: 1, date: '2026-10-01', startMinute: 540, endMinute: 720 };
 const club = { id: 'club-one', name: 'First club' };
 const secondClub = { id: 'club-two', name: 'Second club' };
+// The editor opens on the current month, so drafts must switch to one that never is.
+const otherMonth = '2000-01';
 
 function mount(path, name, queries, props = {}) {
   let pending = false;
@@ -162,7 +164,7 @@ for (const monthly of [false, true]) {
       if (monthly) {
         editor.pending(false);
         editor.change(input(), '12:00');
-        editor.change(editor.root.findByProps({ type: 'month' }), '2026-11');
+        editor.change(editor.root.findByProps({ type: 'month' }), otherMonth);
         assert.equal(input().props.value, '11:30');
       }
     } finally {
@@ -285,7 +287,7 @@ test('a late monthly save cannot erase another month draft', async () => {
     editor.change(input(), '11:00');
     editor.invalidate(() => catchup);
     const saved = editor.success('rota.setMyMonthlyAvailability');
-    editor.change(editor.root.findByProps({ type: 'month' }), '2026-11');
+    editor.change(editor.root.findByProps({ type: 'month' }), otherMonth);
     editor.change(input(), '12:00');
     release();
     await saved;
