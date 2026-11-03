@@ -10,6 +10,7 @@ import {
   type UploadedHomeworkSubmissionImage,
 } from '../services/homework-submission-storage.js';
 import { createStudentNotifications } from '../services/student-notifications.js';
+import { NEW_UPDATE_PUSH, sendPushToStudents } from '../services/push-notifications.js';
 import { authedProcedure, fullAdminProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -809,7 +810,7 @@ export const homeworkRouter = router({
         : null;
       if (image) await assertUploadedHomeworkSubmissionImages([image]);
 
-      const reviewed = await ctx.withRls(async (tx) => {
+      const { reviewed, newlyAwarded } = await ctx.withRls(async (tx) => {
         const existing = (await tx.homeworkSubmission.findFirst({
           where: { assignmentId: assignment.id, studentId: student.id },
           include: { images: true },
@@ -873,8 +874,14 @@ export const homeworkRouter = router({
             },
           },
         });
-        return row;
+        return {
+          reviewed: row,
+          newlyAwarded: !existing?.behaviourEntryId && behaviourEntryId !== null,
+        };
       });
+      if (newlyAwarded) {
+        await sendPushToStudents(ctx, [student.id], NEW_UPDATE_PUSH);
+      }
 
       return {
         ...mapAssignment(ctx, assignment, reviewed),

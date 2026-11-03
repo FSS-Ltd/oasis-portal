@@ -42,6 +42,7 @@ import {
   type ParentEmailNotificationRecipient,
 } from '../services/parent-email-notifications.js';
 import { createStudentNotifications } from '../services/student-notifications.js';
+import { NEW_UPDATE_PUSH, sendPushToStudents } from '../services/push-notifications.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -411,17 +412,37 @@ async function loadActiveScopedStudents(
     clubId?: string | undefined;
   },
 ): Promise<Map<string, ActiveStudent>> {
+  const rows = await ctx.db.student.findMany({
+    where: { id: { in: [...input.studentIds] } },
+    select: { id: true, active: true, fullNameEnc: true, yearGroup: true, ageBandId: true },
+  });
+  const rowsById = new Map(rows.map((student) => [student.id, student]));
+  const clubScope = usesClubLeadScope(ctx.user, input.clubId);
+  const scope = clubScope ? null : await loadDailyYearBandScope(ctx, input.date ?? new Date());
   const students = new Map<string, ActiveStudent>();
   for (const studentId of input.studentIds) {
-    students.set(
-      studentId,
-      await loadActiveScopedStudent(ctx, {
+    const student = rowsById.get(studentId);
+    if (!student) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+    }
+    if (!student.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+    }
+    if (clubScope) {
+      await assertAssignedClubLeadStudent(ctx, {
         studentId,
         entity: input.entity,
-        date: input.date,
         clubId: input.clubId,
-      }),
-    );
+      });
+    } else if (scope && !studentMatchesDailyScope(scope, student)) {
+      await denyOutOfDailyScope(ctx, input.entity, {
+        studentId,
+        studentYearGroup: student.yearGroup,
+        date: scope.dayKey,
+        assignedBands: scope.assignedBands.map((band) => band.id),
+      });
+    }
+    students.set(studentId, student);
   }
   return students;
 }
@@ -761,6 +782,11 @@ async function notifyStudentMeritAwards(
         createdById: ctx.user.id,
       })),
     }),
+  );
+  await sendPushToStudents(
+    ctx,
+    positiveAwards.map((award) => award.studentId),
+    NEW_UPDATE_PUSH,
   );
 }
 
@@ -2171,44 +2197,55 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             }
           }
 
+          // Keep the award, ledger, audit trail and in-app notifications atomic. A failure
+          // after committing the award would invite the caller to retry and award it twice.
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'BehaviourEntry',
+              meta: {
+                studentIds: input.studentIds,
+                type: input.type,
+                visibility: 'General',
+                entryCount: behaviourEntries.length,
+                behaviourEntryIds: behaviourEntries.map((entry) => entry.id),
+              },
+            },
+          });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'MeritLedger',
+              meta: {
+                studentIds: input.studentIds,
+                behaviourEntryIds: behaviourEntries.map((entry) => entry.id),
+                rowCount: ledgerRowCount,
+              },
+            },
+          });
+          if (input.type === 'Merit') {
+            await createStudentNotifications(ctx, tx, {
+              auditSource: 'behaviour.meritAward.studentNotification',
+              notifications: behaviourEntries.map((entry) => ({
+                studentId: entry.studentId,
+                kind: 'MeritAward',
+                title: 'Merits awarded',
+                body: `You received ${String(entry.meritDelta)} merits.`,
+                sourceEntity: 'BehaviourEntry',
+                sourceId: entry.id,
+                createdById: ctx.user.id,
+              })),
+            });
+          }
           return { behaviourEntries, ledgerRowCount };
         });
 
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'BehaviourEntry',
-            meta: {
-              studentIds: input.studentIds,
-              type: input.type,
-              visibility: 'General',
-              entryCount: result.behaviourEntries.length,
-              behaviourEntryIds: result.behaviourEntries.map((entry) => entry.id),
-            },
-          },
-        });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'MeritLedger',
-            meta: {
-              studentIds: input.studentIds,
-              behaviourEntryIds: result.behaviourEntries.map((entry) => entry.id),
-              rowCount: result.ledgerRowCount,
-            },
-          },
-        });
+        // Push uses the root client and network, so it must run after the transaction releases
+        // its connection. Push failures are best-effort and cannot change a committed award.
         if (input.type === 'Merit') {
-          await notifyStudentMeritAwards(
-            ctx,
-            result.behaviourEntries.map((entry) => ({
-              studentId: entry.studentId,
-              behaviourEntryId: entry.id,
-              amount: entry.meritDelta,
-            })),
-          );
+          await sendPushToStudents(ctx, input.studentIds, NEW_UPDATE_PUSH);
         }
 
         await Promise.all(

@@ -1391,6 +1391,121 @@ describe('behaviour.log', () => {
     expect(ledger.filter((row) => row.studentId === secondaryStudentId)).toHaveLength(3);
   });
 
+  it('releases the notification transaction before looking up merit push recipients', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+    const ctx = makeCtx(headUser, db);
+    let transactionOpen = false;
+    const pushLookupTransactionStates: boolean[] = [];
+    type LookupArgs = { select?: { userId?: boolean } };
+    const findMany = db.student.findMany.getMockImplementation() as
+      | ((args: LookupArgs) => Promise<StoredStudent[]>)
+      | undefined;
+    if (!findMany) throw new Error('student lookup fixture is missing');
+    db.student.findMany.mockImplementation((args: LookupArgs) => {
+      if (args.select?.userId) pushLookupTransactionStates.push(transactionOpen);
+      return findMany(args);
+    });
+    ctx.withRls = async (fn) => {
+      transactionOpen = true;
+      try {
+        return await fn(db as unknown as RlsTx);
+      } finally {
+        transactionOpen = false;
+      }
+    };
+    const caller = router({
+      behaviour: createBehaviourRouter({ emailClient: makeFakeEmailClient().client }),
+    }).createCaller(ctx);
+
+    const result = await caller.behaviour.logManyForStudents({
+      studentIds: [activeStudentId, secondaryStudentId],
+      type: 'Merit',
+      entries: [{ category: 'Kindness', amount: 2 }],
+    });
+
+    expect(result.entries).toHaveLength(2);
+    expect(behaviour).toHaveLength(2);
+    expect(ledger).toHaveLength(2);
+    expect(pushLookupTransactionStates).toEqual([false]);
+  });
+
+  it('loads the students and supervisor scope once for a multi-student batch', async () => {
+    const { db, students } = makeFakeDb();
+    const secondStudent = students.find((student) => student.id === secondaryStudentId);
+    if (!secondStudent) throw new Error('second student fixture is missing');
+    secondStudent.ageBandId = 'band_upper';
+
+    const result = await makeCaller(supervisorUser, db).behaviour.logManyForStudents({
+      studentIds: [activeStudentId, secondaryStudentId],
+      type: 'Demerit',
+      entries: [{ category: 'Conduct', count: 1 }],
+    });
+
+    expect(result.entries.map((entry) => entry.studentId)).toEqual([
+      activeStudentId,
+      secondaryStudentId,
+    ]);
+    expect(db.student.findUnique).not.toHaveBeenCalled();
+    expect(db.student.findMany).toHaveBeenCalledTimes(1);
+    expect(db.staffShift.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not save any batch entries when the student lookup times out', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+    const timeout = new Error('Timed out fetching a new connection from the connection pool');
+    db.student.findUnique.mockRejectedValue(timeout);
+    db.student.findMany.mockRejectedValue(timeout);
+
+    await expect(
+      makeCaller(headUser, db).behaviour.logManyForStudents({
+        studentIds: [activeStudentId, secondaryStudentId],
+        type: 'Merit',
+        entries: [{ category: 'Kindness', amount: 2 }],
+      }),
+    ).rejects.toThrow(timeout.message);
+
+    expect(behaviour).toEqual([]);
+    expect(ledger).toEqual([]);
+    expect(db.studentNotification.createMany).not.toHaveBeenCalled();
+  });
+
+  it.each(['audit', 'notification'] as const)(
+    'rolls back the whole multi-student award if the %s write fails',
+    async (failure) => {
+      const { db, behaviour, ledger } = makeFakeDb();
+      const ctx = makeCtx(headUser, db);
+      // Model transaction rollback, which the default lightweight fixture does not implement.
+      ctx.withRls = async (fn) => {
+        const previousBehaviour = [...behaviour];
+        const previousLedger = [...ledger];
+        try {
+          return await fn(db as unknown as RlsTx);
+        } catch (error) {
+          behaviour.splice(0, behaviour.length, ...previousBehaviour);
+          ledger.splice(0, ledger.length, ...previousLedger);
+          throw error;
+        }
+      };
+      const unavailable = new Error(`${failure} unavailable`);
+      if (failure === 'audit') db.auditLog.create.mockRejectedValue(unavailable);
+      else db.studentNotification.createMany.mockRejectedValue(unavailable);
+      const caller = router({
+        behaviour: createBehaviourRouter({ emailClient: makeFakeEmailClient().client }),
+      }).createCaller(ctx);
+
+      await expect(
+        caller.behaviour.logManyForStudents({
+          studentIds: [activeStudentId, secondaryStudentId],
+          type: 'Merit',
+          entries: [{ category: 'Kindness', amount: 2 }],
+        }),
+      ).rejects.toThrow(unavailable.message);
+
+      expect(behaviour).toEqual([]);
+      expect(ledger).toEqual([]);
+    },
+  );
+
   it('requires notes for batch demerits that move a student past Stage 2', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));

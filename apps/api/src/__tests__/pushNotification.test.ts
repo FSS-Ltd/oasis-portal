@@ -45,6 +45,7 @@ function stubExpo(tickets: unknown[], status = 200) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -97,6 +98,98 @@ describe('pushNotification router', () => {
 });
 
 describe('sendPushToUsers', () => {
+  it.each(['headers', 'body'] as const)(
+    'aborts stalled response %s and resolves without retrying',
+    async (phase) => {
+      vi.useFakeTimers();
+      const db = makeDb([{ id: 'd1', tokenEnc: 'enc:ExpoPushToken[one]' }]);
+      const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+        const stalled = new Promise<never>((_resolve, reject) => {
+          init.signal?.addEventListener(
+            'abort',
+            () => {
+              reject(new Error('request aborted'));
+            },
+            { once: true },
+          );
+        });
+        return phase === 'headers' ? stalled : Promise.resolve({ ok: true, json: () => stalled });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      let finished = false;
+      const delivery = sendPushToUsers(
+        makeTestContext({ db, user: parent }),
+        ['u1'],
+        NEW_MESSAGE_PUSH,
+      ).then(() => {
+        finished = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(finished).toBe(true);
+      await delivery;
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(fetchMock.mock.calls[0]?.[1].signal?.aborted).toBe(true);
+      expect(db.pushDeviceToken.deleteMany).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it('shares one deadline across batches instead of starting a new wait for every batch', async () => {
+    vi.useFakeTimers();
+    const db = makeDb(
+      Array.from({ length: 101 }, (_, index) => ({
+        id: `d${String(index)}`,
+        tokenEnc: `enc:ExpoPushToken[${String(index)}]`,
+      })),
+    );
+    let batches = 0;
+    const fetchMock = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          batches += 1;
+          init.signal?.addEventListener(
+            'abort',
+            () => {
+              reject(new Error('request aborted'));
+            },
+            { once: true },
+          );
+          if (batches === 1) {
+            setTimeout(() => {
+              resolve(new Response(JSON.stringify({ data: [] })));
+            }, 4_000);
+          }
+        }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    let finished = false;
+    const delivery = sendPushToUsers(
+      makeTestContext({ db, user: parent }),
+      ['u1'],
+      NEW_MESSAGE_PUSH,
+    ).then(() => {
+      finished = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(finished).toBe(false);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(finished).toBe(true);
+    await delivery;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('clears the delivery deadline after success', async () => {
+    vi.useFakeTimers();
+    const db = makeDb([{ id: 'd1', tokenEnc: 'enc:ExpoPushToken[one]' }]);
+    stubExpo([{ status: 'ok' }]);
+    await sendPushToUsers(makeTestContext({ db, user: parent }), ['u1'], NEW_MESSAGE_PUSH);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('sends generic copy to each device and deletes devices Expo no longer knows', async () => {
     const db = makeDb([
       { id: 'd1', tokenEnc: 'enc:ExpoPushToken[one]' },

@@ -32,6 +32,7 @@ import {
   type UploadedShopItemPhoto,
 } from '../services/shop-item-photo-storage.js';
 import { createStudentNotification } from '../services/student-notifications.js';
+import { NEW_UPDATE_PUSH, sendPushToStudents } from '../services/push-notifications.js';
 import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -947,6 +948,7 @@ async function notifyStudentShopPurchase(
       createdById: ctx.user.id,
     }),
   );
+  await sendPushToStudents(ctx, [input.studentId], NEW_UPDATE_PUSH);
 }
 
 export const shopRouter = router({

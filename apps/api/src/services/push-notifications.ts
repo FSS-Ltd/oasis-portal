@@ -4,6 +4,8 @@ import { logOperationalEvent, operationalErrorMessage } from '../lib/observabili
 export const EXPO_PUSH_SEND_URL = 'https://exp.host/--/api/v2/push/send';
 // Expo accepts at most 100 messages per request.
 const EXPO_PUSH_BATCH = 100;
+// One network budget for the whole delivery, including response bodies and all batches.
+const EXPO_PUSH_TIMEOUT_MS = 5_000;
 
 /** Lock-screen copy stays generic: no names, behaviour, safeguarding or finance detail. */
 export interface PushMessage {
@@ -49,6 +51,8 @@ export async function sendPushToUsers(
 ): Promise<void> {
   if (userIds.length === 0) return;
 
+  const controller = new AbortController();
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
     const devices = await ctx.db.pushDeviceToken.findMany({
       where: { userId: { in: [...new Set(userIds)] }, user: { active: true, deletedAt: null } },
@@ -58,11 +62,17 @@ export async function sendPushToUsers(
       const token = ctx.db.$enc.decrypt(device.tokenEnc);
       return token ? [{ id: device.id, token }] : [];
     });
+    if (targets.length === 0) return;
+    deadline = setTimeout(() => {
+      controller.abort(new Error('Push delivery timed out'));
+    }, EXPO_PUSH_TIMEOUT_MS);
 
     const accessToken = process.env.EXPO_PUSH_ACCESS_TOKEN;
     for (let start = 0; start < targets.length; start += EXPO_PUSH_BATCH) {
+      controller.signal.throwIfAborted();
       const batch = targets.slice(start, start + EXPO_PUSH_BATCH);
       const response = await fetch(EXPO_PUSH_SEND_URL, {
+        signal: controller.signal,
         method: 'POST',
         headers: {
           accept: 'application/json',
@@ -102,6 +112,8 @@ export async function sendPushToUsers(
       meta: { error: operationalErrorMessage(err), recipients: userIds.length },
       ...requestIdOf(ctx),
     });
+  } finally {
+    clearTimeout(deadline);
   }
 }
 
