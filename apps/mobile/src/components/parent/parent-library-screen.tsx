@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Image, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PortalScrollView } from '../core/portal-scroll-view';
 import { type RouterOutputs, api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
+import { LibraryBookList } from '../library/library-book-list';
+import { LibraryCollectionTabs } from '../library/library-collection-tabs';
+import type { LibraryBookCollection } from '@oasis/domain';
 import { Card, MutedText, SectionTitle } from '../core/mobile-ui';
 
 type LibrarySummary = RouterOutputs['library']['parentSummary'];
@@ -21,16 +24,9 @@ export function ParentLibraryScreen({
   data: LibrarySummary | undefined;
   loading: boolean;
 }) {
+  const [collection, setCollection] = useState<LibraryBookCollection>('General');
   const [search, setSearch] = useState('');
-  const catalogue = api.library.parentCatalogue.useQuery({ search }, { retry: false });
-  const available = useMemo(
-    () => (catalogue.data?.items ?? []).filter((book) => book.availability === 'Available'),
-    [catalogue.data],
-  );
-  const onLoan = useMemo(
-    () => (catalogue.data?.items ?? []).filter((book) => book.availability === 'On loan'),
-    [catalogue.data],
-  );
+  const catalogue = api.library.parentCatalogue.useQuery({ search, collection }, { retry: false });
   if (loading) return <MutedText>Loading library…</MutedText>;
   if (!data) return <MutedText>Library records are unavailable.</MutedText>;
   return (
@@ -86,6 +82,7 @@ export function ParentLibraryScreen({
           ))
         )}
       </Card>
+      <LibraryCollectionTabs value={collection} onChange={setCollection} />
       <View style={styles.catalogue}>
         <SectionTitle>Browse the catalogue</SectionTitle>
         <TextInput
@@ -100,62 +97,17 @@ export function ParentLibraryScreen({
           <MutedText>Loading catalogue…</MutedText>
         ) : catalogue.error ? (
           <MutedText>Library catalogue is unavailable.</MutedText>
+        ) : catalogue.data?.items.length ? (
+          <LibraryBookList books={catalogue.data.items} />
         ) : (
-          <>
-            <BookRow books={available} title="Available now" />
-            <BookRow books={onLoan} title="On loan" />
-          </>
+          <MutedText>
+            {collection === 'RhinoReaders' && !search
+              ? 'No Rhino Readers books to show yet.'
+              : 'No books match this search.'}
+          </MutedText>
         )}
       </View>
     </PortalScrollView>
-  );
-}
-
-function BookRow({
-  books,
-  title,
-}: {
-  books: Array<{
-    id: string;
-    title: string;
-    author: string;
-    coverUrl: string;
-    quantity: number;
-    availability: string;
-  }>;
-  title: string;
-}) {
-  return (
-    <View style={styles.catalogueSection}>
-      <Text style={styles.catalogueTitle}>{title}</Text>
-      {books.length === 0 ? (
-        <MutedText>No books to show.</MutedText>
-      ) : (
-        <PortalScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.bookRow}
-        >
-          {books.map((book) => (
-            <View key={book.id} style={styles.book}>
-              <Image source={{ uri: book.coverUrl }} style={styles.bookCover} />
-              <Text numberOfLines={1} style={styles.bookTitle}>
-                {book.title}
-              </Text>
-              <Text numberOfLines={1} style={styles.bookAuthor}>
-                {book.author}
-              </Text>
-              <Text style={styles.bookAuthor}>
-                {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
-              </Text>
-              <Text style={book.availability === 'Available' ? styles.available : styles.onLoan}>
-                {book.availability}
-              </Text>
-            </View>
-          ))}
-        </PortalScrollView>
-      )}
-    </View>
   );
 }
 
@@ -195,27 +147,4 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 12,
   },
-  catalogueSection: { gap: 9 },
-  catalogueTitle: { color: C.navy, fontSize: 16, fontWeight: '800' },
-  bookRow: { gap: 12 },
-  book: {
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    overflow: 'hidden',
-    paddingBottom: 9,
-    width: 132,
-  },
-  bookCover: { backgroundColor: C.blueLight, height: 172, width: 130 },
-  bookTitle: { color: C.navy, fontSize: 13, fontWeight: '800', marginHorizontal: 9, marginTop: 8 },
-  bookAuthor: { color: C.textSecondary, fontSize: 11, marginHorizontal: 9, marginTop: 3 },
-  available: {
-    color: C.success,
-    fontSize: 11,
-    fontWeight: '800',
-    marginHorizontal: 9,
-    marginTop: 6,
-  },
-  onLoan: { color: C.warning, fontSize: 11, fontWeight: '800', marginHorizontal: 9, marginTop: 6 },
 });

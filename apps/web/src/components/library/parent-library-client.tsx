@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { Search } from 'lucide-react';
 import Image, { type ImageLoaderProps } from 'next/image';
 import { api } from '@/lib/trpc';
+import { LibraryBookList } from './library-book-list';
+import { LibraryCollectionTabs } from './library-collection-tabs';
+import type { LibraryBookCollection } from '@oasis/domain';
 
 type Availability = 'All' | 'Available' | 'OnLoan';
 
@@ -19,12 +22,13 @@ function libraryCoverLoader({ src }: ImageLoaderProps): string {
 }
 
 export function ParentLibraryClient() {
+  const [collection, setCollection] = useState<LibraryBookCollection>('General');
   const [search, setSearch] = useState('');
   const [availability, setAvailability] = useState<Availability>('All');
   const [page, setPage] = useState(1);
   const summary = api.library.parentSummary.useQuery(undefined, { retry: false });
   const catalogue = api.library.parentCatalogue.useQuery(
-    { availability, page, search },
+    { availability, page, search, collection },
     { retry: false },
   );
   if (summary.isLoading) return <p>Loading library…</p>;
@@ -107,7 +111,19 @@ export function ParentLibraryClient() {
           </div>
         )}
       </section>
-      <section className="library-catalogue">
+      <LibraryCollectionTabs
+        value={collection}
+        onChange={(value) => {
+          setCollection(value);
+          setPage(1);
+        }}
+      />
+      <section
+        className="library-catalogue"
+        id="library-catalogue-panel"
+        role="tabpanel"
+        aria-labelledby={`library-collection-${collection}`}
+      >
         <div className="library-catalogue__heading">
           <div>
             <p className="eyebrow">Catalogue</p>
@@ -152,38 +168,13 @@ export function ParentLibraryClient() {
         ) : catalogue.error ? (
           <p className="status--error">The catalogue is unavailable.</p>
         ) : catalogue.data?.items.length ? (
-          <div className="library-book-grid">
-            {catalogue.data.items.map((book) => (
-              <article className="library-book-card library-book-card--static" key={book.id}>
-                <Image
-                  alt={`Cover of ${book.title}`}
-                  height={400}
-                  loader={libraryCoverLoader}
-                  src={book.coverUrl}
-                  unoptimized
-                  width={300}
-                />
-                <span className="library-book-card__body">
-                  <strong>{book.title}</strong>
-                  <small>{book.author}</small>
-                  <small>
-                    {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
-                  </small>
-                  <em
-                    className={
-                      book.availability === 'On loan'
-                        ? 'library-book-card__status library-book-card__status--loan'
-                        : 'library-book-card__status'
-                    }
-                  >
-                    {book.availability}
-                  </em>
-                </span>
-              </article>
-            ))}
-          </div>
+          <LibraryBookList books={catalogue.data.items} />
         ) : (
-          <p className="library-empty">No books match this search.</p>
+          <p className="library-empty">
+            {collection === 'RhinoReaders' && !search
+              ? 'No Rhino Readers books to show yet.'
+              : 'No books match this search.'}
+          </p>
         )}
         <div className="library-pagination">
           <button

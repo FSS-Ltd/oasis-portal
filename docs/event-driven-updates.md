@@ -14,6 +14,8 @@ Recipient rules narrow by account, guardian, role, tag, assignment, and audience
 
 Application helpers and configuration live in `oasis_private`. Clients cannot call emission helpers or publish application events. Supabase owns the `realtime` schema; new migrations change only supported message policies there.
 
+Library and Rhino Readers share `LibraryBook.collection` and the existing circulation queries. Library copy stock uses `LibraryBook.loanedCopies`, maintained in the loan transaction by an RLS-respecting trigger. The existing `library` audience and `library`/`staffHome` coverage apply. Checkout, return, and quantity edits notify only after commit; catalogue filters and remaining-copy counts use the same durable counter. No extra subscription, clock, or polling exception is needed.
+
 ## Client lifecycle
 
 Providers subscribe before their catch-up read. Initial subscription, reconnect, and foreground return refresh active snapshots, so offline changes do not depend on replay retention or a global event cursor. Events received during reads schedule another refresh. Pre-event mount reads settle before a fresh read starts.

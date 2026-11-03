@@ -459,6 +459,11 @@ model Student {
   @@index([nameBidx])
 }
 
+enum LibraryBookCollection {
+  General
+  RhinoReaders
+}
+
 model LibraryBook {
   id             String   @id @default(cuid())
   barcode        String   @unique
@@ -470,6 +475,8 @@ model LibraryBook {
   coverMimeType  String
   coverSizeBytes Int
   quantity       Int      @default(1)
+  loanedCopies   Int      @default(0)
+  collection     LibraryBookCollection @default(General)
   active         Boolean  @default(true)
   createdById    String
   updatedById    String

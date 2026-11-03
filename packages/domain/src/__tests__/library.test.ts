@@ -49,6 +49,15 @@ describe('library book quantities', () => {
     ).toBe(1);
   });
 
+  it('keeps existing books in the library and accepts the separate Rhino Readers collection', () => {
+    const draft = { author: 'Author', barcode: '123', cover, title: 'Title' };
+    expect(libraryBookDraftSchema.parse(draft).collection).toBe('General');
+    expect(libraryBookDraftSchema.parse({ ...draft, collection: 'RhinoReaders' }).collection).toBe(
+      'RhinoReaders',
+    );
+    expect(() => libraryBookDraftSchema.parse({ ...draft, collection: 'Unknown' })).toThrow();
+  });
+
   it('rejects zero or fractional copy counts', () => {
     const draft = { author: 'Author', barcode: '123', cover, title: 'Title' };
 

@@ -4,7 +4,14 @@ import { type ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useSession } from '@clerk/nextjs';
 import { BookOpen, Camera, ImageUp, Search } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
-import Image, { type ImageLoaderProps } from 'next/image';
+import { LibraryBookList } from './library-book-list';
+import { LibraryCollectionTabs } from './library-collection-tabs';
+import {
+  LIBRARY_BOOK_COLLECTIONS,
+  LIBRARY_BOOK_COLLECTION_LABELS,
+  type LibraryBookCollection,
+} from '@oasis/domain';
+import { LibraryBookEditor } from './library-book-editor';
 import { LibraryBarcodeScanner } from './library-barcode-scanner';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/trpc';
@@ -24,12 +31,9 @@ function dateAfter(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function libraryCoverLoader({ src }: ImageLoaderProps): string {
-  return src;
-}
-
 export function LibraryWorkflowClient() {
   const { session } = useSession();
+  const [editing, setEditing] = useState(false);
   const [barcode, setBarcode] = useState('');
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
@@ -37,6 +41,7 @@ export function LibraryWorkflowClient() {
   const [cover, setCover] = useState<UploadedCover | null>(null);
   const [studentId, setStudentId] = useState('');
   const [dueOn, setDueOn] = useState(dateAfter(14));
+  const [collection, setCollection] = useState<LibraryBookCollection>('General');
   const [search, setSearch] = useState('');
   const [availability, setAvailability] = useState<Availability>('All');
   const [page, setPage] = useState(1);
@@ -52,7 +57,7 @@ export function LibraryWorkflowClient() {
     [session],
   );
   const utils = api.useUtils();
-  const catalogue = api.library.cataloguePage.useQuery({ availability, page, search });
+  const catalogue = api.library.cataloguePage.useQuery({ availability, page, search, collection });
   const lookup = api.library.lookupBarcode.useQuery(
     { barcode },
     { enabled: /^\d{1,64}$/.test(barcode), retry: false },
@@ -60,7 +65,10 @@ export function LibraryWorkflowClient() {
   const borrowers = api.library.borrowers.useQuery(undefined);
   const createBook = api.library.createBook.useMutation({
     onSuccess: async () => {
-      await utils.library.cataloguePage.invalidate();
+      await Promise.all([
+        utils.library.cataloguePage.invalidate(),
+        utils.library.lookupBarcode.invalidate(),
+      ]);
       setBarcode('');
       setTitle('');
       setAuthor('');
@@ -71,7 +79,11 @@ export function LibraryWorkflowClient() {
   });
   const checkout = api.library.checkout.useMutation({
     onSuccess: async (result) => {
-      await utils.library.cataloguePage.invalidate();
+      await Promise.all([
+        utils.library.cataloguePage.invalidate(),
+        utils.library.lookupBarcode.invalidate(),
+      ]);
+      setStudentId('');
       setMessage(
         result.hasReminderRecipient
           ? 'Book checked out.'
@@ -81,7 +93,10 @@ export function LibraryWorkflowClient() {
   });
   const checkin = api.library.checkin.useMutation({
     onSuccess: async () => {
-      await utils.library.cataloguePage.invalidate();
+      await Promise.all([
+        utils.library.cataloguePage.invalidate(),
+        utils.library.lookupBarcode.invalidate(),
+      ]);
       setMessage('Book checked in.');
     },
   });
@@ -91,6 +106,7 @@ export function LibraryWorkflowClient() {
   );
 
   function selectBarcode(value: string, successMessage?: string) {
+    setEditing(false);
     setBarcode(value.trim());
     setStudentId('');
     setScannerOpen(false);
@@ -160,7 +176,7 @@ export function LibraryWorkflowClient() {
       setMessage('Upload a book cover before adding this book.');
       return;
     }
-    createBook.mutate({ barcode, title, author, cover, quantity });
+    createBook.mutate({ barcode, title, author, cover, quantity, collection });
   }
 
   return (
@@ -214,6 +230,11 @@ export function LibraryWorkflowClient() {
           {message}
         </p>
       ) : null}
+      {createBook.error || checkout.error || checkin.error || lookup.error ? (
+        <p className="status--error" role="alert">
+          {(createBook.error ?? checkout.error ?? checkin.error ?? lookup.error)?.message}
+        </p>
+      ) : null}
       <section className="library-circulation panel">
         <div className="library-circulation__intro">
           <BookOpen aria-hidden="true" size={21} />
@@ -233,38 +254,69 @@ export function LibraryWorkflowClient() {
             value={barcode}
           />
         </label>
-        {selectedBook?.openLoan ? (
+        {selectedBook ? (
           <div className="library-action-card">
             <strong>{selectedBook.title}</strong>
-            <p>Checked out to {selectedBook.openLoan.studentName}.</p>
             <button
-              className="button button--primary button--md"
-              disabled={checkin.isPending}
+              className="button button--secondary button--sm"
               onClick={() => {
-                checkin.mutate({ barcode });
+                setEditing(true);
               }}
               type="button"
             >
-              {checkin.isPending ? 'Checking in…' : 'Check in'}
+              Edit book
             </button>
+            <p>
+              {selectedBook.availableCopies} of {selectedBook.quantity} copies available.
+            </p>
+            {selectedBook.openLoans.map((loan) => (
+              <div className="library-return-action" key={loan.id}>
+                <span>Checked out to {loan.studentName}.</span>
+                <button
+                  className="button button--secondary button--sm"
+                  disabled={checkin.isPending}
+                  onClick={() => {
+                    checkin.mutate({ barcode, loanId: loan.id });
+                  }}
+                  type="button"
+                >
+                  Check in {loan.studentName}’s copy
+                </button>
+              </div>
+            ))}
+            {selectedBook.availableCopies > 0 ? (
+              <BorrowerForm
+                borrowers={borrowers.data ?? []}
+                dueOn={dueOn}
+                onCheckout={() => {
+                  checkout.mutate({ barcode, studentId, dueOn });
+                }}
+                onDueOn={setDueOn}
+                onStudentId={setStudentId}
+                pending={checkout.isPending}
+                studentId={studentId}
+              />
+            ) : (
+              <p>All copies are on loan.</p>
+            )}
           </div>
         ) : null}
-        {selectedBook && !selectedBook.openLoan ? (
-          <div className="library-action-card">
-            <strong>{selectedBook.title}</strong>
-            <p>Available to check out.</p>
-            <BorrowerForm
-              borrowers={borrowers.data ?? []}
-              dueOn={dueOn}
-              onCheckout={() => {
-                checkout.mutate({ barcode, studentId, dueOn });
-              }}
-              onDueOn={setDueOn}
-              onStudentId={setStudentId}
-              pending={checkout.isPending}
-              studentId={studentId}
-            />
-          </div>
+        {editing && selectedBook ? (
+          <LibraryBookEditor
+            book={selectedBook}
+            key={selectedBook.id}
+            onCancel={() => {
+              setEditing(false);
+            }}
+            onSaved={async (savedBarcode) => {
+              selectBarcode(savedBarcode);
+              await Promise.all([
+                utils.library.cataloguePage.invalidate(),
+                utils.library.lookupBarcode.invalidate(),
+              ]);
+              setMessage('Book updated.');
+            }}
+          />
         ) : null}
         {barcode && !selectedBook ? (
           <div className="library-add-book">
@@ -299,6 +351,27 @@ export function LibraryWorkflowClient() {
               />
             </label>
             <label className="field">
+              <span className="field__label">Collection</span>
+              <select
+                value={collection}
+                onChange={(event) => {
+                  const value = LIBRARY_BOOK_COLLECTIONS.find(
+                    (item) => item === event.target.value,
+                  );
+                  if (value) {
+                    setCollection(value);
+                    setPage(1);
+                  }
+                }}
+              >
+                {LIBRARY_BOOK_COLLECTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {LIBRARY_BOOK_COLLECTION_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
               <span className="field__label">Cover image</span>
               <input
                 accept="image/jpeg,image/png,image/webp"
@@ -319,7 +392,19 @@ export function LibraryWorkflowClient() {
           </div>
         ) : null}
       </section>
-      <section className="library-catalogue">
+      <LibraryCollectionTabs
+        value={collection}
+        onChange={(value) => {
+          setCollection(value);
+          setPage(1);
+        }}
+      />
+      <section
+        className="library-catalogue"
+        id="library-catalogue-panel"
+        role="tabpanel"
+        aria-labelledby={`library-collection-${collection}`}
+      >
         <div className="library-catalogue__heading">
           <div>
             <p className="eyebrow">Catalogue</p>
@@ -364,46 +449,19 @@ export function LibraryWorkflowClient() {
         ) : catalogue.error ? (
           <p className="status--error">The catalogue is unavailable.</p>
         ) : catalogue.data?.items.length ? (
-          <div className="library-book-grid">
-            {catalogue.data.items.map((book) => (
-              <button
-                aria-label={`Select ${book.title}`}
-                className="library-book-card"
-                key={book.id}
-                onClick={() => {
-                  selectBarcode(book.barcode);
-                }}
-                type="button"
-              >
-                <Image
-                  alt=""
-                  height={400}
-                  loader={libraryCoverLoader}
-                  src={book.coverUrl}
-                  unoptimized
-                  width={300}
-                />
-                <span className="library-book-card__body">
-                  <strong>{book.title}</strong>
-                  <small>{book.author}</small>
-                  <small>
-                    {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
-                  </small>
-                  <em
-                    className={
-                      book.openLoan
-                        ? 'library-book-card__status library-book-card__status--loan'
-                        : 'library-book-card__status'
-                    }
-                  >
-                    {book.openLoan ? 'On loan' : 'Available'}
-                  </em>
-                </span>
-              </button>
-            ))}
-          </div>
+          <LibraryBookList
+            books={catalogue.data.items}
+            onSelect={(id) => {
+              const book = catalogue.data.items.find((item) => item.id === id);
+              if (book) selectBarcode(book.barcode);
+            }}
+          />
         ) : (
-          <p className="library-empty">No books match this search.</p>
+          <p className="library-empty">
+            {collection === 'RhinoReaders' && !search
+              ? 'No Rhino Readers books yet. Choose this collection when adding or editing a book.'
+              : 'No books match this search.'}
+          </p>
         )}
         <div className="library-pagination">
           <button

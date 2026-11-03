@@ -4,6 +4,8 @@ import {
   canManageLibrary,
   libraryBarcodeSchema,
   libraryBookDraftSchema,
+  libraryBookCollectionSchema,
+  type LibraryBookCollection,
   libraryCheckoutSchema,
   libraryLondonDateKey,
   requireCanManageLibrary,
@@ -22,10 +24,15 @@ import { authedProcedure, router } from '../trpc.js';
 const PAGE_SIZE = 100;
 const CATALOGUE_PAGE_SIZE = 24;
 const bookInput = libraryBookDraftSchema;
-const updateBookInput = bookInput.extend({ id: z.string().cuid() });
+const updateBookInput = bookInput.extend({
+  id: z.string().cuid(),
+  cover: bookInput.shape.cover.optional(),
+  collection: libraryBookCollectionSchema.optional(),
+});
 const cataloguePageInput = z
   .object({
     search: z.string().trim().max(200).optional(),
+    collection: libraryBookCollectionSchema.optional(),
     availability: z.enum(['All', 'Available', 'OnLoan']).default('All'),
     page: z.number().int().min(1).default(1),
   })
@@ -80,6 +87,8 @@ function mapBook(
     author: string;
     coverUrl: string;
     quantity: number;
+    loanedCopies: number;
+    collection: LibraryBookCollection;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -91,7 +100,13 @@ function mapBook(
     }>;
   },
 ) {
-  const loan = book.loans?.[0] ?? null;
+  const openLoans = (book.loans ?? []).map((loan) => ({
+    id: loan.id,
+    dueOn: loan.dueOn,
+    studentId: loan.student.id,
+    studentName: decrypt(ctx, loan.student.fullNameEnc),
+    studentYearGroup: loan.student.yearGroup,
+  }));
   return {
     id: book.id,
     barcode: book.barcode,
@@ -99,27 +114,28 @@ function mapBook(
     author: book.author,
     coverUrl: book.coverUrl,
     quantity: book.quantity,
+    availableCopies: book.quantity - book.loanedCopies,
+    loanedCopies: book.loanedCopies,
+    collection: book.collection,
     active: book.active,
     createdAt: book.createdAt,
     updatedAt: book.updatedAt,
-    openLoan: loan
-      ? {
-          id: loan.id,
-          dueOn: loan.dueOn,
-          studentId: loan.student.id,
-          studentName: decrypt(ctx, loan.student.fullNameEnc),
-          studentYearGroup: loan.student.yearGroup,
-        }
-      : null,
+    openLoans,
+    // Keep the existing field for clients awaiting their next app release.
+    openLoan: openLoans[0] ?? null,
   };
 }
 
-function catalogueWhere(input: z.infer<typeof cataloguePageInput>) {
+function catalogueWhere(
+  input: z.infer<typeof cataloguePageInput>,
+  quantityField: Prisma.FieldRef<'LibraryBook', 'Int'>,
+) {
   const search = input?.search ?? '';
   return {
     active: true,
-    ...(input?.availability === 'Available' ? { loans: { none: { returnedAt: null } } } : {}),
-    ...(input?.availability === 'OnLoan' ? { loans: { some: { returnedAt: null } } } : {}),
+    ...(input?.collection ? { collection: input.collection } : {}),
+    ...(input?.availability === 'Available' ? { loanedCopies: { lt: quantityField } } : {}),
+    ...(input?.availability === 'OnLoan' ? { loanedCopies: { gt: 0 } } : {}),
     ...(search
       ? {
           OR: [
@@ -139,7 +155,8 @@ function mapPublicBook(book: {
   author: string;
   coverUrl: string;
   quantity: number;
-  loans: Array<{ id: string }>;
+  loanedCopies: number;
+  collection: LibraryBookCollection;
 }) {
   return {
     id: book.id,
@@ -148,7 +165,10 @@ function mapPublicBook(book: {
     author: book.author,
     coverUrl: book.coverUrl,
     quantity: book.quantity,
-    availability: book.loans.length > 0 ? 'On loan' : 'Available',
+    availableCopies: book.quantity - book.loanedCopies,
+    loanedCopies: book.loanedCopies,
+    collection: book.collection,
+    availability: book.loanedCopies < book.quantity ? 'Available' : 'On loan',
   };
 }
 
@@ -176,6 +196,7 @@ export const libraryRouter = router({
         .object({
           search: z.string().trim().max(200).optional(),
           includeRetired: z.boolean().default(false),
+          collection: libraryBookCollectionSchema.optional(),
         })
         .optional(),
     )
@@ -185,6 +206,7 @@ export const libraryRouter = router({
         tx.libraryBook.findMany({
           where: {
             ...(input?.includeRetired ? {} : { active: true }),
+            ...(input?.collection ? { collection: input.collection } : {}),
             ...(search
               ? {
                   OR: [
@@ -199,7 +221,6 @@ export const libraryRouter = router({
             loans: {
               where: { returnedAt: null },
               include: { student: { select: { id: true, fullNameEnc: true, yearGroup: true } } },
-              take: 1,
             },
           },
           orderBy: [{ title: 'asc' }, { id: 'asc' }],
@@ -215,12 +236,11 @@ export const libraryRouter = router({
       const page = input?.page ?? 1;
       const books = await ctx.withRls((tx) =>
         tx.libraryBook.findMany({
-          where: catalogueWhere(input),
+          where: catalogueWhere(input, tx.libraryBook.fields.quantity),
           include: {
             loans: {
               where: { returnedAt: null },
               include: { student: { select: { id: true, fullNameEnc: true, yearGroup: true } } },
-              take: 1,
             },
           },
           orderBy: [{ title: 'asc' }, { id: 'asc' }],
@@ -250,7 +270,7 @@ export const libraryRouter = router({
     const page = input?.page ?? 1;
     const books = await ctx.withRls((tx) =>
       tx.libraryBook.findMany({
-        where: catalogueWhere(input),
+        where: catalogueWhere(input, tx.libraryBook.fields.quantity),
         select: {
           id: true,
           barcode: true,
@@ -258,7 +278,8 @@ export const libraryRouter = router({
           author: true,
           coverUrl: true,
           quantity: true,
-          loans: { where: { returnedAt: null }, select: { id: true }, take: 1 },
+          loanedCopies: true,
+          collection: true,
         },
         orderBy: [{ title: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * CATALOGUE_PAGE_SIZE,
@@ -282,7 +303,6 @@ export const libraryRouter = router({
             loans: {
               where: { returnedAt: null },
               include: { student: { select: { id: true, fullNameEnc: true, yearGroup: true } } },
-              take: 1,
             },
           },
         }),
@@ -398,6 +418,7 @@ export const libraryRouter = router({
               coverMimeType: cover.mimeType,
               coverSizeBytes: cover.sizeBytes,
               quantity: input.quantity,
+              collection: input.collection,
               createdById: ctx.user.id,
               updatedById: ctx.user.id,
             },
@@ -426,43 +447,62 @@ export const libraryRouter = router({
   updateBook: librarianProcedure()
     .input(updateBookInput)
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.withRls((tx) =>
-        tx.libraryBook.findUnique({
-          where: { id: input.id },
-          include: { loans: { where: { returnedAt: null }, select: { id: true } } },
-        }),
-      );
-      if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Library book not found' });
-      if (existing.loans.length > 0 && existing.barcode !== input.barcode)
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Return this book before changing its barcode',
-        });
       const cover = input.cover;
-      if (
-        cover.storageBucket !== libraryCoverBucket() ||
-        !cover.storagePath.startsWith(`library-books/${ctx.user.id}/`)
-      )
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid library cover upload' });
-      if (cover.storagePath !== existing.coverPath) await assertUploadedLibraryCover(cover);
+      if (cover) {
+        if (
+          cover.storageBucket !== libraryCoverBucket() ||
+          !cover.storagePath.startsWith(`library-books/${ctx.user.id}/`)
+        )
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid library cover upload' });
+        await assertUploadedLibraryCover(cover);
+      }
       try {
-        const book = await ctx.withRls((tx) =>
-          tx.libraryBook.update({
+        const result = await ctx.withRls(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "LibraryBook" WHERE id = ${input.id} FOR UPDATE`;
+          const existing = await tx.libraryBook.findUnique({
+            where: { id: input.id },
+          });
+          if (!existing)
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'Library book not found' });
+          if (input.quantity < existing.loanedCopies)
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Quantity cannot be less than the copies on loan',
+            });
+          if (existing.loanedCopies > 0 && existing.barcode !== input.barcode)
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Return this book before changing its barcode',
+            });
+          const previousCover =
+            cover &&
+            (cover.storagePath !== existing.coverPath ||
+              cover.storageBucket !== existing.coverBucket)
+              ? { storageBucket: existing.coverBucket, storagePath: existing.coverPath }
+              : null;
+          const book = await tx.libraryBook.update({
             where: { id: input.id },
             data: {
               barcode: input.barcode,
               title: input.title,
               author: input.author,
-              coverUrl: libraryCoverPublicUrl(cover),
-              coverBucket: cover.storageBucket,
-              coverPath: cover.storagePath,
-              coverMimeType: cover.mimeType,
-              coverSizeBytes: cover.sizeBytes,
+              ...(cover
+                ? {
+                    coverUrl: libraryCoverPublicUrl(cover),
+                    coverBucket: cover.storageBucket,
+                    coverPath: cover.storagePath,
+                    coverMimeType: cover.mimeType,
+                    coverSizeBytes: cover.sizeBytes,
+                  }
+                : {}),
               quantity: input.quantity,
+              ...(input.collection ? { collection: input.collection } : {}),
               updatedById: ctx.user.id,
             },
-          }),
-        );
+          });
+          return { book, previousCover };
+        });
+        const { book, previousCover } = result;
         await ctx.db.auditLog.create({
           data: {
             userId: ctx.user.id,
@@ -472,14 +512,7 @@ export const libraryRouter = router({
             meta: { source: 'library.updateBook' },
           },
         });
-        if (
-          cover.storagePath !== existing.coverPath ||
-          cover.storageBucket !== existing.coverBucket
-        )
-          void deleteLibraryCover({
-            storageBucket: existing.coverBucket,
-            storagePath: existing.coverPath,
-          });
+        if (previousCover) void deleteLibraryCover(previousCover);
         return book;
       } catch (error) {
         if (isConflict(error))
@@ -530,10 +563,10 @@ export const libraryRouter = router({
       const dueOn = dateAtUtcMidnight(input.dueOn);
       assertDueOn(dueOn);
       const result = await ctx.withRls(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "LibraryBook" WHERE barcode = ${input.barcode} FOR UPDATE`;
         const [book, student] = await Promise.all([
           tx.libraryBook.findUnique({
             where: { barcode: input.barcode },
-            include: { loans: { where: { returnedAt: null }, select: { id: true } } },
           }),
           tx.student.findUnique({
             where: { id: input.studentId },
@@ -550,8 +583,11 @@ export const libraryRouter = router({
         if (!book) throw new TRPCError({ code: 'NOT_FOUND', message: 'Library book not found' });
         if (!book.active)
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'This book is retired' });
-        if (book.loans.length)
-          throw new TRPCError({ code: 'CONFLICT', message: 'This book is already checked out' });
+        if (book.loanedCopies >= book.quantity)
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'No copies are available to check out',
+          });
         if (!student?.active)
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose an active student' });
         const loan = await tx.libraryLoan.create({
@@ -577,21 +613,39 @@ export const libraryRouter = router({
     }),
 
   checkin: librarianProcedure()
-    .input(z.object({ barcode: libraryBarcodeSchema }))
+    .input(z.object({ barcode: libraryBarcodeSchema, loanId: z.string().cuid().optional() }))
     .mutation(async ({ ctx, input }) => {
       const loan = await ctx.withRls(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "LibraryBook" WHERE barcode = ${input.barcode} FOR UPDATE`;
         const book = await tx.libraryBook.findUnique({
           where: { barcode: input.barcode },
-          include: { loans: { where: { returnedAt: null }, select: { id: true } } },
         });
         if (!book) throw new TRPCError({ code: 'NOT_FOUND', message: 'Library book not found' });
-        const openLoan = book.loans[0];
-        if (!openLoan)
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'This book is already available' });
-        return tx.libraryLoan.update({
-          where: { id: openLoan.id },
-          data: { returnedAt: new Date(), returnedById: ctx.user.id },
+        if (!input.loanId && book.loanedCopies > 1)
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Choose the student returning this book',
+          });
+        const openLoan = await tx.libraryLoan.findFirst({
+          where: {
+            bookId: book.id,
+            returnedAt: null,
+            ...(input.loanId ? { id: input.loanId } : {}),
+          },
         });
+        if (!openLoan)
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'This loan has already been returned or is unavailable',
+          });
+        const returnedAt = new Date();
+        const updated = await tx.libraryLoan.updateMany({
+          where: { id: openLoan.id, bookId: book.id, returnedAt: null },
+          data: { returnedAt, returnedById: ctx.user.id },
+        });
+        if (updated.count !== 1)
+          throw new TRPCError({ code: 'CONFLICT', message: 'This loan has already been returned' });
+        return { ...openLoan, returnedAt, returnedById: ctx.user.id };
       });
       await ctx.db.auditLog.create({
         data: {
