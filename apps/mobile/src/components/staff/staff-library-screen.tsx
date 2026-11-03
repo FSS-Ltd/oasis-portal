@@ -1,14 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '../../lib/trpc';
+import { LibraryBookList } from '../library/library-book-list';
+import { LibraryCollectionTabs } from '../library/library-collection-tabs';
+import type { LibraryBookCollection } from '@oasis/domain';
+import { LibraryBookEditor } from '../library/library-book-editor';
 import { C } from '../core/mobile-theme';
 import { ErrorText, MobileButton, MutedText, SectionTitle } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 
 export function StaffLibraryScreen({ onBack }: { onBack: () => void }) {
   const [permission, requestPermission] = useCameraPermissions();
+  const [editing, setEditing] = useState(false);
   const [barcode, setBarcode] = useState('');
+  const [collection, setCollection] = useState<LibraryBookCollection>('General');
   const [search, setSearch] = useState('');
   const [scanning, setScanning] = useState(false);
   const [cameraMessage, setCameraMessage] = useState<string | null>(null);
@@ -19,31 +25,32 @@ export function StaffLibraryScreen({ onBack }: { onBack: () => void }) {
     d.setDate(d.getDate() + 14);
     return d.toISOString().slice(0, 10);
   });
-  const catalogue = api.library.catalogue.useQuery({ search });
+  const catalogue = api.library.catalogue.useQuery({ search, collection });
   const lookup = api.library.lookupBarcode.useQuery(
     { barcode },
     { enabled: /^\d{1,64}$/.test(barcode), retry: false },
   );
   const borrowers = api.library.borrowers.useQuery(undefined, { retry: false });
-  const checkout = api.library.checkout.useMutation();
-  const checkin = api.library.checkin.useMutation();
+  const utils = api.useUtils();
+  async function refreshCirculation() {
+    await Promise.all([
+      utils.library.catalogue.invalidate(),
+      utils.library.lookupBarcode.invalidate(),
+    ]);
+  }
+  const checkout = api.library.checkout.useMutation({ onSuccess: refreshCirculation });
+  const checkin = api.library.checkin.useMutation({ onSuccess: refreshCirculation });
   const book = lookup.data;
-  const available = useMemo(
-    () => (catalogue.data ?? []).filter((item) => !item.openLoan),
-    [catalogue.data],
-  );
-  const onLoan = useMemo(
-    () => (catalogue.data ?? []).filter((item) => item.openLoan),
-    [catalogue.data],
-  );
 
   function selectBarcode(value: string) {
+    setEditing(false);
     setLocked(true);
     setBarcode(value.trim());
     setScanning(false);
     setStudentId('');
   }
   function reset() {
+    setEditing(false);
     setLocked(false);
     setBarcode('');
     setStudentId('');
@@ -131,19 +138,48 @@ export function StaffLibraryScreen({ onBack }: { onBack: () => void }) {
           ) : null}
         </View>
         {lookup.error ? <ErrorText>{lookup.error.message}</ErrorText> : null}
-        {book?.openLoan ? (
+        {book ? (
           <View style={styles.actionCard}>
             <SectionTitle>{book.title}</SectionTitle>
-            <MutedText>Checked out to {book.openLoan.studentName}.</MutedText>
             <MobileButton
-              disabled={checkin.isPending}
-              label={checkin.isPending ? 'Checking in…' : 'Check in'}
-              onPress={() => void checkin.mutateAsync({ barcode }).then(reset)}
-              variant="primary"
+              label="Edit book"
+              onPress={() => {
+                setEditing(true);
+              }}
+              variant="secondary"
             />
+            <MutedText>
+              {book.availableCopies} of {book.quantity} copies available.
+            </MutedText>
+            {book.openLoans.map((loan) => (
+              <View key={loan.id} style={styles.actionCard}>
+                <MutedText>Checked out to {loan.studentName}.</MutedText>
+                <MobileButton
+                  disabled={checkin.isPending}
+                  label={`Check in ${loan.studentName}’s copy`}
+                  onPress={() => {
+                    checkin.mutate({ barcode, loanId: loan.id });
+                  }}
+                  variant="secondary"
+                />
+              </View>
+            ))}
           </View>
         ) : null}
-        {book && !book.openLoan ? (
+        {editing && book ? (
+          <LibraryBookEditor
+            book={book}
+            key={book.id}
+            onCancel={() => {
+              setEditing(false);
+            }}
+            onSaved={async (savedBarcode) => {
+              selectBarcode(savedBarcode);
+              await refreshCirculation();
+            }}
+          />
+        ) : null}
+        {book && book.availableCopies > 0 ? (
           <View style={styles.actionCard}>
             <SectionTitle>{book.title}</SectionTitle>
             <MutedText>Available to check out.</MutedText>
@@ -170,7 +206,9 @@ export function StaffLibraryScreen({ onBack }: { onBack: () => void }) {
             <MobileButton
               disabled={!studentId || checkout.isPending}
               label={checkout.isPending ? 'Checking out…' : 'Check out'}
-              onPress={() => void checkout.mutateAsync({ barcode, studentId, dueOn }).then(reset)}
+              onPress={() => {
+                checkout.mutate({ barcode, studentId, dueOn }, { onSuccess: reset });
+              }}
               variant="primary"
             />
           </View>
@@ -184,6 +222,7 @@ export function StaffLibraryScreen({ onBack }: { onBack: () => void }) {
             </MutedText>
           </View>
         ) : null}
+        <LibraryCollectionTabs value={collection} onChange={setCollection} />
         <View style={styles.catalogueHeader}>
           <SectionTitle>Catalogue</SectionTitle>
           <TextInput
@@ -195,89 +234,28 @@ export function StaffLibraryScreen({ onBack }: { onBack: () => void }) {
             value={search}
           />
         </View>
-        {catalogue.error ? (
+        {checkout.error ? <ErrorText>{checkout.error.message}</ErrorText> : null}
+        {checkin.error ? <ErrorText>{checkin.error.message}</ErrorText> : null}
+        {catalogue.isLoading ? (
+          <MutedText>Loading catalogue…</MutedText>
+        ) : catalogue.error ? (
           <ErrorText>The catalogue is unavailable.</ErrorText>
+        ) : catalogue.data?.length ? (
+          <LibraryBookList
+            books={catalogue.data}
+            onSelect={(id) => {
+              const selected = catalogue.data.find((item) => item.id === id);
+              if (selected) selectBarcode(selected.barcode);
+            }}
+          />
         ) : (
-          <>
-            <BookRow
-              books={available}
-              empty="No available books match this search."
-              onPress={(value) => {
-                selectBarcode(value);
-              }}
-              title="Available now"
-            />
-            <BookRow
-              books={onLoan}
-              empty="No books on loan match this search."
-              onPress={(value) => {
-                selectBarcode(value);
-              }}
-              title="On loan"
-            />
-          </>
+          <MutedText>
+            {collection === 'RhinoReaders' && !search
+              ? 'No Rhino Readers books yet. Assign books to this collection when editing.'
+              : 'No books match this search.'}
+          </MutedText>
         )}
       </ScrollView>
-    </View>
-  );
-}
-
-function BookRow({
-  books,
-  empty,
-  onPress,
-  title,
-}: {
-  books: Array<{
-    id: string;
-    barcode: string;
-    title: string;
-    author: string;
-    coverUrl: string;
-    quantity: number;
-    openLoan: unknown;
-  }>;
-  empty: string;
-  onPress: (barcode: string) => void;
-  title: string;
-}) {
-  return (
-    <View style={styles.catalogueSection}>
-      <SectionTitle>{title}</SectionTitle>
-      {books.length === 0 ? (
-        <MutedText>{empty}</MutedText>
-      ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.bookRow}
-        >
-          {books.map((book) => (
-            <Pressable
-              accessibilityLabel={`Select ${book.title}`}
-              key={book.id}
-              onPress={() => {
-                onPress(book.barcode);
-              }}
-              style={styles.book}
-            >
-              <Image source={{ uri: book.coverUrl }} style={styles.bookCover} />
-              <Text numberOfLines={1} style={styles.bookTitle}>
-                {book.title}
-              </Text>
-              <Text numberOfLines={1} style={styles.bookAuthor}>
-                {book.author}
-              </Text>
-              <Text style={styles.bookAuthor}>
-                {book.quantity} {book.quantity === 1 ? 'copy' : 'copies'}
-              </Text>
-              <Text style={book.openLoan ? styles.onLoan : styles.available}>
-                {book.openLoan ? 'On loan' : 'Available'}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
     </View>
   );
 }
@@ -352,26 +330,4 @@ const styles = StyleSheet.create({
     minHeight: 42,
     paddingHorizontal: 12,
   },
-  catalogueSection: { gap: 10 },
-  bookRow: { gap: 12 },
-  book: {
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    overflow: 'hidden',
-    paddingBottom: 9,
-    width: 132,
-  },
-  bookCover: { backgroundColor: C.blueLight, height: 172, width: 130 },
-  bookTitle: { color: C.navy, fontSize: 13, fontWeight: '800', marginHorizontal: 9, marginTop: 8 },
-  bookAuthor: { color: C.textSecondary, fontSize: 11, marginHorizontal: 9, marginTop: 3 },
-  available: {
-    color: C.success,
-    fontSize: 11,
-    fontWeight: '800',
-    marginHorizontal: 9,
-    marginTop: 6,
-  },
-  onLoan: { color: C.warning, fontSize: 11, fontWeight: '800', marginHorizontal: 9, marginTop: 6 },
 });

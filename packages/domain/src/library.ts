@@ -29,7 +29,16 @@ export const libraryBarcodeSchema = z
   .trim()
   .regex(/^\d{1,64}$/u, 'Barcode must contain digits only');
 
+export const LIBRARY_BOOK_COLLECTIONS = ['General', 'RhinoReaders'] as const;
+export const libraryBookCollectionSchema = z.enum(LIBRARY_BOOK_COLLECTIONS);
+export type LibraryBookCollection = z.infer<typeof libraryBookCollectionSchema>;
+export const LIBRARY_BOOK_COLLECTION_LABELS: Record<LibraryBookCollection, string> = {
+  General: 'Library',
+  RhinoReaders: 'Rhino Readers',
+};
+
 export const libraryBookDraftSchema = z.object({
+  collection: libraryBookCollectionSchema.default('General'),
   author: z.string().trim().min(1, 'Enter the author').max(200),
   barcode: libraryBarcodeSchema,
   cover: z.object({

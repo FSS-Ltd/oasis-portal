@@ -172,6 +172,7 @@ export const REALTIME_MODEL_COVERAGE = {
     ],
     audience: 'student',
   },
+  // Includes collection and loanedCopies: transactionally maintained stock, visible without exposing borrower records.
   LibraryBook: { areas: ['library', 'staffHome'], audience: 'library' },
   LibraryLoan: { areas: ['library', 'staffHome'], audience: 'library' },
   PushDeviceToken: {
