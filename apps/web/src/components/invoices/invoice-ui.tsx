@@ -1,3 +1,4 @@
+import { displaySchoolYearLabels } from '@oasis/domain';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Download, MessageSquare, ReceiptText } from 'lucide-react';
@@ -206,8 +207,12 @@ export function InvoicePrimaryMeta({ invoice }: { invoice: InvoiceDto }) {
         <dd>{invoice.studentName ?? 'Not assigned'}</dd>
       </div>
       <div>
-        <dt>Year group</dt>
-        <dd>{invoice.studentYearGroup ?? 'Not set'}</dd>
+        <dt>Level</dt>
+        <dd>
+          {invoice.studentYearGroup
+            ? displaySchoolYearLabels(invoice.studentYearGroup.split(','))
+            : 'Not set'}
+        </dd>
       </div>
       <div>
         <dt>Billing</dt>

@@ -38,6 +38,7 @@ function renderEditor() {
   let invalidate = async () => {};
   const stub = (tag) => (props) => React.createElement(tag, props, props.children);
   const imports = {
+    '@oasis/domain': { displaySchoolYearLabel: String },
     'lucide-react': { Save: stub('svg'), Trash2: stub('svg'), SlidersHorizontal: stub('svg') },
     '@/components/ui/button': { Button: stub('button') },
     '@/components/ui/field': { Field: stub('label'), TextInput: stub('input') },

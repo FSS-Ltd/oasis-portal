@@ -8,7 +8,11 @@ import {
   type PDFImage,
   type PDFPage,
 } from 'pdf-lib';
-import { SCHOOL_FEE_DISCOUNT_EXPLANATION, type SchoolFeeBillingCadence } from '@oasis/domain';
+import {
+  displaySchoolYearLabel,
+  SCHOOL_FEE_DISCOUNT_EXPLANATION,
+  type SchoolFeeBillingCadence,
+} from '@oasis/domain';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -235,10 +239,12 @@ function drawBillTo(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvo
     NAVY,
     220,
   );
-  drawText(page, 'Year group', rightX, y - 42, 8, fonts.bold, MUTED);
+  drawText(page, 'Level', rightX, y - 42, 8, fonts.bold, MUTED);
   drawText(
     page,
-    uniqueValues(input.students.map((student) => student.yearGroup)).join(', ') || 'Not set',
+    uniqueValues(input.students.map((student) => displaySchoolYearLabel(student.yearGroup))).join(
+      ', ',
+    ) || 'Not set',
     rightX,
     y - 60,
     10,
@@ -668,7 +674,7 @@ function invoiceSearchText(input: GenerateSchoolFeeInvoicePdfInput): string {
     `Due date ${formatDate(input.dueOn)}`,
     `Bill to ${input.billTo}`,
     `Student(s) ${input.students.map((student) => student.name).join(', ')}`,
-    `Year group ${uniqueValues(input.students.map((student) => student.yearGroup)).join(', ')}`,
+    `Level ${uniqueValues(input.students.map((student) => displaySchoolYearLabel(student.yearGroup))).join(', ')}`,
     input.billingLabel,
     invoiceBillingDetail(input) || null,
     `Subtotal ${formatMoney(input.subtotalAmountPence)}`,

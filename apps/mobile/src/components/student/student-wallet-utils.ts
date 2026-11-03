@@ -115,7 +115,7 @@ export function summarizeWalletActivity(
 export function nextLearningSignal(dashboard: StudentDashboard): { detail: string; title: string } {
   if (!dashboard.profile.academicScreensEnabled) {
     return {
-      detail: 'Academic screens will open when this year group is ready.',
+      detail: 'Academic screens will open when this level is ready.',
       title: 'Learning dashboard warming up',
     };
   }

@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
@@ -71,7 +72,7 @@ export function StaffShopCounterPurchase({
             >
               <View style={styles.optionBody}>
                 <Text style={styles.optionTitle}>{purchaser.fullName}</Text>
-                <MutedText>{purchaser.yearGroup}</MutedText>
+                <MutedText>{displaySchoolYearLabel(purchaser.yearGroup)}</MutedText>
               </View>
               <Badge variant="neutral">{formatMerits(purchaser.spendBalance)}</Badge>
             </Pressable>

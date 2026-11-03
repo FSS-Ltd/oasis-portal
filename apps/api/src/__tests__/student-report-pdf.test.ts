@@ -177,7 +177,7 @@ function fullReport(): CompiledReport {
         currentPace: 1025,
         pacesCompletedThisTerm: 8,
         averageTestScore: 91,
-        status: paceProgressStatusForYear(1025, 'Year 3'),
+        status: paceProgressStatusForYear(1025, 'Year 4'),
       },
     ],
     behaviour: {

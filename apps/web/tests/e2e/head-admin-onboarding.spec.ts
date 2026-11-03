@@ -3,6 +3,16 @@ import { signIn } from './helpers/auth';
 
 const headEmail = process.env.E2E_HEAD_EMAIL;
 const headPassword = process.env.E2E_HEAD_PASSWORD;
+const schoolDate = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London',
+  year: 'numeric',
+  month: 'numeric',
+}).formatToParts(new Date());
+const schoolYear = Number(schoolDate.find((part) => part.type === 'year')?.value);
+const schoolMonth = Number(schoolDate.find((part) => part.type === 'month')?.value);
+const schoolYearStart = schoolYear - (schoolMonth < 9 ? 1 : 0);
+const level8Dob = `${String(schoolYearStart - 13)}-04-10`;
+const level9Dob = `${String(schoolYearStart - 14)}-04-10`;
 
 test.describe('Head admin onboarding', () => {
   test.skip(!headEmail || !headPassword, 'Set E2E_HEAD_EMAIL and E2E_HEAD_PASSWORD to run');
@@ -18,9 +28,10 @@ test.describe('Head admin onboarding', () => {
 
     await page.goto('/admin/students/new');
     await page.getByLabel('Full name').fill(studentName);
-    await page.getByLabel('Date of birth').fill('2013-04-10');
-    await expect(page.getByLabel('Year group')).toHaveValue('Year 8');
-    await page.getByLabel('Enrolment date').fill('2026-04-27');
+    await page.getByLabel('Email', { exact: true }).fill(`student.${unique}@example.com`);
+    await page.getByLabel('Date of birth').fill(level8Dob);
+    await expect(page.getByLabel('Level', { exact: true })).toHaveValue('Level 8');
+    await page.getByLabel('Oasis start date').fill('2026-04-27');
     await page.getByRole('button', { name: /create student/i }).click();
     await expect(page.getByRole('heading', { name: studentName })).toBeVisible();
 
@@ -61,7 +72,7 @@ test.describe('Head admin onboarding', () => {
     await page.getByLabel('Band name').fill(bandName);
     await page.getByLabel('Band colour').fill('#166534');
     await page.getByLabel('Sort order').fill('99');
-    await page.getByRole('checkbox', { name: 'Year 8' }).check();
+    await page.getByRole('checkbox', { name: 'Level 8' }).check();
     await page.getByRole('button', { name: /create band/i }).click();
     const bandRow = page.locator('.academic-row').filter({ hasText: bandName });
     await expect(bandRow).toContainText('#166534');
@@ -100,13 +111,24 @@ test.describe('Head admin onboarding', () => {
 
     await page.goto('/admin/students/new');
     await page.getByLabel('Full name').fill(studentName);
-    await page.getByLabel('Date of birth').fill('2013-04-10');
-    await expect(page.getByLabel('Year group')).toHaveValue('Year 8');
-    await page.getByLabel('Year group').selectOption('Year 9');
-    await expect(page.getByLabel('Year group')).toHaveValue('Year 9');
-    await page.getByLabel('Enrolment date').fill('2026-04-27');
+    await page.getByLabel('Email', { exact: true }).fill(`student.${unique}@example.com`);
+    await page.getByLabel('Date of birth').fill(level8Dob);
+    await expect(page.getByLabel('Level', { exact: true })).toHaveValue('Level 8');
+    await expect(page.getByLabel('Level', { exact: true })).toHaveJSProperty('readOnly', true);
+    await page.getByLabel('Level mode').selectOption('manual');
+    await page.getByLabel('Level', { exact: true }).selectOption('Year 3');
+    await page.getByLabel('Date of birth').fill(level9Dob);
+    await expect(page.getByLabel('Level', { exact: true })).toHaveValue('Year 3');
+    await page.getByLabel('Level mode').selectOption('automatic');
+    await expect(page.getByLabel('Level', { exact: true })).toHaveValue('Level 9');
+    await page.getByLabel('Level mode').selectOption('manual');
+    await page.getByLabel('Level', { exact: true }).selectOption('Year 3');
+    await page.getByLabel('Oasis start date').fill('2026-04-27');
     await page.getByRole('button', { name: /create student/i }).click();
     await expect(page.getByRole('heading', { name: studentName })).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Level mode')).toHaveValue('manual');
+    await expect(page.getByLabel('Level', { exact: true })).toHaveValue('Year 3');
 
     await page
       .getByLabel('Assign subject')

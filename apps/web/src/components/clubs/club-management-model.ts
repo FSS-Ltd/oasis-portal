@@ -112,7 +112,7 @@ export function buildClubPayload(form: ClubFormState): ClubFormPayload | string 
     return 'Capacity must be a positive whole number.';
   }
   if (!form.scheduleDate) return 'First club date is required.';
-  if (form.yearGroupBandIds.length === 0) return 'Select at least one year group.';
+  if (form.yearGroupBandIds.length === 0) return 'Select at least one level.';
 
   const startMinute = fromTimeValue(form.scheduleStartTime);
   const endMinute = fromTimeValue(form.scheduleEndTime);

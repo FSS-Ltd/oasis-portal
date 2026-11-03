@@ -799,7 +799,7 @@ function ReservationCard({
             {reservation.status}
           </Badge>
         </div>
-        <span>{reservation.studentYearGroup}</span>
+        <span>{displaySchoolYearLabel(reservation.studentYearGroup)}</span>
         <p>
           {reservation.lines
             .map((line) => `${String(line.unitsReserved)} × ${line.itemName}`)

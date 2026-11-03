@@ -90,3 +90,75 @@ This verifies commit/rollback, batching, no-op suppression, actual SELECT polici
 The web `realtime-updates` Playwright scenario requires explicit `E2E_REALTIME=1`, a local `E2E_BASE_URL`, dedicated `E2E_REALTIME_TEST_DATABASE_URL` equal to that app's `DATABASE_URL`, and Head test credentials. It exercises two browser contexts, remote changes, reconnect, draft preservation, and idle request counts. The PWA `realtime-subscription` scenario requires `OASIS_REALTIME_TEST_STORAGE_STATE`, a saved dedicated-test Clerk session. Native device verification additionally requires a configured simulator/device and test login. Skipped credentialed scenarios are not evidence of live delivery.
 
 After startup and settled events, idle clients must issue zero recurring application-data reads. Count legitimate usage writes, authentication renewal, and transport heartbeats separately. Release verification must include hosted Supabase WebSocket delivery, permission removal while connected, reconnect catch-up, both clients, and cleanup.
+
+## DOB-based school levels
+
+`Student.yearGroup` is the stored effective authority for filters, reports and level
+labels. A null `Student.yearGroupOverride` follows the DOB cohort; an explicit canonical
+school-year override supplies the effective value and survives DOB corrections and
+annual progression. Resetting the override to null immediately restores the current
+DOB cohort in the same mutation. Existing age-band assignments remain separate
+staff-managed groups. The automatic academic cohort uses age on 31 August and advances
+at London midnight on 1 September. Display labels preserve Reception, show Year 1 as
+ABC, and show Years 2–13 as Levels 1–12; storage and override values remain canonical
+school years.
+
+The authenticated first request for each database client/academic year awaits
+`ensureSchoolYearsCurrent` before returning its context. This includes live and review
+tenants separately. Concurrent requests share one promise. Subsequent requests perform
+no cohort-related database reads until the next academic year. A rejected run is not
+cached; only compare-and-set conflicts retry, at most three attempts per operation.
+
+The authenticated `school-year-progression` cron is due once annually at 23:00 UTC on
+31 August (London 1 September). It uses the existing `CRON_SECRET` and hosting cron
+facility; no external event service is added. An internal fixed-purpose transaction
+locks the selected tenant, checks its versioned `SchoolYearReconciliation` AuditLog
+marker, then selects automatic placements, decrypts their DOBs and updates only changed
+cohorts, including inactive students. Manual placements are excluded from the scan and
+decryption. The existing AuditLog
+index supports the marker lookup. Startup reconciliation also recovers missed annual
+runs and performs the initial alignment when this feature is deployed.
+
+The marker and updates commit atomically. The override-aware marker version is `v2`;
+historical `v1` markers do not suppress the upgraded initial alignment. A same/newer
+`v2` academic-year marker skips the scan, so duplicate or delayed jobs cannot regress
+cohorts. DOB/year compare-and-set guards also require a null override, preventing
+overwrites when a concurrent request chooses a manual placement. A conflict rolls back
+the updates and marker before the bounded retry. Crypto failures roll back everything; audit
+metadata contains counts, never DOBs or names. Valid dates outside the supported
+Nursery–Level 12 cohort range display `Outside school age`; unavailable/invalid DOBs
+display `DOB required`. These values cannot enter either scoped score-key report.
+
+Committed Student events retain their existing authenticated audiences and permission
+checks. The existing London-midnight/foreground clock refreshes snapshots and automatic
+level forms without replacing manual selections or drafts. Clock coverage includes profile, admin, community
+and compliance level displays, so an open page also catches up if the annual job
+was missed. There is no periodic reconciliation fallback, new
+interval query, or new recurring request budget. An idle process performs no cohort
+queries. Each new process issues two SQL statements on a completed tenant/year
+(one transaction lock and one indexed marker lookup); only an uncompleted year
+scans automatic placements. A migration adds the nullable canonical
+`Student.yearGroupOverride` field, with null as the automatic default. It adds no new
+table, subscription or polling mechanism; existing Student change coverage includes
+override selection, reset and effective-cohort updates.
+
+If an automatic-placement DOB ciphertext is corrupt, cohort-dependent reads fail closed instead of
+showing stale primary/secondary classifications. Exact tRPC health, audit and DOB
+repair paths remain available; every call in a batch must be in the explicit
+allowlist. Session-only shell, sign-in and registration-prompt lookups also skip cohort synchronization.
+These paths keep their existing auth, 2FA, RBAC and tenant checks. An administrator
+can replace a corrupt DOB without decrypting the old value, including a valid
+historical DOB outside school age. The next ordinary request retries catch-up.
+New registrations still require a DOB in the supported school-age range.
+
+The persisted override policy supersedes the earlier DOB-only implementation notes.
+Historical build plans describe prior behavior; the nullable override field is the
+current source of placement intent.
+
+The PostgreSQL cohort integration test requires a dedicated local test database
+with schema-creation permission. It creates and drops its own temporary schema;
+never point it at the ordinary app database or a production connection.
+
+```sh
+OASIS_SCHOOL_YEAR_TEST_DATABASE_URL='<dedicated local test URL>' pnpm --filter @oasis/api exec vitest run src/__tests__/school-year-reconciliation.integration.test.ts
+```

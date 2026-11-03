@@ -1,5 +1,6 @@
 'use client';
 
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { type ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useSession } from '@clerk/nextjs';
 import { BookOpen, Camera, ImageUp, Search } from 'lucide-react';
@@ -521,7 +522,7 @@ function BorrowerForm({
           <option value="">Choose a student</option>
           {borrowers.map((student) => (
             <option key={student.id} value={student.id}>
-              {student.name} · {student.yearGroup}
+              {student.name} · {displaySchoolYearLabel(student.yearGroup)}
               {student.hasReminderRecipient ? '' : ' · no guardian email'}
             </option>
           ))}

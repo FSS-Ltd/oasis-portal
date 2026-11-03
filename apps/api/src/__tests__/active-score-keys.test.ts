@@ -62,25 +62,51 @@ describe('loadActiveScoreKeyReport', () => {
   });
 
   it.each([
-    ['abc-primary', { in: ['ABC', 'Primary'] }],
-    ['secondary', 'Secondary'],
-  ] as const)('filters assignments to the %s student group', async (scope, level) => {
-    const groupBy = vi.fn().mockResolvedValue([]);
+    ['abc-primary', [1020, 1021, 1022, 1023]],
+    ['secondary', [1080, 1081]],
+  ] as const)('uses school year rather than signup level for %s', async (scope, paces) => {
+    const students = [
+      { yearGroup: 'Year 5', signupLevel: 'Primary', pace: 1020 },
+      { yearGroup: 'Y6', signupLevel: null, pace: 1021 },
+      { yearGroup: 'ABC', signupLevel: 'ABC', pace: 1022 },
+      { yearGroup: 'Nursery', signupLevel: 'Primary', pace: 1023 },
+      { yearGroup: 'Year 7', signupLevel: 'Primary', pace: 1080 },
+      { yearGroup: 'Y13', signupLevel: 'Secondary', pace: 1081 },
+      { yearGroup: 'Custom', signupLevel: 'Primary', pace: 1099 },
+    ];
+    type GroupByArgs = {
+      where: {
+        student?: {
+          registrationProfile?: { is: { registrationLevel: string | { in: string[] } } };
+          yearGroup?: { in: string[] };
+        };
+      };
+    };
+    const groupBy = vi.fn(({ where }: GroupByArgs) => {
+      const years = where.student?.yearGroup?.in;
+      const signupLevel = where.student?.registrationProfile?.is.registrationLevel;
+      const levels = typeof signupLevel === 'string' ? [signupLevel] : signupLevel?.in;
+      return students
+        .filter((student) =>
+          years ? years.includes(student.yearGroup) : levels?.includes(student.signupLevel ?? ''),
+        )
+        .map((student) => ({
+          subjectId: 'math',
+          currentPaceNumber: student.pace,
+          _count: { _all: 1 },
+        }));
+    });
     const tx = {
       studentSubject: { groupBy },
-      subject: { findMany: vi.fn() },
+      subject: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'math', code: 'MATH', name: 'Mathematics' }]),
+      },
     } as unknown as RlsTx;
 
-    await loadActiveScoreKeyReport(tx, scope);
+    const result = await loadActiveScoreKeyReport(tx, scope);
 
-    expect(groupBy).toHaveBeenCalledWith({
-      by: ['subjectId', 'currentPaceNumber'],
-      where: {
-        student: { active: true, registrationProfile: { is: { registrationLevel: level } } },
-        subject: { active: true },
-      },
-      _count: { _all: true },
-    });
+    expect(result.rows.map((row) => row.paceNumber)).toEqual(paces);
+    expect(result.scope).toBe(scope);
   });
 
   it('returns a successful empty report without querying subjects', async () => {

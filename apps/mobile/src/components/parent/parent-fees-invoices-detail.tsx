@@ -1,3 +1,4 @@
+import { displaySchoolYearLabels } from '@oasis/domain';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
@@ -69,7 +70,14 @@ export function ParentFeesInvoicesDetail({ invoice, onBack }: ParentFeesInvoices
         <View style={styles.metaGrid}>
           <Meta label="Family" value={invoice.familyLabel ?? 'Not set'} />
           <Meta label="Student(s)" value={studentNames(invoice)} />
-          <Meta label="Year group" value={invoice.studentYearGroup ?? 'Not set'} />
+          <Meta
+            label="Level"
+            value={
+              invoice.studentYearGroup
+                ? displaySchoolYearLabels(invoice.studentYearGroup.split(','))
+                : 'Not set'
+            }
+          />
           <Meta label="Billing" value={invoice.billingCadence ?? invoice.term ?? 'Not set'} />
           <Meta label="Issued" value={formatInvoiceDate(invoice.issuedOn)} />
           <Meta label="Due" value={formatInvoiceDate(invoice.dueOn)} />

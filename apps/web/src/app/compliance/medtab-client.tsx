@@ -1,5 +1,6 @@
 'use client';
 
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { friendlyErrorMessage } from '@/lib/notifications';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -36,7 +37,7 @@ export function MedTabClient() {
               <thead>
                 <tr>
                   <th scope="col">Student</th>
-                  <th scope="col">Year group</th>
+                  <th scope="col">Level</th>
                   <th scope="col">Allergies</th>
                   <th scope="col">Medical conditions</th>
                   <th scope="col">Medication at centre</th>
@@ -46,7 +47,7 @@ export function MedTabClient() {
                 {medTab.data.map((row) => (
                   <tr key={row.studentId}>
                     <th scope="row">{row.fullName}</th>
-                    <td>{row.yearGroup}</td>
+                    <td>{displaySchoolYearLabel(row.yearGroup)}</td>
                     <td>{row.allergies ?? <span className="muted">Not recorded</span>}</td>
                     <td>{row.medicalConditions ?? <span className="muted">Not recorded</span>}</td>
                     <td>{row.medicationAtCentre ?? <span className="muted">Not recorded</span>}</td>

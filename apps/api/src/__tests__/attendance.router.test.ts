@@ -1392,6 +1392,13 @@ describe('attendance.listExportOptions', () => {
     const options = await makeCaller(attendanceExporterUser, db).attendance.listExportOptions();
 
     expect(options.students).toHaveLength(3);
+    expect(options.students.find((student) => student.id === activeStudentId)).toMatchObject({
+      label: 'Jane Learner · Level 5',
+      yearGroup: 'Year 6',
+    });
+    expect(options.students.find((student) => student.id === inactiveStudentId)).toMatchObject({
+      label: 'Former Student · Level 6 · Inactive',
+    });
     expect(options.staff).toHaveLength(6);
     expect(options.staff).toEqual(
       expect.arrayContaining([
@@ -1504,9 +1511,9 @@ describe('attendance.exportStudentsCsv', () => {
       filename: 'student-attendance-2026-04-28-to-2026-04-29.csv',
       contentType: 'text/csv; charset=utf-8',
       csv: [
-        'Date,Student ID,Student Name,Year Group,Status,Absence Reason,Recorded At',
-        '2026-04-28,ctx-student,Jane Learner,Year 6,Absent,Unexcused,2026-04-29T10:00:00.000Z',
-        '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,,2026-04-29T10:01:00.000Z',
+        'Date,Student ID,Student Name,Level,Status,Absence Reason,Recorded At',
+        '2026-04-28,ctx-student,Jane Learner,Level 5,Absent,Unexcused,2026-04-29T10:00:00.000Z',
+        '2026-04-29,ckstudent000000000000002,Amos Scholar,Level 4,Late,,2026-04-29T10:01:00.000Z',
       ].join('\n'),
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1597,8 +1604,8 @@ describe('attendance.exportStudentsCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Student ID,Student Name,Year Group,Status,Absence Reason,Recorded At',
-        '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,,2026-04-29T10:01:00.000Z',
+        'Date,Student ID,Student Name,Level,Status,Absence Reason,Recorded At',
+        '2026-04-29,ckstudent000000000000002,Amos Scholar,Level 4,Late,,2026-04-29T10:01:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1677,8 +1684,8 @@ describe('attendance.exportStudentsCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Student ID,Student Name,Year Group,Status,Absence Reason,Recorded At',
-        '2026-04-28,ckstudent000000000000003,Former Student,Year 7,Present,,2026-04-28T09:30:00.000Z',
+        'Date,Student ID,Student Name,Level,Status,Absence Reason,Recorded At',
+        '2026-04-28,ckstudent000000000000003,Former Student,Level 6,Present,,2026-04-28T09:30:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -2735,6 +2742,13 @@ describe('attendance.insights', () => {
       count: 1,
     });
     expect(aggregate.people).toHaveLength(3);
+    expect(aggregate.people.find((person) => person.id === activeStudentId)).toMatchObject({
+      label: 'Jane Learner · Level 5',
+      detail: 'Level 5',
+    });
+    expect(aggregate.records.find((record) => record.subjectId === secondStudentId)).toMatchObject({
+      detail: 'Level 4',
+    });
 
     const selected = await caller.attendance.insights({
       kind: 'students',

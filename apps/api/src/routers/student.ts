@@ -5,8 +5,8 @@ import {
   academicYearStart,
   attendanceRate as calculateAttendanceRate,
   canUseAdminOperations,
-  deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
+  resolveSchoolYearForDob,
   type PermissionTag,
   standardSchoolYearSchema,
 } from '@oasis/domain';
@@ -16,6 +16,10 @@ import {
   type ClerkInvitationResult,
 } from '../lib/clerk.js';
 import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
+import {
+  schoolYearForExistingStudentDob,
+  schoolYearForStudentDob,
+} from '../lib/student-school-year.js';
 import { canUseStudentAcademicScreens } from '../lib/student-academic-screens.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 import {
@@ -95,6 +99,7 @@ const createInput = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   dob: z.coerce.date(),
   yearGroup: standardSchoolYearSchema.optional(),
+  yearGroupOverride: standardSchoolYearSchema.nullable().optional(),
   enrolmentDate: z.coerce.date(),
   address: z.string().trim().min(1).optional(),
 });
@@ -104,6 +109,7 @@ const updateInput = z.object({
   fullName: z.string().trim().min(1).optional(),
   dob: z.coerce.date().optional(),
   yearGroup: standardSchoolYearSchema.optional(),
+  yearGroupOverride: standardSchoolYearSchema.nullable().optional(),
   enrolmentDate: z.coerce.date().optional(),
   address: z.string().trim().min(1).nullable().optional(),
   active: z.boolean().optional(),
@@ -260,6 +266,7 @@ function decryptStudent(
       ctx.db.$enc.decrypt(student.addressEnc) ??
       ctx.db.$enc.decrypt(student.registrationProfile?.registration.homeAddressEnc),
     yearGroup: student.yearGroup,
+    yearGroupOverride: student.yearGroupOverride ?? null,
     enrolmentDate: student.enrolmentDate,
     active: student.active,
     createdAt: student.createdAt,
@@ -280,7 +287,7 @@ async function auditDecryptPii(
   },
   meta: {
     count: number;
-    source: 'student.list' | 'student.byId' | 'student.me' | 'student.dashboard';
+    source: 'student.list' | 'student.byId' | 'student.me' | 'student.dashboard' | 'student.update';
   },
   entityId?: string,
 ) {
@@ -447,6 +454,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         userId: true,
         fullNameEnc: true,
         yearGroup: true,
+        yearGroupOverride: true,
           ageBandId: true,
           ageBand: { select: { id: true, name: true, colour: true } },
         enrolmentDate: true,
@@ -472,6 +480,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       userId: ownStudent.userId,
       fullName,
       yearGroup: student.yearGroup,
+      yearGroupOverride: student.yearGroupOverride ?? null,
       enrolmentDate: student.enrolmentDate,
       active: ownStudent.active,
         academicScreensEnabled: await canUseStudentAcademicScreens(ctx.db, student.ageBandId),
@@ -503,6 +512,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         fullNameEnc: true,
         dobEnc: true,
         yearGroup: true,
+        yearGroupOverride: true,
           ageBandId: true,
           ageBand: { select: { id: true, name: true, colour: true, active: true } },
         portalSettings: { select: { childIconPhotoUrl: true } },
@@ -549,6 +559,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         iconInitials: studentIconInitials(firstName),
         childIconPhotoUrl: student.portalSettings?.childIconPhotoUrl ?? null,
         yearGroup: student.yearGroup,
+        yearGroupOverride: student.yearGroupOverride ?? null,
         yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
           ageBand: student.ageBand
             ? {
@@ -661,7 +672,13 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
     }),
 
   create: adminOperationsProcedure.input(createInput).mutation(async ({ ctx, input }) => {
-    const yearGroup = input.yearGroup ?? deriveEnglandWalesSchoolYear(input.dob);
+    const yearGroupOverride =
+      input.yearGroupOverride !== undefined ? input.yearGroupOverride : (input.yearGroup ?? null);
+    const automaticYear =
+      yearGroupOverride === null
+        ? schoolYearForStudentDob(input.dob)
+        : schoolYearForExistingStudentDob(input.dob);
+    const yearGroup = yearGroupOverride ?? automaticYear;
     const emailBidx = ctx.db.$enc.blindIndex(input.email);
     const [existingUser, existingPendingInvite] = await Promise.all([
       ctx.db.user.findUnique({ where: { emailBidx }, select: { id: true } }),
@@ -692,6 +709,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         dobEnc: ctx.db.$enc.encrypt(dateOnly(input.dob)),
         addressEnc: ctx.db.$enc.encrypt(input.address),
         yearGroup,
+        yearGroupOverride,
         enrolmentDate: input.enrolmentDate,
       },
       select: { id: true },
@@ -755,7 +773,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         action: 'Create',
         entity: 'Student',
         entityId: student.id,
-        meta: { yearGroup, invitationEmailStatus },
+        meta: { yearGroup, yearGroupOverride, invitationEmailStatus },
       },
     });
     await ctx.db.auditLog.create({
@@ -777,32 +795,63 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
   }),
 
   update: adminOperationsProcedure.input(updateInput).mutation(async ({ ctx, input }) => {
-    const data: Prisma.StudentUpdateInput = {};
-    if (input.fullName !== undefined) {
-      data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
-      data.nameBidx = ctx.db.$enc.blindIndex(input.fullName);
-    }
-    if (input.dob !== undefined) data.dobEnc = ctx.db.$enc.encrypt(dateOnly(input.dob));
-    if (input.address !== undefined) data.addressEnc = ctx.db.$enc.encrypt(input.address);
-    if (input.yearGroup !== undefined) data.yearGroup = input.yearGroup;
-    if (input.enrolmentDate !== undefined) data.enrolmentDate = input.enrolmentDate;
-    if (input.active !== undefined) data.active = input.active;
-
     try {
-      const student = await ctx.db.student.update({
-        where: { id: input.id },
-        data,
+      return await applySerializableRlsTx(ctx.db, ctx.user, async (tx) => {
+        const data: Prisma.StudentUpdateInput = {};
+        if (input.fullName !== undefined) {
+          data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
+          data.nameBidx = ctx.db.$enc.blindIndex(input.fullName);
+        }
+        const requestedOverride =
+          input.yearGroupOverride !== undefined ? input.yearGroupOverride : input.yearGroup;
+        if (input.dob !== undefined || requestedOverride !== undefined) {
+          const existingStudent = await tx.student.findUnique({
+            where: { id: input.id },
+            select: { dobEnc: true, yearGroupOverride: true },
+          });
+          if (!existingStudent) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+          }
+          const yearGroupOverride =
+            requestedOverride !== undefined
+              ? requestedOverride
+              : (existingStudent.yearGroupOverride ?? null);
+          if (input.dob !== undefined) {
+            const automaticYear = schoolYearForExistingStudentDob(input.dob);
+            data.yearGroup = yearGroupOverride ?? automaticYear;
+            data.dobEnc = ctx.db.$enc.encrypt(dateOnly(input.dob));
+          } else if (yearGroupOverride !== null) {
+            data.yearGroup = yearGroupOverride;
+          } else {
+            const dob = ctx.db.$enc.decrypt(existingStudent.dobEnc);
+            await auditDecryptPii(
+              { db: tx, user: ctx.user },
+              { count: 1, source: 'student.update' },
+              input.id,
+            );
+            data.yearGroup = resolveSchoolYearForDob(dob);
+          }
+          if (requestedOverride !== undefined) data.yearGroupOverride = requestedOverride;
+        }
+        if (input.address !== undefined) data.addressEnc = ctx.db.$enc.encrypt(input.address);
+        if (input.enrolmentDate !== undefined) data.enrolmentDate = input.enrolmentDate;
+        if (input.active !== undefined) data.active = input.active;
+
+        const student = await tx.student.update({
+          where: { id: input.id },
+          data,
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'Student',
+            entityId: student.id,
+            meta: { fields: Object.keys(data).sort() },
+          },
+        });
+        return { id: student.id };
       });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'Student',
-          entityId: student.id,
-          meta: { fields: Object.keys(data).sort() },
-        },
-      });
-      return { id: student.id };
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });

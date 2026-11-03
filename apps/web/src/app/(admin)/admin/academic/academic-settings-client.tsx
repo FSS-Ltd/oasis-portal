@@ -1,5 +1,6 @@
 'use client';
 
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Save, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useMemo, useState } from 'react';
@@ -300,7 +301,7 @@ export function AcademicSettingsClient() {
                     }}
                     type="checkbox"
                   />
-                  {student.fullName} · {student.yearGroup}
+                  {student.fullName} · {displaySchoolYearLabel(student.yearGroup)}
                 </label>
               ))}
             </div>
@@ -398,7 +399,7 @@ export function AcademicSettingsClient() {
                             }}
                             type="checkbox"
                           />
-                          {student.fullName} · {student.yearGroup}
+                          {student.fullName} · {displaySchoolYearLabel(student.yearGroup)}
                         </label>
                       ))}
                     </div>

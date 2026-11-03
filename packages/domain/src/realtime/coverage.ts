@@ -171,6 +171,8 @@ export const REALTIME_MODEL_COVERAGE = {
       'health',
     ],
     audience: 'student',
+    clock:
+      'Automatic DOB cohorts reconcile at London 1 September; explicit yearGroupOverride placements are preserved. Committed Student writes invalidate all dependent areas. Authenticated startup catches up before reads.',
   },
   // Includes collection and loanedCopies: transactionally maintained stock, visible without exposing borrower records.
   LibraryBook: { areas: ['library', 'staffHome'], audience: 'library' },
@@ -215,7 +217,7 @@ export const REALTIME_MODEL_COVERAGE = {
     areas: ['audit'],
     audience: 'audit',
     exclusion:
-      'Ignore read/decryption telemetry; only inspectionAuditWhere actions and entities notify audit readers.',
+      'Ignore read/decryption telemetry and operational SchoolYearReconciliation markers; only inspectionAuditWhere actions and entities notify audit readers.',
   },
   StudentPortalSettings: {
     areas: [

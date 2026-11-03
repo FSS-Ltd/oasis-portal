@@ -157,7 +157,7 @@ export function SpecialAttendanceCapture({
     },
     {
       id: 'year',
-      header: 'Year',
+      header: 'Level',
       render: (row) => displaySchoolYearLabel(row.yearGroup),
     },
     {

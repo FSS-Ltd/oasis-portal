@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
@@ -88,7 +89,7 @@ function AttendanceRosterRow({
       <View style={styles.rowHeader}>
         <View style={styles.rowBody}>
           <Text style={styles.studentName}>{row.studentName}</Text>
-          <Text style={styles.studentMeta}>{row.yearGroup}</Text>
+          <Text style={styles.studentMeta}>{displaySchoolYearLabel(row.yearGroup)}</Text>
         </View>
         <Badge variant={statusVariant(row.status)}>{row.status ? row.status : 'Unmarked'}</Badge>
       </View>

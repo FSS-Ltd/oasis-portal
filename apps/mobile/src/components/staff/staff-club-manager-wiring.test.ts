@@ -93,7 +93,7 @@ describe('staff club manager mobile wiring', () => {
   it('collects a required year-group selection in the manager editor', () => {
     const editor = readMobile('src/components/staff/staff-club-manager-form-modal.tsx');
 
-    expect(editor).toMatch(/Select at least one year group/);
+    expect(editor).toMatch(/Select at least one level/);
     expect(editor).toMatch(/yearGroupBandIds/);
     expect(editor).toMatch(/Only these groups can join newly/);
   });

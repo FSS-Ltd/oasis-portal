@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PackagePlus, Truck } from 'lucide-react';
-import { availablePacesAhead, PACE_CATALOGUE, recommendedStartPace } from '@oasis/domain';
+import {
+  displaySchoolYearLabel,
+  availablePacesAhead,
+  PACE_CATALOGUE,
+  recommendedStartPace,
+} from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 import { api } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -714,7 +719,7 @@ export function PaceInventoryClient() {
                     >
                       {students.map((row) => (
                         <option key={row.id} value={row.id}>
-                          {row.fullName} · {row.yearGroup}
+                          {row.fullName} · {displaySchoolYearLabel(row.yearGroup)}
                         </option>
                       ))}
                     </SelectInput>
@@ -914,7 +919,7 @@ export function PaceInventoryClient() {
                 >
                   {students.map((row) => (
                     <option key={row.id} value={row.id}>
-                      {row.fullName} · {row.yearGroup}
+                      {row.fullName} · {displaySchoolYearLabel(row.yearGroup)}
                     </option>
                   ))}
                 </SelectInput>
@@ -968,7 +973,7 @@ export function PaceInventoryClient() {
                   >
                     {students.map((row) => (
                       <option key={row.id} value={row.id}>
-                        {row.fullName} · {row.yearGroup}
+                        {row.fullName} · {displaySchoolYearLabel(row.yearGroup)}
                       </option>
                     ))}
                   </SelectInput>

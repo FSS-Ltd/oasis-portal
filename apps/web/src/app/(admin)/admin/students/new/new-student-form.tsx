@@ -3,34 +3,21 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import {
-  STANDARD_SCHOOL_YEARS,
-  displaySchoolYearLabel,
-  type StandardSchoolYear,
-} from '@oasis/domain';
+import { resolveSchoolYearForDob, standardSchoolYearSchema } from '@oasis/domain';
 import { api } from '@/lib/trpc';
-import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
+import { useSchoolNow } from '@/lib/realtime/school-clock';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { Button } from '@/components/ui/button';
-import { Field, SelectInput, TextInput } from '@/components/ui/field';
-
-function isStandardSchoolYear(value: string): value is StandardSchoolYear {
-  return STANDARD_SCHOOL_YEARS.includes(value as StandardSchoolYear);
-}
-
-function parseStandardSchoolYear(value: string): StandardSchoolYear {
-  if (!isStandardSchoolYear(value)) throw new Error('Choose a standard year group');
-  return value;
-}
+import { Field, TextInput } from '@/components/ui/field';
+import { StudentLevelField } from '@/components/students/student-level-field';
 
 const schema = z.object({
   fullName: z.string().trim().min(1, 'Enter the student name'),
   email: z.string().trim().email('Enter a valid email address'),
   dob: z.string().min(1, 'Enter the date of birth'),
-  yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
+  yearGroupOverride: standardSchoolYearSchema.nullable(),
   enrolmentDate: z.string().min(1, 'Enter the Oasis start date'),
   address: z.string().trim().optional(),
 });
@@ -39,6 +26,7 @@ type FormValues = z.input<typeof schema>;
 
 export function NewStudentForm() {
   const router = useRouter();
+  const schoolNow = useSchoolNow();
   const utils = api.useUtils();
   const createStudent = api.student.create.useMutation({
     async onSuccess(result) {
@@ -66,23 +54,14 @@ export function NewStudentForm() {
       fullName: '',
       email: '',
       dob: '',
-      yearGroup: '',
+      yearGroupOverride: null,
       enrolmentDate: new Date().toISOString().slice(0, 10),
       address: '',
     },
   });
-  const lastAutoYear = useRef<StandardSchoolYear | null>(null);
   const dobValue = watch('dob');
-  const yearGroupValue = watch('yearGroup');
-
-  useEffect(() => {
-    const derived = deriveSchoolYearFromDateInput(dobValue);
-    if (!derived) return;
-    if (!yearGroupValue || yearGroupValue === lastAutoYear.current) {
-      setValue('yearGroup', derived, { shouldDirty: true, shouldValidate: true });
-      lastAutoYear.current = derived;
-    }
-  }, [dobValue, setValue, yearGroupValue]);
+  const yearGroupOverride = watch('yearGroupOverride');
+  const derivedYear = resolveSchoolYearForDob(dobValue, schoolNow);
 
   return (
     <form
@@ -93,7 +72,7 @@ export function NewStudentForm() {
             fullName: values.fullName,
             email: values.email,
             dob: new Date(values.dob),
-            yearGroup: parseStandardSchoolYear(values.yearGroup),
+            yearGroupOverride: values.yearGroupOverride,
             enrolmentDate: new Date(values.enrolmentDate),
             address: values.address || undefined,
           });
@@ -101,26 +80,24 @@ export function NewStudentForm() {
       }}
     >
       <div className="panel__body form-grid">
-        <div className="form-grid form-grid--two">
+        <div className="form-grid form-grid--two" style={{ alignItems: 'start' }}>
           <Field error={errors.fullName?.message} label="Full name">
             <TextInput autoComplete="name" {...register('fullName')} />
           </Field>
           <Field error={errors.email?.message} label="Email">
             <TextInput autoComplete="email" type="email" {...register('email')} />
           </Field>
-          <Field error={errors.yearGroup?.message} label="Year group">
-            <SelectInput {...register('yearGroup')}>
-              <option value="">Choose year group</option>
-              {STANDARD_SCHOOL_YEARS.map((year) => (
-                <option key={year} value={year}>
-                  {displaySchoolYearLabel(year)}
-                </option>
-              ))}
-            </SelectInput>
-          </Field>
           <Field error={errors.dob?.message} label="Date of birth">
             <TextInput type="date" {...register('dob')} />
           </Field>
+          <StudentLevelField
+            error={errors.yearGroupOverride?.message}
+            onChange={(year) => {
+              setValue('yearGroupOverride', year, { shouldDirty: true, shouldValidate: true });
+            }}
+            override={yearGroupOverride}
+            suggestedYear={derivedYear}
+          />
           <Field error={errors.enrolmentDate?.message} label="Oasis start date">
             <TextInput type="date" {...register('enrolmentDate')} />
           </Field>

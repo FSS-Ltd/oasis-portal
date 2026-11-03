@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '@oasis/db';
 import {
   canManageLibrary,
+  displaySchoolYearLabel,
   libraryBarcodeSchema,
   libraryBookDraftSchema,
   libraryBookCollectionSchema,
@@ -338,7 +339,11 @@ export const libraryRouter = router({
           hasReminderRecipient: row.guardians.length > 0,
         }))
         .filter(
-          (row) => !search || `${row.name} ${row.yearGroup}`.toLocaleLowerCase().includes(search),
+          (row) =>
+            !search ||
+            `${row.name} ${row.yearGroup} ${displaySchoolYearLabel(row.yearGroup)}`
+              .toLocaleLowerCase()
+              .includes(search),
         );
     }),
 

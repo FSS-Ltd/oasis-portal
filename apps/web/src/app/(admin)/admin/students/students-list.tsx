@@ -110,7 +110,7 @@ export function StudentsList({ canManageStudents }: StudentsListProps) {
       },
       {
         id: 'year',
-        header: 'Year',
+        header: 'Level',
         render: (student) => displaySchoolYearLabel(student.yearGroup),
       },
       {

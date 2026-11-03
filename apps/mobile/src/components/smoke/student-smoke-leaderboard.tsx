@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterInputs, RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
@@ -41,7 +42,7 @@ function LeaderboardRowItem({ kind, row }: { kind: LeaderboardKind; row: Leaderb
         <Text numberOfLines={1} style={styles.name}>
           {row.displayName}
         </Text>
-        <MutedText>{row.yearGroup}</MutedText>
+        <MutedText>{displaySchoolYearLabel(row.yearGroup)}</MutedText>
       </View>
       <View style={styles.scoreBox}>
         <Text style={styles.score}>{String(row.score)}</Text>

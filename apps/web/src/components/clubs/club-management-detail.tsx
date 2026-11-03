@@ -37,7 +37,7 @@ function RosterTable({ signups }: { signups: readonly RosterSignup[] }) {
         <thead>
           <tr>
             <th>Student</th>
-            <th>Year group</th>
+            <th>Level</th>
             <th>Signed up</th>
           </tr>
         </thead>

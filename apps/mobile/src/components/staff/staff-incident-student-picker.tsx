@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
@@ -50,7 +51,7 @@ export function StaffIncidentStudentPicker({
               </View>
               <View style={styles.rowBody}>
                 <Text style={styles.studentName}>{row.studentName}</Text>
-                <Text style={styles.yearGroup}>{row.yearGroup}</Text>
+                <Text style={styles.yearGroup}>{displaySchoolYearLabel(row.yearGroup)}</Text>
               </View>
               <Text style={[styles.stateText, selected ? styles.stateTextActive : null]}>
                 {selected ? 'Added' : 'Add'}

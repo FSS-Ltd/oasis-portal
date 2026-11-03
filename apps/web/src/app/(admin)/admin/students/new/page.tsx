@@ -11,7 +11,7 @@ export default async function NewStudentPage() {
         <div>
           <p>Student profile</p>
           <h1>New student</h1>
-          <p>Add a student with encrypted personal details and an initial centre year group.</p>
+          <p>Add a student with encrypted personal details and an initial centre level.</p>
         </div>
       </div>
       <NewStudentForm />

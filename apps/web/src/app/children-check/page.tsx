@@ -24,6 +24,7 @@ export default async function ChildrenCheckPage() {
     clerkUserId: userId,
     enforceTwoFactor: isTwoFactorEnforcementEnabled(),
     twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
+    skipSchoolYearSync: true,
   });
   if (!ctx.user) redirect('/not-ready');
   if (!canAnswerChildRegistrationPrompt(ctx.user)) redirect('/post-sign-in/resolve');

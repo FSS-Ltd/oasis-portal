@@ -1,7 +1,10 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
+
+export { displaySchoolYearLabel } from '@oasis/domain';
 
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
 type ChildDetail = RouterOutputs['childLog']['drillThrough'];
@@ -29,17 +32,6 @@ function initials(name: string): string {
     .map((part) => part.slice(0, 1).toUpperCase())
     .join('')
     .slice(0, 2);
-}
-
-export function displaySchoolYearLabel(year: string): string {
-  const trimmed = year.trim();
-  if (/^nursery$/iu.test(trimmed)) return 'Nursery';
-  if (/^(reception|abc|r)$/iu.test(trimmed)) return 'ABC';
-
-  const yearMatch = /^(?:year\s*|y)([1-9]|1[0-3])$/iu.exec(trimmed);
-  if (!yearMatch) return year;
-
-  return `Level ${String(Number(yearMatch[1]))}`;
 }
 
 function attendanceLabel(status: DashboardChild['attendance'][number]['status'] | undefined) {

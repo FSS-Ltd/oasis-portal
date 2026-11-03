@@ -130,12 +130,12 @@ export function RotaShiftEditor({
               required
               value={form.kind}
             >
-              <option value="Cover">Year-group cover</option>
+              <option value="Cover">Age-band cover</option>
               <option value="Meeting">Meeting</option>
             </SelectInput>
           </Field>
           {form.kind === 'Cover' ? (
-            <Field label="Year-group band">
+            <Field label="Age band">
               <SelectInput
                 onChange={(event) => {
                   onChange({ ...form, yearGroupBandId: event.target.value });
