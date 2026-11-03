@@ -1,8 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
+import type * as PortalVisibility from '@oasis/domain/portal-visibility';
 import { makeTestContext } from './helpers/test-context.js';
 import { homeworkRouter } from '../routers/homework.js';
 import { router } from '../trpc.js';
+import { sendPushToStudents } from '../services/push-notifications.js';
+
+// Keep the dormant workflow covered; homework-disabled.test.ts exercises the production flag.
+vi.mock('@oasis/domain/portal-visibility', async (importOriginal) => ({
+  ...(await importOriginal<typeof PortalVisibility>()),
+  HOMEWORK_VISIBLE: true,
+}));
+
+vi.mock('../services/push-notifications.js', () => ({
+  NEW_UPDATE_PUSH: { title: 'Oasis', body: 'Update', data: { area: 'updates' } },
+  sendPushToStudents: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('../services/homework-submission-storage.js', () => ({
   homeworkSubmissionBucket: () => 'homework-submissions',
@@ -455,6 +468,8 @@ function makeFakeDb(input?: {
         }: {
           where: {
             assignmentId_studentId?: { assignmentId: string; studentId: string };
+            assignmentId?: string;
+            studentId?: string;
             id?: string;
           };
         }) => {
@@ -464,7 +479,11 @@ function makeFakeDb(input?: {
                   item.assignmentId === where.assignmentId_studentId?.assignmentId &&
                   item.studentId === where.assignmentId_studentId.studentId,
               )
-            : submissions.find((item) => item.id === where.id);
+            : submissions.find((item) =>
+                where.id !== undefined
+                  ? item.id === where.id
+                  : item.assignmentId === where.assignmentId && item.studentId === where.studentId,
+              );
           return Promise.resolve(
             submission
               ? {
@@ -735,6 +754,7 @@ describe('homework router', () => {
   });
 
   it('reviews homework, records a behaviour merit, and credits spend merits', async () => {
+    vi.mocked(sendPushToStudents).mockClear();
     const assignment = makeAssignment({
       allYearGroupBands: true,
       id: 'homework_upload',
@@ -776,6 +796,15 @@ describe('homework router', () => {
         title: 'Merits awarded',
       },
     ]);
+    expect(sendPushToStudents).toHaveBeenCalledOnce();
+    await makeCaller(headUser, db).homework.reviewSubmission({
+      assignmentId: assignment.id,
+      comments: 'Reviewed again.',
+      meritAmount: 5,
+      scorePercent: 92,
+      studentId: primaryStudentId,
+    });
+    expect(sendPushToStudents).toHaveBeenCalledOnce();
   });
 
   it('lets heads update an assignment title, description, and due date', async () => {

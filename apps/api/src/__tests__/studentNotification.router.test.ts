@@ -3,6 +3,12 @@ import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { studentNotificationRouter } from '../routers/studentNotification.js';
 import { router } from '../trpc.js';
+import { sendPushToStudents } from '../services/push-notifications.js';
+
+vi.mock('../services/push-notifications.js', () => ({
+  NEW_UPDATE_PUSH: { title: 'Oasis', body: 'Update', data: { area: 'updates' } },
+  sendPushToStudents: vi.fn().mockResolvedValue(undefined),
+}));
 
 const headUser: SessionUser = {
   id: 'notificationhead0000001',
@@ -255,6 +261,53 @@ function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
 }
 
 describe('studentNotification router', () => {
+  it('waits for announcement commit before sending push', async () => {
+    vi.mocked(sendPushToStudents).mockClear();
+    const db = makeFakeDb();
+    const ctx = makeCtx(headUser, db);
+    let commit!: () => void;
+    let ready!: () => void;
+    const pendingCommit = new Promise<void>((resolve) => {
+      commit = resolve;
+    });
+    const transactionReady = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    ctx.withRls = async (fn) => {
+      const result = await fn(db as unknown as RlsTx);
+      ready();
+      await pendingCommit;
+      return result;
+    };
+    const caller = router({ studentNotification: studentNotificationRouter }).createCaller(ctx);
+    const result = caller.studentNotification.announce({
+      audience: 'Primary',
+      title: 'Update',
+      body: 'News',
+    });
+    await transactionReady;
+    expect(sendPushToStudents).not.toHaveBeenCalled();
+    commit();
+    await expect(result).resolves.toEqual({ recipientCount: 1 });
+    expect(sendPushToStudents).toHaveBeenCalledOnce();
+    expect(sendPushToStudents).toHaveBeenCalledWith(ctx, [primaryStudentId], expect.any(Object));
+  });
+
+  it('does not send push when the announcement transaction rolls back', async () => {
+    vi.mocked(sendPushToStudents).mockClear();
+    const db = makeFakeDb();
+    const ctx = makeCtx(headUser, db);
+    ctx.withRls = async (fn) => {
+      await fn(db as unknown as RlsTx);
+      throw new Error('commit failed');
+    };
+    const caller = router({ studentNotification: studentNotificationRouter }).createCaller(ctx);
+    await expect(
+      caller.studentNotification.announce({ audience: 'Primary', title: 'Update', body: 'News' }),
+    ).rejects.toThrow('commit failed');
+    expect(sendPushToStudents).not.toHaveBeenCalled();
+  });
+
   it('excludes hidden club notices from the student list and unread count', async () => {
     const db = makeFakeDb({
       notifications: [

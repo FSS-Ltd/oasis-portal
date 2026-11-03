@@ -8,6 +8,7 @@ import {
   createStudentNotifications,
   listStudentNotifications,
 } from '../services/student-notifications.js';
+import { NEW_UPDATE_PUSH, sendPushToStudents } from '../services/push-notifications.js';
 import { adminOperationsProcedure, roleProcedure, router } from '../trpc.js';
 
 const announcementAudienceSchema = z.enum(['All', 'Primary', 'Secondary', 'Student']);
@@ -144,7 +145,7 @@ export const studentNotificationRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
     }
 
-    return ctx.withRls(async (tx) => {
+    const result = await ctx.withRls(async (tx) => {
       const result = await createStudentNotifications(ctx, tx, {
         auditSource: 'studentNotification.announce',
         notifications: targetStudents.map((student) => ({
@@ -173,5 +174,11 @@ export const studentNotificationRouter = router({
 
       return { recipientCount: result.count };
     });
+    await sendPushToStudents(
+      ctx,
+      targetStudents.map((student) => student.id),
+      NEW_UPDATE_PUSH,
+    );
+    return result;
   }),
 });

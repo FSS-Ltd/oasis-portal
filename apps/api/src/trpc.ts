@@ -7,6 +7,7 @@
  */
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
+import { HOMEWORK_VISIBLE } from '@oasis/domain/portal-visibility';
 import {
   AccessDeniedError,
   canViewIncidentReports,
@@ -72,7 +73,10 @@ export const agreementRecipientProcedure = authenticatedProcedure.use(({ ctx, ne
   return next();
 });
 
-export const authedProcedure = authenticatedProcedure.use(({ ctx, next }) => {
+export const authedProcedure = authenticatedProcedure.use(({ ctx, path, next }) => {
+  if (!HOMEWORK_VISIBLE && path.startsWith('homework.')) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Not found' });
+  }
   if (ctx.user.role === 'SafeguardingLead') {
     throw new TRPCError({
       code: 'FORBIDDEN',

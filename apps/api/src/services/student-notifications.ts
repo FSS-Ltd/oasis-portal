@@ -2,7 +2,6 @@ import { CLUBS_VISIBLE } from '@oasis/domain/portal-visibility';
 import { TRPCError } from '@trpc/server';
 import type { Prisma, StudentNotificationKind } from '@oasis/db';
 import type { AppContext, RlsTx } from '../context.js';
-import { NEW_UPDATE_PUSH, sendPushToStudents } from './push-notifications.js';
 
 export interface StudentNotificationDto {
   id: string;
@@ -32,6 +31,12 @@ export interface CreateStudentNotificationInput {
   createdById?: string | null;
 }
 
+// Persistence may use encryption, but cannot acquire a second connection through ctx.db.
+type PersistenceContext = {
+  db: { $enc: Pick<AppContext['db']['$enc'], 'encrypt'> };
+  user: AppContext['user'];
+};
+
 const studentNotificationSelect = {
   id: true,
   kind: true,
@@ -55,7 +60,7 @@ type StudentNotificationRow = Prisma.StudentNotificationGetPayload<{
 }>;
 
 function notificationData(
-  ctx: Pick<AppContext, 'db'>,
+  ctx: Pick<PersistenceContext, 'db'>,
   input: CreateStudentNotificationInput,
 ): Prisma.StudentNotificationUncheckedCreateInput {
   return {
@@ -155,8 +160,9 @@ export async function listStudentNotifications(
   return rows.map((row) => mapStudentNotification(ctx.db.$enc.decrypt, row));
 }
 
+/** Persists only. Callers must send push after the enclosing transaction commits. */
 export async function createStudentNotification(
-  ctx: Pick<AppContext, 'db' | 'user'>,
+  ctx: PersistenceContext,
   db: Pick<RlsTx, 'auditLog' | 'studentNotification'>,
   input: CreateStudentNotificationInput,
 ): Promise<{ id: string }> {
@@ -180,12 +186,12 @@ export async function createStudentNotification(
     },
   });
 
-  await sendPushToStudents(ctx, [input.studentId], NEW_UPDATE_PUSH);
   return notification;
 }
 
+/** Persists only. Callers must send push after the enclosing transaction commits. */
 export async function createStudentNotifications(
-  ctx: Pick<AppContext, 'db' | 'user'>,
+  ctx: PersistenceContext,
   db: Pick<RlsTx, 'auditLog' | 'studentNotification'>,
   input: {
     notifications: readonly CreateStudentNotificationInput[];
@@ -211,10 +217,5 @@ export async function createStudentNotifications(
     },
   });
 
-  await sendPushToStudents(
-    ctx,
-    input.notifications.map((notification) => notification.studentId),
-    NEW_UPDATE_PUSH,
-  );
   return { count: input.notifications.length };
 }

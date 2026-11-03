@@ -32,6 +32,7 @@ import {
   type ParentEmailNotificationRecipient,
 } from '../services/parent-email-notifications.js';
 import { createStudentNotifications } from '../services/student-notifications.js';
+import { NEW_UPDATE_PUSH, sendPushToStudents } from '../services/push-notifications.js';
 import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -1037,6 +1038,11 @@ async function notifyClubStudentsInApp(
         createdById: ctx.user.id,
       })),
     }),
+  );
+  await sendPushToStudents(
+    ctx,
+    input.club.signups.map((signup) => signup.student.id),
+    NEW_UPDATE_PUSH,
   );
 }
 
