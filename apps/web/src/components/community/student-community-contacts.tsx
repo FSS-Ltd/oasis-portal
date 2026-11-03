@@ -1,5 +1,6 @@
 'use client';
 
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Send } from 'lucide-react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -18,7 +19,7 @@ interface StudentCommunityContactsProps {
 }
 
 function memberContactLabel(member: CommunityMember): string {
-  return member.student.yearGroup ? `Year ${member.student.yearGroup}` : 'Student';
+  return member.student.yearGroup ? displaySchoolYearLabel(member.student.yearGroup) : 'Student';
 }
 
 function DirectMessageBubble({

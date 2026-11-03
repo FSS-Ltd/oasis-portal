@@ -1,5 +1,6 @@
 'use client';
 
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Hash, MessageCircle, ShieldCheck, UsersRound } from 'lucide-react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -104,7 +105,7 @@ function MembershipButton({
     <div className="community-membership-row">
       <span>
         <strong>{student.fullName}</strong>
-        <small>{student.yearGroup}</small>
+        <small>{displaySchoolYearLabel(student.yearGroup)}</small>
       </span>
       <Button
         disabled={group.isCentral}
@@ -140,7 +141,7 @@ function StudentBlockRow({
     <article className={blocked ? 'community-student-row is-blocked' : 'community-student-row'}>
       <span>
         <strong>{student.fullName}</strong>
-        <small>{student.yearGroup}</small>
+        <small>{displaySchoolYearLabel(student.yearGroup)}</small>
       </span>
       <input
         aria-label={`Reason for ${student.fullName}`}

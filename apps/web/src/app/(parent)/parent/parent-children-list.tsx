@@ -44,7 +44,7 @@ const columns: readonly DataTableColumn<ChildRow>[] = [
       </div>
     ),
   },
-  { id: 'year', header: 'Year', render: (student) => displaySchoolYearLabel(student.yearGroup) },
+  { id: 'year', header: 'Level', render: (student) => displaySchoolYearLabel(student.yearGroup) },
   {
     id: 'status',
     header: 'Status',

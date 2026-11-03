@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
@@ -48,7 +49,8 @@ export function StaffShopPickupQueue({
             <View style={styles.reservationBody}>
               <Text style={styles.studentName}>{reservation.studentName}</Text>
               <MutedText>
-                {reservation.studentYearGroup} · Reserved {formatShopDate(reservation.createdAt)}
+                {displaySchoolYearLabel(reservation.studentYearGroup)} · Reserved{' '}
+                {formatShopDate(reservation.createdAt)}
               </MutedText>
             </View>
             <Badge variant="crimson">{formatMerits(reservation.totalPriceMerits)}</Badge>

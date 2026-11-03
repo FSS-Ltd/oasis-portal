@@ -396,6 +396,7 @@ model Student {
   addressEnc    String?
   // --- operational ---
   yearGroup     String
+  yearGroupOverride String?
   ageBandId           String?
   followsOwnTimetable Boolean  @default(false)
   enrolmentDate DateTime

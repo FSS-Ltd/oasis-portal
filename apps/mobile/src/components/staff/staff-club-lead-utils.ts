@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { type RouterInputs, type RouterOutputs } from '../../lib/trpc';
 
 export type StaffClubLeadTab = 'overview' | 'behaviour' | 'attendance' | 'noticeboard';
@@ -89,7 +90,7 @@ export function formatClubDateTime(value: string | Date): string {
 }
 
 export function formatYearGroup(value: string): string {
-  return value.startsWith('Year ') ? value : `Year ${value}`;
+  return displaySchoolYearLabel(value);
 }
 
 export function behaviourCategories(type: StaffClubBehaviourType): readonly string[] {

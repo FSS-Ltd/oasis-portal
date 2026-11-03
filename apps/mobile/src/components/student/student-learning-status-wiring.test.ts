@@ -86,7 +86,7 @@ describe('student learning status mobile wiring', () => {
       'Positive ranks',
       'Loading learning status',
       'Learning unavailable',
-      'Academic screens will open when this year group is ready.',
+      'Academic screens will open when this level is ready.',
       'No PACE subjects',
       'No attendance recorded',
       'No rankings are available for this category yet.',

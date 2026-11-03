@@ -5,7 +5,6 @@ import {
   REGISTRATION_CONSENT_TYPES,
   canAnswerChildRegistrationPrompt,
   canSubmitInitialRegistration,
-  deriveEnglandWalesSchoolYear,
   parentInitialRegistrationInput,
   parentRegistrationSiblingInput,
   parentRegistrationSiblingsInput,
@@ -15,9 +14,13 @@ import {
   type ParentRegistrationSiblingInput,
   type ParentRegistrationUpdateInput,
   type RegistrationConsentType,
-  type RegistrationLevel,
   type Role,
 } from '@oasis/domain';
+import { applySerializableRlsTx } from '../context.js';
+import {
+  schoolYearForExistingStudentDob,
+  schoolYearForStudentDob,
+} from '../lib/student-school-year.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 const answerChildRegistrationPromptInput = z.object({
@@ -140,6 +143,7 @@ const parentRegistrationInclude = Prisma.validator<Prisma.ParentRegistrationIncl
           fullNameEnc: true,
           dobEnc: true,
           yearGroup: true,
+          yearGroupOverride: true,
           enrolmentDate: true,
           active: true,
         },
@@ -262,25 +266,6 @@ function consentEntries(consents: ParentInitialRegistrationInput['students'][num
   }));
 }
 
-const FALLBACK_YEAR_GROUP_BY_REGISTRATION_LEVEL = {
-  ABC: 'Reception',
-  Primary: 'Year 1',
-  Secondary: 'Year 7',
-} as const satisfies Record<RegistrationLevel, string>;
-
-function provisionalYearGroupForRegistrationStudent(
-  studentInput: Pick<
-    ParentRegistrationSiblingInput['student'],
-    'dob' | 'registrationLevel' | 'startDate'
-  >,
-): string {
-  try {
-    return deriveEnglandWalesSchoolYear(studentInput.dob, studentInput.startDate);
-  } catch {
-    return FALLBACK_YEAR_GROUP_BY_REGISTRATION_LEVEL[studentInput.registrationLevel];
-  }
-}
-
 type EncryptionContext = {
   db: {
     $enc: {
@@ -401,7 +386,8 @@ function studentData(
     fullNameEnc: encryptRequired(ctx.db.$enc.encrypt, studentInput.fullName, 'student PII'),
     nameBidx: ctx.db.$enc.blindIndex(studentInput.fullName),
     dobEnc: encryptRequired(ctx.db.$enc.encrypt, dateOnly(studentInput.dob), 'student PII'),
-    yearGroup: provisionalYearGroupForRegistrationStudent(studentInput),
+    yearGroup: schoolYearForStudentDob(studentInput.dob),
+    yearGroupOverride: null,
     enrolmentDate: studentInput.startDate,
   };
 }
@@ -409,11 +395,14 @@ function studentData(
 function studentUpdateData(
   ctx: EncryptionContext,
   studentInput: ParentRegistrationSiblingInput['student'],
+  yearGroupOverride: string | null,
 ) {
+  const automaticYear = schoolYearForExistingStudentDob(studentInput.dob);
   return {
     fullNameEnc: encryptRequired(ctx.db.$enc.encrypt, studentInput.fullName, 'student PII'),
     nameBidx: ctx.db.$enc.blindIndex(studentInput.fullName),
     dobEnc: encryptRequired(ctx.db.$enc.encrypt, dateOnly(studentInput.dob), 'student PII'),
+    yearGroup: yearGroupOverride ?? automaticYear,
     enrolmentDate: studentInput.startDate,
   };
 }
@@ -835,21 +824,22 @@ export function createRegistrationRouter() {
     updateMine: authedProcedure
       .input(parentRegistrationUpdateInput)
       .mutation(async ({ ctx, input }) => {
-        const registration = await ctx.db.parentRegistration.findUnique({
-          where: { parentUserId: ctx.user.id },
-          include: parentRegistrationInclude,
-        });
-        if (!registration) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'registration not found' });
-        }
-        assertUpdateStudentSet(registration, input.students);
-
-        const profileByStudentId = new Map(
-          registration.studentProfiles.map((profile) => [profile.studentId, profile]),
-        );
         const studentIds = input.students.map((student) => student.studentId);
 
-        await ctx.db.$transaction(async (tx) => {
+        const registrationId = await applySerializableRlsTx(ctx.db, ctx.user, async (tx) => {
+          const registration = await tx.parentRegistration.findUnique({
+            where: { parentUserId: ctx.user.id },
+            include: parentRegistrationInclude,
+          });
+          if (!registration) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'registration not found' });
+          }
+          assertUpdateStudentSet(registration, input.students);
+
+          const profileByStudentId = new Map(
+            registration.studentProfiles.map((profile) => [profile.studentId, profile]),
+          );
+
           await tx.parentRegistration.update({
             where: { id: registration.id },
             data: {
@@ -897,7 +887,7 @@ export function createRegistrationRouter() {
 
             await tx.student.update({
               where: { id: studentInput.studentId },
-              data: studentUpdateData(ctx, studentInput),
+              data: studentUpdateData(ctx, studentInput, profile.student.yearGroupOverride),
               select: { id: true },
             });
 
@@ -963,9 +953,10 @@ export function createRegistrationRouter() {
               },
             },
           });
+          return registration.id;
         });
 
-        return { registrationId: registration.id, studentIds };
+        return { registrationId, studentIds };
       }),
 
     addSibling: authedProcedure

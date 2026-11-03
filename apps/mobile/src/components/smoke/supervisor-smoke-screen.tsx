@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { PortalScrollView } from '../core/portal-scroll-view';
@@ -431,7 +432,7 @@ export function SupervisorSmokeScreen() {
                         {row.status ?? 'Unmarked'}
                       </Badge>
                     </View>
-                    <MutedText>{row.yearGroup}</MutedText>
+                    <MutedText>{displaySchoolYearLabel(row.yearGroup)}</MutedText>
                   </View>
                   <View style={styles.buttonRow}>
                     {attendanceStatuses.map((status) => (
@@ -873,7 +874,7 @@ function StudentPicker({
           <MobileButton
             compact
             key={row.studentId}
-            label={`${row.studentName} · ${row.yearGroup}`}
+            label={`${row.studentName} · ${displaySchoolYearLabel(row.yearGroup)}`}
             onPress={() => {
               onSelect(row.studentId);
             }}
@@ -902,7 +903,7 @@ function PaceStudentPicker({
         <MobileButton
           compact
           key={row.studentId}
-          label={`${row.studentName} · ${row.yearGroupLabel}`}
+          label={`${row.studentName} · ${displaySchoolYearLabel(row.yearGroupLabel)}`}
           onPress={() => {
             onSelect(row.studentId);
           }}

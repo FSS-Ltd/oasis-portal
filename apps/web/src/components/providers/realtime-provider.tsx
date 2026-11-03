@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSession, useUser } from '@clerk/nextjs';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,6 +23,7 @@ import {
 } from '@/lib/realtime/account-authority';
 import { routeDependsOnAreas } from '@/lib/realtime/route-dependencies';
 import { notifyRealtimeAreas } from '@/lib/realtime/area-listeners';
+import { SchoolClockContext } from '@/lib/realtime/school-clock';
 
 function legacyAreas(event: OasisRealtimeEvent): readonly RealtimeArea[] {
   if (event.event === OASIS_REALTIME_EVENTS.childNotesChanged) return ['childNotes', 'childLog'];
@@ -40,6 +41,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const current = useRef({ session, utils, pathname, router });
   current.current = { session, utils, pathname, router };
   const previousIdentity = useRef<string | null>(null);
+  const [schoolNow, setSchoolNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -114,6 +116,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       clearTimeout(clockTimer);
       if (disposed || document.visibilityState === 'hidden') return;
       clockTimer = setTimeout(() => {
+        setSchoolNow(Date.now());
         coordinator.enqueue(REALTIME_CLOCK_AREAS);
         scheduleClock();
       }, nextLondonMidnight().getTime() - Date.now());
@@ -124,12 +127,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       stopSubscription = undefined;
     }
     async function connect(): Promise<void> {
+      if (disposed) return;
+      setSchoolNow(Date.now());
       disconnect();
       const generation = connectionGeneration;
       // Supabase reuses a channel with the same topic until removal finishes.
       await removal;
-      if (generation !== connectionGeneration || disposed || document.visibilityState === 'hidden')
-        return;
+      if (generation !== connectionGeneration || !isActive()) return;
       const channel = supabase.channel(`oasis:user:${channelUserId}`, {
         config: { private: true },
       });
@@ -190,5 +194,5 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, [isLoaded, isSignedIn, user?.id, session?.id, queryClient]);
 
-  return <>{children}</>;
+  return <SchoolClockContext.Provider value={schoolNow}>{children}</SchoolClockContext.Provider>;
 }

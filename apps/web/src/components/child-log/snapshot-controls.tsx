@@ -116,7 +116,7 @@ export function SnapshotHeroStudent({
       <div>
         <h2>{name}</h2>
         <p>
-          {yearGroup ? displaySchoolYearLabel(yearGroup) : 'Year group'} · Supervisor:{' '}
+          {yearGroup ? displaySchoolYearLabel(yearGroup) : 'Level'} · Supervisor:{' '}
           {snapshotStudent?.supervisorName ?? 'Not assigned'}
         </p>
         <DailyDemeritBadge status={demeritStatus} />

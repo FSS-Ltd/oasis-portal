@@ -9,6 +9,7 @@
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import * as Sentry from '@sentry/nextjs';
 import { appRouter, createContext, logOperationalEvent, operationalErrorMessage } from '@oasis/api';
+import { canSkipSchoolYearSync } from '@/lib/school-year-sync-policy';
 import { isTwoFactorEnforcementEnabled } from '@/lib/clerk-two-factor';
 import { resolveClerkSession } from '../../auth-context';
 
@@ -46,7 +47,7 @@ const handler = (req: Request): Promise<Response> =>
     endpoint: '/api/trpc',
     req,
     router: appRouter,
-    createContext: async () => {
+    createContext: async ({ info }) => {
       const session = await resolveClerkSession(req.headers);
       return createContext({
         headers: req.headers,
@@ -54,6 +55,7 @@ const handler = (req: Request): Promise<Response> =>
         enforceTwoFactor: isTwoFactorEnforcementEnabled(),
         twoFactorSatisfied: session.twoFactorSatisfied,
         allowReviewTenant: true,
+        skipSchoolYearSync: canSkipSchoolYearSync(info.calls),
       });
     },
     onError({ error, path, type }) {

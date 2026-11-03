@@ -187,7 +187,7 @@ export function AttendanceCapture({
         </div>
       ),
     },
-    { id: 'year', header: 'Year', render: (row) => displaySchoolYearLabel(row.yearGroup) },
+    { id: 'year', header: 'Level', render: (row) => displaySchoolYearLabel(row.yearGroup) },
   ];
 
   if (showBandFilter) {
@@ -319,7 +319,7 @@ export function AttendanceCapture({
           />
           {showBandFilter ? (
             <SelectInput
-              aria-label="Year-group band filter"
+              aria-label="Age band filter"
               onChange={(event) => {
                 setSelectedBand(event.target.value);
               }}

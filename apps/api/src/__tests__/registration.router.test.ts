@@ -1,8 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParentInitialRegistrationInput, SessionUser } from '@oasis/domain';
 import { makeTestContext } from './helpers/test-context.js';
 import { registrationRouter } from '../routers/registration.js';
 import { router } from '../trpc.js';
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
 const otherParentUser: SessionUser = {
@@ -247,6 +256,7 @@ function makeFakeDb() {
       decrypt: vi.fn(decrypt),
       blindIndex: vi.fn(blindIndex),
     },
+    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db)),
     auditLog: {
       create: vi.fn(({ data }: { data: Record<string, unknown> }) =>
@@ -847,6 +857,33 @@ describe('registration.submitInitial', () => {
     });
   });
 
+  it('uses the current DOB cohort regardless of future start date or registration level', async () => {
+    const store = makeFakeDb();
+    const payload = validPayload();
+    payload.students[0] = {
+      ...validStudent('Future Learner'),
+      registrationLevel: 'Secondary',
+      startDate: new Date('2026-09-01'),
+    };
+
+    await makeCaller(parentUser, store.db).registration.submitInitial(payload);
+
+    expect(store.students[0]?.yearGroup).toBe('Year 5');
+    expect(store.profiles[0]?.registrationLevel).toBe('Secondary');
+  });
+
+  it('rejects unsupported DOB instead of falling back to the registration level', async () => {
+    const store = makeFakeDb();
+    const payload = validPayload();
+    payload.students[0] = { ...validStudent('Unsupported Learner'), dob: new Date('2000-01-01') };
+
+    await expect(
+      makeCaller(parentUser, store.db).registration.submitInitial(payload),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(store.students).toEqual([]);
+  });
+
   it('rejects adult non-parent users until they confirm they have children at Oasis', async () => {
     const store = makeFakeDb();
     await expect(
@@ -967,6 +1004,82 @@ describe('registration.mine', () => {
 });
 
 describe('registration.updateMine', () => {
+  it('allows an unchanged existing outside-age DOB while deriving its current status', async () => {
+    const store = makeFakeDb();
+    const caller = makeCaller(parentUser, store.db);
+    await caller.registration.submitInitial(validPayload());
+    store.students[0] = { ...store.students[0], dobEnc: 'enc:2000-01-01' };
+    const payload = validPayload();
+    const students = payload.students.map((student, index) => ({
+      ...student,
+      studentId: `student_${String(index + 1)}`,
+      ...(index === 0 ? { dob: new Date('2000-01-01'), fullName: 'Updated Adult' } : {}),
+    }));
+
+    await caller.registration.updateMine({ ...payload, students });
+
+    expect(store.students[0]).toMatchObject({
+      fullNameEnc: 'enc:Updated Adult',
+      yearGroup: 'Outside school age',
+    });
+  });
+
+  it('accepts historical DOB corrections and derives their outside-age status', async () => {
+    const store = makeFakeDb();
+    const caller = makeCaller(parentUser, store.db);
+    await caller.registration.submitInitial(validPayload());
+    const payload = validPayload();
+    const students = payload.students.map((student, index) => ({
+      ...student,
+      studentId: `student_${String(index + 1)}`,
+      ...(index === 0 ? { dob: new Date('2000-01-01') } : {}),
+    }));
+
+    await caller.registration.updateMine({ ...payload, students });
+
+    expect(store.students[0]).toMatchObject({
+      dobEnc: 'enc:2000-01-01',
+      yearGroup: 'Outside school age',
+    });
+  });
+
+  it('preserves explicit student overrides when registration DOB changes', async () => {
+    const store = makeFakeDb();
+    const caller = makeCaller(parentUser, store.db);
+    await caller.registration.submitInitial(validPayload());
+    store.students[0] = { ...store.students[0], yearGroupOverride: 'Year 3', yearGroup: 'Year 3' };
+    const payload = validPayload();
+    const students = payload.students.map((student, index) => ({
+      ...student,
+      studentId: `student_${String(index + 1)}`,
+      ...(index === 0 ? { dob: new Date('2013-08-31') } : {}),
+    }));
+
+    await caller.registration.updateMine({ ...payload, students });
+
+    expect(store.students[0]).toMatchObject({
+      dobEnc: 'enc:2013-08-31',
+      yearGroup: 'Year 3',
+      yearGroupOverride: 'Year 3',
+    });
+  });
+
+  it('recalculates the cohort when a registration DOB changes', async () => {
+    const store = makeFakeDb();
+    const caller = makeCaller(parentUser, store.db);
+    await caller.registration.submitInitial(validPayload());
+    const payload = validPayload();
+    const students = payload.students.map((student, index) => ({
+      ...student,
+      studentId: `student_${String(index + 1)}`,
+      ...(index === 0 ? { dob: new Date('2013-08-31') } : {}),
+    }));
+
+    await caller.registration.updateMine({ ...payload, students });
+
+    expect(store.students[0]?.yearGroup).toBe('Year 8');
+  });
+
   it('updates the parent registration, linked student records, consents, and audit rows', async () => {
     const store = makeFakeDb();
     await makeCaller(parentUser, store.db).registration.submitInitial(validPayload());
@@ -1008,7 +1121,7 @@ describe('registration.updateMine', () => {
     expect(store.students[0]).toMatchObject({
       fullNameEnc: 'enc:Jane Updated',
       nameBidx: 'bidx:jane updated',
-      yearGroup: 'Year 4',
+      yearGroup: 'Year 5',
     });
     expect(store.profiles[0]).toMatchObject({ registrationLevel: 'Secondary' });
     expect(

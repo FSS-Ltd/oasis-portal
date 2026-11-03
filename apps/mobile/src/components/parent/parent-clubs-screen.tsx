@@ -301,7 +301,7 @@ export function ParentClubsScreen({
           {eligibleClubs.length === 0 ? (
             <Card style={styles.clubCard}>
               <SectionTitle>No eligible clubs</SectionTitle>
-              <MutedText>No clubs are currently available for this child’s year group.</MutedText>
+              <MutedText>No clubs are currently available for this child’s level.</MutedText>
             </Card>
           ) : (
             eligibleClubs.map((club) => (

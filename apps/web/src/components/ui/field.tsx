@@ -1,4 +1,9 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+} from 'react';
 
 interface FieldProps {
   label: string;
@@ -22,10 +27,14 @@ export function Field({ label, error, hint, required = false, children }: FieldP
   );
 }
 
-export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className="input" {...props} />;
-}
+export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function TextInput(props, ref) {
+    return <input className="input" {...props} ref={ref} />;
+  },
+);
 
-export function SelectInput(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className="input" {...props} />;
-}
+export const SelectInput = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
+  function SelectInput(props, ref) {
+    return <select className="input" {...props} ref={ref} />;
+  },
+);

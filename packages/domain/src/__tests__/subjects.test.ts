@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  paceNumberToAceLevel,
-  paceProgressStatusForYear,
-  paceRecordInput,
-} from '../subjects.js';
+import { paceNumberToAceLevel, paceProgressStatusForYear, paceRecordInput } from '../subjects.js';
 
 describe('paceRecordInput', () => {
   it('accepts non-empty database ids without requiring CUID format', () => {
@@ -59,7 +55,7 @@ describe('PACE level status helpers', () => {
   });
 
   it('keeps progress status separate from the mapped PACE level', () => {
-    const onTrack = paceProgressStatusForYear(1001, 'Year 1');
+    const onTrack = paceProgressStatusForYear(1001, 'Year 2');
     expect(onTrack).toMatchObject({
       status: 'On Track',
       detail: 'On Track',
@@ -68,6 +64,11 @@ describe('PACE level status helpers', () => {
     });
     expect(onTrack).not.toHaveProperty('testingLevelLabel');
     expect(paceProgressStatusForYear(1001, 'Reception')).toMatchObject({
+      status: 'Unavailable',
+      tone: 'grey',
+      testingLevel: 1,
+    });
+    expect(paceProgressStatusForYear(1001, 'ABC')).toMatchObject({
       status: 'Ahead',
       tone: 'green',
       testingLevel: 1,
@@ -77,10 +78,10 @@ describe('PACE level status helpers', () => {
       tone: 'amber',
       testingLevel: 1,
     });
-    expect(paceProgressStatusForYear(1025, 'Year 3')).toMatchObject({
+    expect(paceProgressStatusForYear(1013, 'Year 3')).toMatchObject({
       status: 'On Track',
       tone: 'blue',
-      testingLevel: 3,
+      testingLevel: 2,
     });
     expect(paceProgressStatusForYear(1049, 'Year 3')).toMatchObject({
       status: 'Ahead',

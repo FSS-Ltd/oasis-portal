@@ -328,7 +328,7 @@ export function SupervisorDashboardClient({
               <div>
                 <h2>Attendance capture</h2>
                 <p className="muted">
-                  Mark the daily register and filter students by configured year-group bands.
+                  Mark the daily register and filter students by configured age bands.
                 </p>
               </div>
               <span className="badge badge--blue">Student register</span>

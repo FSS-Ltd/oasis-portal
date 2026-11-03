@@ -1,5 +1,6 @@
 'use client';
 
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '@clerk/nextjs';
 import { ClipboardList, Eye, Image, ListChecks, Pencil, Save, X } from 'lucide-react';
@@ -642,7 +643,7 @@ export function AdminHomeworkClient() {
                     <span>
                       <strong>{row.student.fullName}</strong>
                       <small>
-                        {row.student.yearGroup} · {row.assignment.title}
+                        {displaySchoolYearLabel(row.student.yearGroup)} · {row.assignment.title}
                       </small>
                     </span>
                     <b className={statusClass(row.reviewStatus)}>{row.reviewStatus}</b>

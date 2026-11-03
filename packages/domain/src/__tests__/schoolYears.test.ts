@@ -5,8 +5,10 @@ import {
   createYearGroupBandInput,
   deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
+  displaySchoolYearLabels,
   expectedPaceLevelForYear,
   resolveAgeBand,
+  resolveSchoolYearForDob,
   schoolYearStorageAliases,
   updateYearGroupBandInput,
 } from '../schoolYears.js';
@@ -26,6 +28,12 @@ describe('deriveEnglandWalesSchoolYear', () => {
   it('moves to the next academic year from 1 September', () => {
     expect(deriveEnglandWalesSchoolYear(date('2014-08-31'), date('2026-08-31'))).toBe('Year 7');
     expect(deriveEnglandWalesSchoolYear(date('2014-08-31'), date('2026-09-01'))).toBe('Year 8');
+  });
+
+  it('advances at the start of 1 September in the school timezone', () => {
+    const dob = date('2014-08-31');
+    expect(deriveEnglandWalesSchoolYear(dob, new Date('2026-08-31T22:59:59.999Z'))).toBe('Year 7');
+    expect(deriveEnglandWalesSchoolYear(dob, new Date('2026-08-31T23:00:00.000Z'))).toBe('Year 8');
   });
 
   it('derives representative standard years', () => {
@@ -57,26 +65,42 @@ describe('displaySchoolYearLabel', () => {
   it('canonicalises legacy year-group abbreviations without changing schema validation', () => {
     expect(canonicalSchoolYear('Y5')).toBe('Year 5');
     expect(canonicalSchoolYear('year5')).toBe('Year 5');
-    expect(canonicalSchoolYear('ABC')).toBe('Reception');
+    expect(canonicalSchoolYear('ABC')).toBe('Year 1');
+    expect(canonicalSchoolYear('Level 2')).toBe('Year 3');
+    expect(canonicalSchoolYear('level12')).toBe('Year 13');
+    expect(canonicalSchoolYear('Level 13')).toBeNull();
     expect(canonicalSchoolYear('Custom')).toBeNull();
-    expect(schoolYearStorageAliases('Year 5')).toEqual(['Year 5', 'Y5']);
+    expect(schoolYearStorageAliases('Year 5')).toEqual(['Year 5', 'Y5', 'Level 4']);
+    expect(schoolYearStorageAliases('ABC')).toEqual(['Year 1', 'Y1', 'ABC']);
+    expect(schoolYearStorageAliases('Reception')).toEqual(['Reception', 'R']);
   });
 
-  it('keeps stored values stable while showing canonical school-year labels', () => {
+  it('keeps stored values stable while showing Oasis level labels', () => {
     expect(displaySchoolYearLabel('Nursery')).toBe('Nursery');
     expect(displaySchoolYearLabel('Reception')).toBe('Reception');
-    expect(displaySchoolYearLabel('Y5')).toBe('Year 5');
-    expect(displaySchoolYearLabel('Year 1')).toBe('Year 1');
-    expect(displaySchoolYearLabel('Year 13')).toBe('Year 13');
+    expect(displaySchoolYearLabel('Y5')).toBe('Level 4');
+    expect(displaySchoolYearLabel('Year 1')).toBe('ABC');
+    expect(displaySchoolYearLabel('Year 2')).toBe('Level 1');
+    expect(displaySchoolYearLabel('Year 3')).toBe('Level 2');
+    expect(displaySchoolYearLabel('Year 13')).toBe('Level 12');
     expect(displaySchoolYearLabel('Custom')).toBe('Custom');
+  });
+
+  it('formats mixed family invoice groups as distinct level labels', () => {
+    expect(displaySchoolYearLabels(['Year 4', ' Year 8', 'Y4', 'Reception'])).toBe(
+      'Level 3, Level 7, Reception',
+    );
+    expect(displaySchoolYearLabels([])).toBe('');
   });
 
   it('maps year groups to expected PACE levels for status comparisons', () => {
     expect(expectedPaceLevelForYear('Nursery')).toBeNull();
-    expect(expectedPaceLevelForYear('Reception')).toBe(0);
-    expect(expectedPaceLevelForYear('Year 1')).toBe(1);
-    expect(expectedPaceLevelForYear('Y5')).toBe(5);
-    expect(expectedPaceLevelForYear('Year 13')).toBe(13);
+    expect(expectedPaceLevelForYear('Reception')).toBeNull();
+    expect(expectedPaceLevelForYear('Year 1')).toBe(0);
+    expect(expectedPaceLevelForYear('Year 2')).toBe(1);
+    expect(expectedPaceLevelForYear('Year 3')).toBe(2);
+    expect(expectedPaceLevelForYear('Y5')).toBe(4);
+    expect(expectedPaceLevelForYear('Year 13')).toBe(12);
   });
 });
 
@@ -162,5 +186,28 @@ describe('year-group band schemas', () => {
       }),
     ).toThrow();
     expect(() => updateYearGroupBandInput.parse({ id: 'band_1' })).toThrow();
+  });
+});
+
+describe('resolveSchoolYearForDob', () => {
+  const asOf = date('2026-11-03');
+
+  it('uses DOB rather than a stored or manually selected level', () => {
+    expect(resolveSchoolYearForDob('2014-08-31', asOf)).toBe('Year 8');
+    expect(resolveSchoolYearForDob(date('2020-08-31'), asOf)).toBe('Year 2');
+  });
+
+  it('separates valid dates outside school age from missing or invalid DOB', () => {
+    expect(resolveSchoolYearForDob('2008-08-31', asOf)).toBe('Outside school age');
+    expect(resolveSchoolYearForDob('2024-01-01', asOf)).toBe('Outside school age');
+    expect(resolveSchoolYearForDob('2020-02-31', asOf)).toBe('DOB required');
+    expect(resolveSchoolYearForDob('2030-01-01', asOf)).toBe('DOB required');
+    expect(resolveSchoolYearForDob(null, asOf)).toBe('DOB required');
+    expect(resolveSchoolYearForDob(new Date('invalid'), asOf)).toBe('DOB required');
+  });
+
+  it('advances at London midnight in September', () => {
+    expect(resolveSchoolYearForDob('2014-09-01', new Date('2026-08-31T22:59:59Z'))).toBe('Year 6');
+    expect(resolveSchoolYearForDob('2014-09-01', new Date('2026-08-31T23:00:00Z'))).toBe('Year 7');
   });
 });

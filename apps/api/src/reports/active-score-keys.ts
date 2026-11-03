@@ -1,4 +1,10 @@
-import type { ActiveScoreKeyReport, ActiveScoreKeyRow, ActiveScoreKeyScope } from '@oasis/domain';
+import {
+  STANDARD_SCHOOL_YEARS,
+  schoolYearStorageAliases,
+  type ActiveScoreKeyReport,
+  type ActiveScoreKeyRow,
+  type ActiveScoreKeyScope,
+} from '@oasis/domain';
 import type { RlsTx } from '../context.js';
 
 export async function loadActiveScoreKeyReport(
@@ -10,10 +16,11 @@ export async function loadActiveScoreKeyReport(
       ? { active: true }
       : {
           active: true,
-          registrationProfile: {
-            is: {
-              registrationLevel: scope === 'abc-primary' ? { in: ['ABC', 'Primary'] } : 'Secondary',
-            },
+          yearGroup: {
+            in: STANDARD_SCHOOL_YEARS.filter((year) => {
+              const secondary = /^Year (?:[7-9]|1[0-3])$/u.test(year);
+              return scope === 'secondary' ? secondary : !secondary;
+            }).flatMap(schoolYearStorageAliases),
           },
         };
   const assignments = await tx.studentSubject.groupBy({

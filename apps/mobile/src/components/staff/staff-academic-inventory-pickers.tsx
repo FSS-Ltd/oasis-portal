@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -112,7 +113,7 @@ export function InventoryStudentPicker({
       onSelect={onSelect}
       options={students.map((student) => ({
         id: student.id,
-        label: `${student.fullName} · ${student.yearGroup}`,
+        label: `${student.fullName} · ${displaySchoolYearLabel(student.yearGroup)}`,
       }))}
       searchEnabled
       selectedId={selectedStudentId}

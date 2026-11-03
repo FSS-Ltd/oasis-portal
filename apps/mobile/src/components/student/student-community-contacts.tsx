@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Badge, MutedText } from '../core/mobile-ui';
@@ -29,7 +30,9 @@ export function StudentCommunityContacts({
               {member.studentId === currentStudentId ? 'You' : member.student.fullName}
             </Text>
             <Text style={styles.contactMeta}>
-              {member.student.yearGroup ? `Year ${member.student.yearGroup}` : 'Student'}
+              {member.student.yearGroup
+                ? displaySchoolYearLabel(member.student.yearGroup)
+                : 'Student'}
             </Text>
           </View>
         </View>

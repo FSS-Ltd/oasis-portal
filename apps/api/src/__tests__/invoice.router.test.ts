@@ -1012,6 +1012,49 @@ describe('invoiceRouter', () => {
     expect(fakeDb.invoices).toHaveLength(0);
   });
 
+  describe.each(['listAdmin', 'listParent'] as const)('%s level search', (listRoute) => {
+    it.each(['Y9', 'Year 9'])(
+      'matches displayed levels for stored %s family invoices',
+      async (yearGroup) => {
+        const familyInvoice = makeInvoice({ id: invoiceId });
+        const fakeDb = makeFakeDb({
+          initialStudents: [
+            makeStudent({ id: linkedStudentId, yearGroup }),
+            makeStudent({ id: otherStudentId, yearGroup: 'Year 4' }),
+          ],
+          initialInvoices: [familyInvoice],
+          initialInvoiceStudents: [
+            makeInvoiceStudent({ invoiceId, studentId: linkedStudentId, position: 1 }),
+            makeInvoiceStudent({ invoiceId, studentId: otherStudentId, position: 2 }),
+          ],
+        });
+        const { caller } = createCaller(
+          listRoute === 'listAdmin' ? financeUser : parentUser,
+          fakeDb,
+        );
+
+        const displayedLevel = await caller.invoice[listRoute]({
+          status: 'All',
+          search: 'level 8',
+        });
+        const storedYear = await caller.invoice[listRoute]({ status: 'All', search: yearGroup });
+        const otherFamilyLevel = await caller.invoice[listRoute]({
+          status: 'All',
+          search: 'Level 3',
+        });
+        const unmatchedLevel = await caller.invoice[listRoute]({
+          status: 'All',
+          search: 'Level 7',
+        });
+
+        expect(displayedLevel.invoices.map((invoice) => invoice.id)).toEqual([invoiceId]);
+        expect(storedYear.invoices.map((invoice) => invoice.id)).toEqual([invoiceId]);
+        expect(otherFamilyLevel.invoices.map((invoice) => invoice.id)).toEqual([invoiceId]);
+        expect(unmatchedLevel.invoices).toEqual([]);
+      },
+    );
+  });
+
   it('extracts prefill fields from the sample invoice PDF', async () => {
     ensurePdfDomFallbacks();
     const { caller } = createCaller(financeUser, makeFakeDb(), true);
@@ -1961,6 +2004,10 @@ describe('invoiceRouter', () => {
       expect(
         pages.flatMap((page) => page).filter((item) => item.text.startsWith('Charge for child')),
       ).toHaveLength(lineCount);
+      const documentText = pages.flatMap((page) => page.map((item) => item.text)).join('\n');
+      expect(documentText).toContain('Level 8');
+      expect(documentText).not.toContain('Year group');
+      expect(documentText).not.toMatch(/\bY9\b/u);
     },
   );
 

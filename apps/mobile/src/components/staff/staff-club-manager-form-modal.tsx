@@ -1,3 +1,4 @@
+import { displaySchoolYearLabels } from '@oasis/domain';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { RouterInputs, RouterOutputs } from '../../lib/trpc';
@@ -104,7 +105,7 @@ function buildPayload(draft: ClubDraft): ClubPayload | string {
   const endMinute = timeToMinute(draft.endTime);
   if (startMinute === null || endMinute === null || startMinute >= endMinute)
     return 'Use valid times with the end after the start.';
-  if (draft.yearGroupBandIds.length === 0) return 'Select at least one year group.';
+  if (draft.yearGroupBandIds.length === 0) return 'Select at least one level.';
   const capacity = draft.capacity.trim() ? Number(draft.capacity) : null;
   if (capacity !== null && (!Number.isSafeInteger(capacity) || capacity <= 0))
     return 'Capacity must be a positive whole number.';
@@ -256,7 +257,7 @@ export function StaffClubManagerFormModal({
               </View>
             </View>
             <View style={styles.bands}>
-              <Text style={styles.label}>Year groups</Text>
+              <Text style={styles.label}>Levels</Text>
               <MutedText>Only these groups can join newly.</MutedText>
               {yearGroupBands.map((band) => {
                 const selected = draft.yearGroupBandIds.includes(band.id);
@@ -276,7 +277,9 @@ export function StaffClubManagerFormModal({
                     style={[styles.band, selected ? styles.bandSelected : null]}
                   >
                     <Text style={styles.bandTitle}>{band.name}</Text>
-                    <Text style={styles.bandYears}>{band.standardYears.join(', ')}</Text>
+                    <Text style={styles.bandYears}>
+                      {displaySchoolYearLabels(band.standardYears)}
+                    </Text>
                   </Pressable>
                 );
               })}

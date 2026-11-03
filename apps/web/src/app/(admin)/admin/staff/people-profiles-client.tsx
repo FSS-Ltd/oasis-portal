@@ -49,7 +49,7 @@ export function PeopleProfilesClient({
       title: student.fullName,
       subtitle: `${displaySchoolYearLabel(student.yearGroup)} · ${student.active ? 'Active' : 'Archived'}`,
       searchText:
-        `${student.fullName} ${student.yearGroup} ${student.active ? 'active' : 'archived'}`.toLowerCase(),
+        `${student.fullName} ${student.yearGroup} ${displaySchoolYearLabel(student.yearGroup)} ${student.active ? 'active' : 'archived'}`.toLowerCase(),
     }));
 
     const userItems: DirectoryItem[] = (usersQuery.data ?? [])

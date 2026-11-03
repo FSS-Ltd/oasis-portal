@@ -30,7 +30,7 @@ test.describe('Phase 2 verification suite', () => {
     await page.getByLabel('Band name').fill(bandName);
     await page.getByLabel('Band colour').fill('#166534');
     await page.getByLabel('Sort order').fill('98');
-    await page.getByRole('checkbox', { name: 'Year 8' }).check();
+    await page.getByRole('checkbox', { name: 'Level 8' }).check();
     await page.getByRole('button', { name: /create band/i }).click();
     const bandRow = page.locator('.academic-row').filter({ hasText: bandName });
     await expect(bandRow).toContainText('#166534');

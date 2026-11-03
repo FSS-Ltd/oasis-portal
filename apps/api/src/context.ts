@@ -11,6 +11,7 @@ import type { PrismaClient } from '@oasis/db';
 import { canUseComplianceAdminTag, isFullAdmin, type Role, type SessionUser } from '@oasis/domain';
 import { logOperationalEvent } from './lib/observability.js';
 import { reconcileClerkUser } from './routers/clerkWebhook.js';
+import { ensureSchoolYearsCurrent } from './services/school-year-runtime.js';
 
 export interface CreateContextArgs {
   headers: Headers;
@@ -22,6 +23,8 @@ export interface CreateContextArgs {
    * client after auth would otherwise show a reviewer live data.
    */
   allowReviewTenant?: boolean;
+  /** Server-only health/authentication and authorized DOB repair paths may bypass cohort reads. */
+  skipSchoolYearSync?: boolean;
 }
 
 /** `live` is the learning centre (`public` schema); `review` is the app store review sandbox. */
@@ -242,6 +245,10 @@ export async function createContext(args: CreateContextArgs): Promise<AppContext
   const accountAccess = admitTenant(resolved, args.allowReviewTenant ?? false);
   const { user, tenant } = accountAccess;
   const db = tenant === 'review' ? await getReviewPrisma() : prisma;
+  if (user && !user.requires2fa && !args.skipSchoolYearSync) {
+    // Internal, fixed-purpose maintenance completes before authorized domain reads.
+    await ensureSchoolYearsCurrent(db);
+  }
   return {
     db,
     user,

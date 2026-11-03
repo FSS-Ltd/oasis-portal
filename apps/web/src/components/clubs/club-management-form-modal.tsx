@@ -1,5 +1,6 @@
 'use client';
 
+import { displaySchoolYearLabels } from '@oasis/domain';
 import { type FormEvent } from 'react';
 import { Plus, RefreshCw, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -97,7 +98,7 @@ export function ClubFormModal({
               value={form.description}
             />
           </Field>
-          <Field label="Year groups" hint="Only selected groups can newly join this club" required>
+          <Field label="Levels" hint="Only selected groups can newly join this club" required>
             <div className="admin-club-year-group-list">
               {yearGroupBands.map((band) => {
                 const checked = form.yearGroupBandIds.includes(band.id);
@@ -117,7 +118,7 @@ export function ClubFormModal({
                     />
                     <span>
                       <strong>{band.name}</strong>
-                      <small>{band.standardYears.join(', ')}</small>
+                      <small>{displaySchoolYearLabels(band.standardYears)}</small>
                     </span>
                   </label>
                 );

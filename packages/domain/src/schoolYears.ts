@@ -18,6 +18,9 @@ export const STANDARD_SCHOOL_YEARS = [
   'Year 13',
 ] as const;
 
+export const OUTSIDE_SCHOOL_AGE_LABEL = 'Outside school age';
+export const SCHOOL_AGE_UNAVAILABLE_LABEL = 'DOB required';
+
 export type StandardSchoolYear = (typeof STANDARD_SCHOOL_YEARS)[number];
 
 const standardSchoolYearValues: readonly [StandardSchoolYear, ...StandardSchoolYear[]] =
@@ -30,8 +33,12 @@ const yearSet = new Set<string>(STANDARD_SCHOOL_YEARS);
 export function canonicalSchoolYear(year: string): StandardSchoolYear | null {
   const trimmed = year.trim();
   if (yearSet.has(trimmed)) return trimmed as StandardSchoolYear;
-  if (/^nursery$/iu.test(trimmed)) return 'Nursery';
-  if (/^(reception|abc|r)$/iu.test(trimmed)) return 'Reception';
+  if (/^(nursery|n)$/iu.test(trimmed)) return 'Nursery';
+  if (/^(reception|r)$/iu.test(trimmed)) return 'Reception';
+  if (/^abc$/iu.test(trimmed)) return 'Year 1';
+
+  const levelMatch = /^level\s*([1-9]|1[0-2])$/iu.exec(trimmed);
+  if (levelMatch) return `Year ${String(Number(levelMatch[1]) + 1)}` as StandardSchoolYear;
 
   const yearMatch = /^(?:year\s*|y)([1-9]|1[0-3])$/iu.exec(trimmed);
   if (!yearMatch) return null;
@@ -48,17 +55,26 @@ export function schoolYearStorageAliases(year: string): string[] {
   if (canonical === 'Nursery') aliases.add('N');
   if (canonical === 'Reception') {
     aliases.add('R');
-    aliases.add('ABC');
   }
 
   const match = /^Year ([1-9]|1[0-3])$/u.exec(canonical);
-  if (match) aliases.add(`Y${String(Number(match[1]))}`);
+  if (match) {
+    const yearNumber = Number(match[1]);
+    aliases.add(`Y${String(yearNumber)}`);
+    aliases.add(yearNumber === 1 ? 'ABC' : `Level ${String(yearNumber - 1)}`);
+  }
   return [...aliases];
 }
 
 export function displaySchoolYearLabel(year: string): string {
   const canonical = canonicalSchoolYear(year);
-  return canonical ?? year;
+  if (canonical === 'Year 1') return 'ABC';
+  const match = canonical && /^Year ([1-9]|1[0-3])$/u.exec(canonical);
+  return match ? `Level ${String(Number(match[1]) - 1)}` : (canonical ?? year);
+}
+
+export function displaySchoolYearLabels(years: readonly string[]): string {
+  return [...new Set(years.map((year) => displaySchoolYearLabel(year.trim())))].join(', ');
 }
 
 export interface AgeBandCandidate {
@@ -94,13 +110,12 @@ export function resolveAgeBand(
 
 export function expectedPaceLevelForYear(year: string): number | null {
   const canonical = canonicalSchoolYear(year);
-  if (canonical === 'Reception') return 0;
   if (canonical === null) return null;
 
   const match = /^Year ([1-9]|1[0-3])$/u.exec(canonical);
   if (!match) return null;
 
-  return Number(match[1]);
+  return Number(match[1]) - 1;
 }
 
 const trimmedNameSchema = z.string().trim().min(1).max(80);
@@ -167,8 +182,16 @@ function utcDateParts(date: Date): { year: number; month: number; day: number } 
   };
 }
 
+const schoolCalendar = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London',
+  year: 'numeric',
+  month: 'numeric',
+});
+
 function activeAcademicYearStart(referenceDate: Date): number {
-  const { year, month } = utcDateParts(referenceDate);
+  const parts = schoolCalendar.formatToParts(referenceDate);
+  const year = Number(parts.find((part) => part.type === 'year')?.value);
+  const month = Number(parts.find((part) => part.type === 'month')?.value);
   return month >= 9 ? year : year - 1;
 }
 
@@ -208,4 +231,33 @@ export function deriveEnglandWalesSchoolYear(
   }
 
   throw new Error('date of birth does not map to a standard Oasis school year');
+}
+
+export type ResolvedSchoolYear =
+  | StandardSchoolYear
+  | typeof OUTSIDE_SCHOOL_AGE_LABEL
+  | typeof SCHOOL_AGE_UNAVAILABLE_LABEL;
+
+/** Resolve a current cohort without retaining a stale level for unsupported DOBs. */
+export function resolveSchoolYearForDob(
+  dob: Date | string | null | undefined,
+  referenceDate: Date = new Date(),
+): ResolvedSchoolYear {
+  if (Number.isNaN(referenceDate.getTime())) {
+    throw new Error('referenceDate must be a valid date');
+  }
+  const birth =
+    typeof dob === 'string'
+      ? /^\d{4}-\d{2}-\d{2}$/u.test(dob)
+        ? new Date(`${dob}T00:00:00.000Z`)
+        : null
+      : dob;
+  if (!birth || Number.isNaN(birth.getTime())) return SCHOOL_AGE_UNAVAILABLE_LABEL;
+  if (typeof dob === 'string' && birth.toISOString().slice(0, 10) !== dob) {
+    return SCHOOL_AGE_UNAVAILABLE_LABEL;
+  }
+  if (birth.getTime() > referenceDate.getTime()) return SCHOOL_AGE_UNAVAILABLE_LABEL;
+  const age = ageOnCutoff(birth, activeAcademicYearStart(referenceDate));
+  if (age < 3 || age > 17) return OUTSIDE_SCHOOL_AGE_LABEL;
+  return deriveEnglandWalesSchoolYear(birth, referenceDate);
 }

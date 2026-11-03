@@ -86,7 +86,7 @@ export function StudentProfilePanel({
               <strong>{student.dob}</strong>
             </div>
             <div className="profile-field-row">
-              <span>Year group</span>
+              <span>Level</span>
               <strong>{displaySchoolYearLabel(student.yearGroup)}</strong>
             </div>
             <div className="profile-field-row">

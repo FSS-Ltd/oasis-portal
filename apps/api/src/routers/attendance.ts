@@ -6,6 +6,7 @@ import {
   attendanceRate as calculateAttendanceRate,
   canExportAttendance,
   canRecordStudentAttendance,
+  displaySchoolYearLabel,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -951,7 +952,7 @@ export const attendanceRouter = router({
       const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
       return {
         id: student.id,
-        label: `${studentName} · ${student.yearGroup}${student.active ? '' : ' · Inactive'}`,
+        label: `${studentName} · ${displaySchoolYearLabel(student.yearGroup)}${student.active ? '' : ' · Inactive'}`,
         name: studentName,
         yearGroup: student.yearGroup,
         active: student.active,
@@ -1032,20 +1033,12 @@ export const attendanceRouter = router({
     });
 
     const csv = buildCsv(
-      [
-        'Date',
-        'Student ID',
-        'Student Name',
-        'Year Group',
-        'Status',
-        'Absence Reason',
-        'Recorded At',
-      ],
+      ['Date', 'Student ID', 'Student Name', 'Level', 'Status', 'Absence Reason', 'Recorded At'],
       rows.map((row) => [
         dateKey(row.date),
         row.student.id,
         decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student'),
-        row.student.yearGroup,
+        displaySchoolYearLabel(row.student.yearGroup),
         row.status,
         row.status === 'Absent' ? (reasonLabel(row.absenceReason) ?? 'Unknown') : '',
         row.createdAt.toISOString(),
@@ -1646,9 +1639,9 @@ export const attendanceRouter = router({
         const name = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
         return {
           id: student.id,
-          label: `${name} · ${student.yearGroup}${student.active ? '' : ' · Inactive'}`,
+          label: `${name} · ${displaySchoolYearLabel(student.yearGroup)}${student.active ? '' : ' · Inactive'}`,
           name,
-          detail: student.yearGroup,
+          detail: displaySchoolYearLabel(student.yearGroup),
           active: student.active,
         };
       });
@@ -1657,7 +1650,7 @@ export const attendanceRouter = router({
         date: dateKey(row.date),
         subjectId: row.student.id,
         subjectName: decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student'),
-        detail: row.student.yearGroup,
+        detail: displaySchoolYearLabel(row.student.yearGroup),
         status: row.status,
         absenceReason: row.absenceReason,
         absenceReasonLabel: reasonLabel(row.absenceReason),

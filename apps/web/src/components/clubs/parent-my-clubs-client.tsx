@@ -295,7 +295,7 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
           <ClubList
             clubs={eligibleClubs}
             disabled={!selectedChild}
-            emptyDetail="No clubs are currently available for this child’s year group."
+            emptyDetail="No clubs are currently available for this child’s level."
             emptyTitle="No eligible clubs"
             hideWithdraw
             onSignUp={(club) => void signChildUp(club)}

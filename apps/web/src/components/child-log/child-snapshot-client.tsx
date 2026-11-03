@@ -533,7 +533,7 @@ export function ChildSnapshotClient({
                     <thead>
                       <tr>
                         <th>Student</th>
-                        <th>Year</th>
+                        <th>Level</th>
                         <th>Attendance</th>
                         <th>Net merits</th>
                         <th>PACE</th>

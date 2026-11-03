@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { displaySchoolYearLabel } from '@oasis/domain';
+import { canonicalSchoolYear, displaySchoolYearLabel } from '@oasis/domain';
 import { CheckCircle2, UserRound, XCircle } from 'lucide-react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
@@ -24,6 +24,9 @@ function matchesSearch(
   if (!query) return true;
   return (
     candidate.fullName.toLowerCase().includes(query) ||
+    (canonicalSchoolYear(candidate.yearGroup) ?? candidate.yearGroup)
+      .toLowerCase()
+      .includes(query) ||
     displaySchoolYearLabel(candidate.yearGroup).toLowerCase().includes(query)
   );
 }

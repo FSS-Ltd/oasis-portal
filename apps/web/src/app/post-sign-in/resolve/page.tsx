@@ -56,6 +56,7 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
     clerkUserId: userId,
     enforceTwoFactor: isTwoFactorEnforcementEnabled(),
     twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
+    skipSchoolYearSync: true,
   });
   if (ctx.accountAccessState === 'deactivated') redirect('/access-revoked');
   let parentNeedsRegistration = false;

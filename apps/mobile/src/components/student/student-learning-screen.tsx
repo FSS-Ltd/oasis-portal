@@ -59,7 +59,7 @@ export function StudentLearningScreen({
     return (
       <Card style={styles.stateCard}>
         <SectionTitle>Learning unavailable</SectionTitle>
-        <MutedText>Academic screens will open when this year group is ready.</MutedText>
+        <MutedText>Academic screens will open when this level is ready.</MutedText>
       </Card>
     );
   }

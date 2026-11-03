@@ -57,17 +57,27 @@ function makeDb() {
     findMany: vi.fn().mockResolvedValue([]),
   };
   const auditLog = { create: vi.fn().mockResolvedValue(undefined) };
+  const transaction =
+    vi.fn<
+      (
+        callback: (tx: unknown) => Promise<unknown>,
+        options?: { isolationLevel?: string },
+      ) => Promise<unknown>
+    >();
   const db = {
     user,
     adultCompliance,
     student,
     studentRegistrationProfile,
     auditLog,
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: transaction,
     $enc: {
       encrypt: vi.fn((value: string) => `enc:${value}`),
       decrypt: vi.fn((value: string | null | undefined) => value?.replace(/^enc:/u, '') ?? null),
     },
   };
+  transaction.mockImplementation((callback) => callback(db));
   return db;
 }
 
@@ -184,8 +194,72 @@ describe('compliance access and records', () => {
     await makeCaller(lead, db).compliance.update({ ...validUpdate, userId: 'student-1' });
     expect(db.student.update).toHaveBeenCalledWith({
       where: { userId: 'student-1' },
-      data: { dobEnc: 'enc:1987-01-02' },
+      data: { dobEnc: 'enc:1987-01-02', yearGroup: 'Outside school age' },
     });
+    expect(db.auditLog.create.mock.calls[0]?.[0]).toHaveProperty(
+      'data.meta.fields',
+      expect.arrayContaining(['studentDobEnc', 'studentYearGroup']),
+    );
+  });
+
+  it('preserves a student override while correcting an adult compliance DOB', async () => {
+    const db = makeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'student-1',
+      role: 'Student',
+      active: true,
+      dobEnc: null,
+      studentProfile: { dobEnc: 'enc:1987-01-02', yearGroupOverride: 'Year 3' },
+    });
+
+    await makeCaller(lead, db).compliance.update({ ...validUpdate, userId: 'student-1' });
+
+    expect(db.student.update).toHaveBeenCalledWith({
+      where: { userId: 'student-1' },
+      data: { dobEnc: 'enc:1987-01-02', yearGroup: 'Year 3' },
+    });
+  });
+
+  it('retries a concurrent override change before committing a compliance DOB correction', async () => {
+    const db = makeDb();
+    const savedStudent = { override: 'Year 3', yearGroup: 'Year 3' };
+    let isolationLevel: string | undefined;
+    let concurrentChangePending = true;
+    db.$transaction.mockImplementation((callback, options) => {
+      isolationLevel = options?.isolationLevel;
+      return callback(db);
+    });
+    db.user.findUnique.mockImplementation(() => {
+      const snapshotOverride = savedStudent.override;
+      if (concurrentChangePending) {
+        savedStudent.override = 'Year 4';
+        savedStudent.yearGroup = 'Year 4';
+        concurrentChangePending = false;
+      }
+      return Promise.resolve({
+        id: 'student-1',
+        role: 'Student',
+        active: true,
+        dobEnc: null,
+        studentProfile: { dobEnc: 'enc:1987-01-02', yearGroupOverride: snapshotOverride },
+      });
+    });
+    db.student.update.mockImplementation(({ data }: { data: { yearGroup: string } }) => {
+      if (isolationLevel === 'Serializable' && data.yearGroup !== savedStudent.override) {
+        return Promise.reject(
+          Object.assign(new Error('Concurrent student override changed'), { code: 'P2034' }),
+        );
+      }
+      savedStudent.yearGroup = data.yearGroup;
+      return Promise.resolve({ id: 'student-1' });
+    });
+
+    await makeCaller(lead, db).compliance.update({ ...validUpdate, userId: 'student-1' });
+
+    expect(savedStudent).toEqual({ override: 'Year 4', yearGroup: 'Year 4' });
+    expect(db.user.findUnique).toHaveBeenCalledTimes(2);
+    expect(db.adultCompliance.upsert).toHaveBeenCalledTimes(1);
+    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
   });
 
   it('filters MedTab to active students with recorded medical text', async () => {

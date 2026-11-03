@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -71,7 +72,7 @@ export function StudentRanksPanel({
           </View>
           <View style={styles.headingCopy}>
             <Text style={styles.rowTitle}>{row.displayName}</Text>
-            <MutedText>{row.yearGroup}</MutedText>
+            <MutedText>{displaySchoolYearLabel(row.yearGroup)}</MutedText>
           </View>
           <Text style={styles.scoreText}>
             {formatLearningMerits(row.score)} {scoreKindLabel}

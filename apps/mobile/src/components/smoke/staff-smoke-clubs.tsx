@@ -1,3 +1,4 @@
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import {
@@ -138,7 +139,8 @@ export function StaffClubsPanel({
               <View style={styles.rowBody}>
                 <Text style={styles.rowTitle}>{signup.studentName}</Text>
                 <MutedText>
-                  {signup.yearGroup} · Signed up {formatSignedUpAt(signup.signedUpAt)}
+                  {displaySchoolYearLabel(signup.yearGroup)} · Signed up{' '}
+                  {formatSignedUpAt(signup.signedUpAt)}
                 </MutedText>
               </View>
               <Badge variant="blue">Roster</Badge>

@@ -1,5 +1,7 @@
 import { type RouterOutputs } from '../../lib/trpc';
 
+export { displaySchoolYearLabel } from '@oasis/domain';
+
 export type ParentDashboard = RouterOutputs['childLog']['parentDashboard'];
 export type ParentDashboardChild = ParentDashboard['children'][number];
 export type ParentNotice = RouterOutputs['notice']['listForParents'][number];
@@ -25,14 +27,6 @@ export function initials(name: string): string {
     .slice(0, 2);
 }
 
-export function displaySchoolYearLabel(year: string): string {
-  const trimmed = year.trim();
-  if (/^nursery$/iu.test(trimmed)) return 'Nursery';
-  if (/^(reception|abc|r)$/iu.test(trimmed)) return 'ABC';
-  const yearMatch = /^(?:year\s*|y)([1-9]|1[0-3])$/iu.exec(trimmed);
-  return yearMatch ? `Level ${String(Number(yearMatch[1]))}` : year;
-}
-
 export function formatParentDate(value: string | Date): string {
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(
     new Date(value),
@@ -56,11 +50,7 @@ export function selectedParentChild(
   children: readonly ParentDashboardChild[],
   selectedChildId: string | null,
 ): ParentDashboardChild | null {
-  return (
-    children.find((child) => child.student.id === selectedChildId) ??
-    children[0] ??
-    null
-  );
+  return children.find((child) => child.student.id === selectedChildId) ?? children[0] ?? null;
 }
 
 export function attendanceTone(

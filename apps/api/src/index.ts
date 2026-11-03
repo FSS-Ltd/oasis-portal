@@ -171,3 +171,8 @@ export {
   type ClerkWebhookVerifier,
   type PrismaClerkUserStoreDb,
 } from './routers/clerkWebhook.js';
+
+export {
+  reconcileStudentSchoolYears,
+  type SchoolYearReconciliationSummary,
+} from './services/school-year-reconciliation.js';

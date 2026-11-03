@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@oasis/db';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
@@ -8,6 +8,15 @@ import {
   decryptTestValue as decrypt,
   encryptTestValue as encrypt,
 } from './helpers/test-encryption.js';
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const headUser: SessionUser = {
   id: 'ckuserhead00000000000001',
@@ -59,6 +68,7 @@ interface StoredStudent {
   dobEnc: string;
   addressEnc: string | null;
   yearGroup: string;
+  yearGroupOverride?: string | null;
   ageBandId: string | null;
   enrolmentDate: Date;
   active: boolean;
@@ -277,6 +287,7 @@ function selectedStudent(
   if (select.dobEnc) row.dobEnc = student.dobEnc;
   if (select.addressEnc) row.addressEnc = student.addressEnc;
   if (select.yearGroup) row.yearGroup = student.yearGroup;
+  if (select.yearGroupOverride) row.yearGroupOverride = student.yearGroupOverride ?? null;
   if (select.ageBandId) row.ageBandId = student.ageBandId;
   if (select.ageBand) {
     row.ageBand = bands.find((band) => band.id === student.ageBandId) ?? null;
@@ -974,8 +985,7 @@ async function createStudent(caller: ReturnType<typeof makeCaller>) {
   return caller.student.create({
     fullName: 'Jane Learner',
     email: 'jane@example.com',
-    dob: new Date('2014-02-03T00:00:00.000Z'),
-    yearGroup: 'Year 6',
+    dob: new Date('2015-02-03T00:00:00.000Z'),
     enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
     address: '12 Oasis Road',
   });
@@ -994,7 +1004,7 @@ describe('student router CRUD', () => {
     expect(students[0]).toMatchObject({
       fullNameEnc: 'enc:Jane Learner',
       nameBidx: 'bidx:jane learner',
-      dobEnc: 'enc:2014-02-03',
+      dobEnc: 'enc:2015-02-03',
       addressEnc: 'enc:12 Oasis Road',
     });
 
@@ -1004,7 +1014,7 @@ describe('student router CRUD', () => {
     expect(rows[0]).toMatchObject({
       id: studentId,
       fullName: 'Jane Learner',
-      dob: '2014-02-03',
+      dob: '2015-02-03',
       address: '12 Oasis Road',
       yearGroup: 'Year 6',
       active: true,
@@ -1016,7 +1026,7 @@ describe('student router CRUD', () => {
         action: 'Create',
         entity: 'Student',
         entityId: studentId,
-        meta: { yearGroup: 'Year 6', invitationEmailStatus: 'Sent' },
+        meta: { yearGroup: 'Year 6', yearGroupOverride: null, invitationEmailStatus: 'Sent' },
       },
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1173,7 +1183,225 @@ describe('student router CRUD', () => {
     });
   });
 
-  it('defaults the year group from date of birth when Head does not override it', async () => {
+  it('supports legacy yearGroup as a manual override on create', async () => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    await caller.student.create({
+      fullName: 'DOB Cohort',
+      email: 'dob-cohort@example.com',
+      dob: new Date('2014-08-31T00:00:00.000Z'),
+      yearGroup: 'Year 1',
+      enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
+    });
+
+    expect(students[0]).toMatchObject({ yearGroup: 'Year 1', yearGroupOverride: 'Year 1' });
+  });
+
+  it('supports legacy yearGroup overrides alongside DOB edits', async () => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await createStudent(caller);
+
+    await caller.student.update({
+      id: studentId,
+      dob: new Date('2013-08-31T00:00:00.000Z'),
+      yearGroup: 'Year 1',
+    });
+
+    expect(students[0]).toMatchObject({ yearGroup: 'Year 1', yearGroupOverride: 'Year 1' });
+    expect(students[0]?.dobEnc).toBe('enc:2013-08-31');
+  });
+
+  it.each([
+    ['2013-08-31', 'Year 8'],
+    ['1987-01-01', 'Outside school age'],
+  ])('repairs unreadable stored DOB using %s without decrypting it', async (dob, yearGroup) => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await createStudent(caller);
+    const student = students[0];
+    if (!student) throw new Error('test student missing');
+    student.dobEnc = 'broken';
+    db.$enc.decrypt.mockImplementation((value: string | null | undefined) => {
+      if (value === 'broken') throw new Error('Unreadable ciphertext');
+      return decrypt(value);
+    });
+    db.$enc.decrypt.mockClear();
+    db.auditLog.create.mockClear();
+
+    await expect(caller.student.update({ id: studentId, dob: new Date(dob) })).resolves.toEqual({
+      id: studentId,
+    });
+
+    expect(student).toMatchObject({ dobEnc: `enc:${dob}`, yearGroup });
+    expect(db.$enc.decrypt).not.toHaveBeenCalled();
+    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(db.auditLog.create.mock.calls[0]?.[0]).toHaveProperty('data.action', 'Update');
+  });
+
+  it.each([
+    ['Parent', 'FORBIDDEN'],
+    ['2FA-pending Head', 'UNAUTHORIZED'],
+  ] as const)('denies corrupt-DOB repair by %s', async (account, code) => {
+    const { db, students } = makeFakeDb();
+    await createStudent(makeCaller(headUser, db));
+    const student = students[0];
+    if (!student) throw new Error('test student missing');
+    student.dobEnc = 'broken';
+    db.student.update.mockClear();
+    const deniedUser: SessionUser =
+      account === 'Parent'
+        ? { ...headUser, id: 'parent-denied', role: 'Parent' }
+        : { ...headUser, requires2fa: true };
+
+    await expect(
+      makeCaller(deniedUser, db).student.update({
+        id: studentId,
+        dob: new Date('2013-08-31'),
+        yearGroupOverride: 'Year 3',
+      }),
+    ).rejects.toMatchObject({ code });
+
+    expect(student).toMatchObject({ dobEnc: 'broken', yearGroup: 'Year 6' });
+    expect(db.student.update).not.toHaveBeenCalled();
+  });
+
+  it('applies explicit overrides, preserves them across DOB edits, and resets to automatic', async () => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await createStudent(caller);
+
+    await caller.student.update({ id: studentId, yearGroupOverride: 'Year 3' });
+    expect(students[0]).toMatchObject({ yearGroup: 'Year 3', yearGroupOverride: 'Year 3' });
+    expect(await caller.student.byId({ id: studentId })).toMatchObject({
+      yearGroupOverride: 'Year 3',
+    });
+
+    await caller.student.update({ id: studentId, dob: new Date('2013-08-31') });
+    expect(students[0]).toMatchObject({
+      yearGroup: 'Year 3',
+      yearGroupOverride: 'Year 3',
+      dobEnc: 'enc:2013-08-31',
+    });
+
+    await caller.student.update({ id: studentId, yearGroupOverride: null, yearGroup: 'Year 1' });
+    expect(students[0]).toMatchObject({ yearGroup: 'Year 8', yearGroupOverride: null });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        entityId: studentId,
+        meta: { count: 1, source: 'student.update' },
+      },
+    });
+  });
+
+  it('lets an explicit automatic value take precedence over legacy yearGroup on create', async () => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    await caller.student.create({
+      fullName: 'Automatic Cohort',
+      email: 'automatic@example.com',
+      dob: new Date('2014-08-31'),
+      yearGroup: 'Year 1',
+      yearGroupOverride: null,
+      enrolmentDate: new Date('2026-04-27'),
+    });
+
+    expect(students[0]).toMatchObject({ yearGroup: 'Year 7', yearGroupOverride: null });
+  });
+
+  it('permits a valid historical DOB on create with an explicit override', async () => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    await caller.student.create({
+      fullName: 'Override Cohort',
+      email: 'override@example.com',
+      dob: new Date('1987-01-01'),
+      yearGroupOverride: 'Year 3',
+      yearGroup: 'Year 1',
+      enrolmentDate: new Date('2026-04-27'),
+    });
+
+    expect(students[0]).toMatchObject({ yearGroup: 'Year 3', yearGroupOverride: 'Year 3' });
+  });
+
+  it.each(['2025-01-01', '2000-01-01'])(
+    'rejects unsupported DOB %s without creating a student or invitation',
+    async (dob) => {
+      const { db, students } = makeFakeDb();
+      const { caller, clerk } = makeStudentCreateCaller(headUser, db);
+
+      await expect(
+        caller.student.create({
+          fullName: 'Unsupported DOB',
+          email: 'unsupported@example.com',
+          dob: new Date(dob),
+          enrolmentDate: new Date('2026-04-27'),
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+      expect(students).toEqual([]);
+      expect(clerk.createInvitation).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects future DOBs even when creating a manual override', async () => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    await expect(
+      caller.student.create({
+        fullName: 'Future Override',
+        email: 'future-override@example.com',
+        dob: new Date('2030-01-01'),
+        yearGroupOverride: 'Year 3',
+        enrolmentDate: new Date('2026-04-27'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(students).toEqual([]);
+  });
+
+  it('rejects future DOB updates without changing the saved cohort', async () => {
+    const { db, students } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await createStudent(caller);
+
+    await expect(
+      caller.student.update({ id: studentId, dob: new Date('2030-01-01') }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(students[0]?.yearGroup).toBe('Year 6');
+    expect(students[0]?.dobEnc).toBe('enc:2015-02-03');
+  });
+
+  it.each([true, false])(
+    'allows edits to existing outside-age students while keeping DOB authoritative (DOB submitted: %s)',
+    async (submitDob) => {
+      const { db, students } = makeFakeDb();
+      const caller = makeCaller(headUser, db);
+      await createStudent(caller);
+      const student = students[0];
+      if (!student) throw new Error('test student missing');
+      student.dobEnc = 'enc:2000-01-01';
+
+      await caller.student.update({
+        id: studentId,
+        fullName: 'Updated Adult',
+        ...(submitDob ? { dob: new Date('2000-01-01') } : { yearGroupOverride: null }),
+      });
+
+      expect(student.yearGroup).toBe('Outside school age');
+      expect(student.fullNameEnc).toBe('enc:Updated Adult');
+    },
+  );
+
+  it('derives the year group from date of birth when no year group is supplied', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
     try {
@@ -1196,7 +1424,7 @@ describe('student router CRUD', () => {
           action: 'Create',
           entity: 'Student',
           entityId: studentId,
-          meta: { yearGroup: 'Year 7', invitationEmailStatus: 'Sent' },
+          meta: { yearGroup: 'Year 7', yearGroupOverride: null, invitationEmailStatus: 'Sent' },
         },
       });
     } finally {
@@ -1221,6 +1449,7 @@ describe('student.me', () => {
       userId: studentUser.id,
       fullName: 'Jane Learner',
       yearGroup: 'Year 6',
+      yearGroupOverride: null,
       enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
       active: true,
       academicScreensEnabled: false,
@@ -1354,7 +1583,8 @@ describe('student.dashboard', () => {
           iconInitials: 'JA',
           childIconPhotoUrl: 'https://storage.example/student-icons/child.jpg',
           yearGroup: 'Year 6',
-          yearGroupLabel: 'Year 6',
+          yearGroupOverride: null,
+          yearGroupLabel: 'Level 5',
           ageBand: {
             id: 'band_upper',
             name: 'Upper Primary',
@@ -1421,7 +1651,7 @@ describe('student.dashboard', () => {
         },
       });
       expect(JSON.stringify(dashboard)).not.toContain('Learner');
-      expect(JSON.stringify(dashboard)).not.toContain('2014-02-03');
+      expect(JSON.stringify(dashboard)).not.toContain('2015-02-03');
       expect(JSON.stringify(dashboard)).not.toContain('12 Oasis Road');
       expect(JSON.stringify(dashboard)).not.toContain(supervisorUser.id);
       expect(db.auditLog.create).toHaveBeenCalledWith({

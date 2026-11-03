@@ -6,11 +6,12 @@ import {
   canUseCompliance,
   complianceBadgeSummary,
   isComplianceAccount,
+  resolveSchoolYearForDob,
   updateAdultComplianceInput,
   type Role,
   type UpdateAdultComplianceInput,
 } from '@oasis/domain';
-import type { AppContext } from '../context.js';
+import { applySerializableRlsTx, type AppContext } from '../context.js';
 import {
   complianceBadgeProcedure,
   complianceEditorProcedure,
@@ -221,7 +222,7 @@ export const complianceRouter = router({
     .input(updateAdultComplianceInput)
     .mutation(async ({ ctx, input }) => {
       const data = recordData(ctx, input);
-      await ctx.withRls(async (tx) => {
+      await applySerializableRlsTx(ctx.db, ctx.user, async (tx) => {
         const user = await tx.user.findUnique({
           where: { id: input.userId },
           select: {
@@ -229,7 +230,7 @@ export const complianceRouter = router({
             role: true,
             active: true,
             dobEnc: true,
-            studentProfile: { select: { dobEnc: true } },
+            studentProfile: { select: { dobEnc: true, yearGroupOverride: true } },
           },
         });
         if (!user?.active || !isComplianceAccount(user.role, personDob(ctx, user))) {
@@ -248,7 +249,11 @@ export const complianceRouter = router({
         if (user.role === 'Student' && input.dob) {
           await tx.student.update({
             where: { userId: user.id },
-            data: { dobEnc: ctx.db.$enc.encrypt(input.dob) },
+            data: {
+              dobEnc: ctx.db.$enc.encrypt(input.dob),
+              yearGroup:
+                user.studentProfile?.yearGroupOverride ?? resolveSchoolYearForDob(input.dob),
+            },
           });
         }
         await tx.adultCompliance.upsert({
@@ -265,7 +270,9 @@ export const complianceRouter = router({
             meta: {
               source: 'compliance.update',
               fields: Object.keys(data).concat(
-                user.role === 'Student' ? ['dobEnc', 'studentDobEnc'] : ['dobEnc'],
+                user.role === 'Student' && input.dob
+                  ? ['dobEnc', 'studentDobEnc', 'studentYearGroup']
+                  : ['dobEnc'],
               ),
             },
           },

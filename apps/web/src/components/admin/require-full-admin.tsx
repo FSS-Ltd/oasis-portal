@@ -56,6 +56,7 @@ async function getSessionUser(
     clerkUserId: userId,
     enforceTwoFactor: isTwoFactorEnforcementEnabled(),
     twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
+    skipSchoolYearSync: true,
   });
   return ctx.user;
 }

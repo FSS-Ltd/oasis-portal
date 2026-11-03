@@ -1190,13 +1190,13 @@ describe('pace.roster access scope', () => {
       studentId: STUDENT_ID,
       studentName: 'Jane Learner',
       yearGroup: 'Year 6',
-      yearGroupLabel: 'Year 6',
+      yearGroupLabel: 'Level 5',
     });
     expect(result.students[0]?.band?.id).toBe('band_lower');
     expect(result.students[1]).toMatchObject({
       studentName: 'Secondary Learner',
       yearGroup: 'Year 8',
-      yearGroupLabel: 'Year 8',
+      yearGroupLabel: 'Level 7',
     });
     expect(result.students[1]?.band?.id).toBe('band_secondary');
     expect(db.student.findMany).toHaveBeenCalledWith(
@@ -1573,7 +1573,7 @@ describe('pace.forStudent read model', () => {
     const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
 
     expect(result.yearGroup).toBe('Year 5');
-    expect(result.yearGroupLabel).toBe('Year 5');
+    expect(result.yearGroupLabel).toBe('Level 4');
     expect(result.subjects[0]?.status).toMatchObject({
       status: 'Behind',
       detail: 'Behind',

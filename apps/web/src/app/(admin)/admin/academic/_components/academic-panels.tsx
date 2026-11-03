@@ -19,10 +19,10 @@ export function StandardYearsPanel({ yearCount }: StandardYearsPanelProps) {
     <section className="panel settings-wide">
       <div className="panel__body">
         <div className="section-title">
-          <h2>Age-based learning years</h2>
-          <span className="badge">{yearCount} years</span>
+          <h2>Age-based learning levels</h2>
+          <span className="badge">{yearCount} levels</span>
         </div>
-        <div className="year-chip-grid" aria-label="Age-based learning years">
+        <div className="year-chip-grid" aria-label="Age-based learning levels">
           {standardSchoolYearOptions.map(({ label, year }) => (
             <span className="year-chip" key={year}>
               {label}
