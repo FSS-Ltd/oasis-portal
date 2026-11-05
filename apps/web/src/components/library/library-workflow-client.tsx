@@ -1,16 +1,22 @@
 'use client';
 
-import { displaySchoolYearLabel } from '@oasis/domain';
+import './library-circulation.css';
+
 import { type ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useSession } from '@clerk/nextjs';
-import { BookOpen, Camera, ImageUp, Search } from 'lucide-react';
+import { BookOpen, Camera, ImageUp } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
-import { LibraryBookList } from './library-book-list';
-import { LibraryCollectionTabs } from './library-collection-tabs';
+import { LibraryCataloguePanel, type LibraryAvailability } from './library-catalogue-panel';
+import { LibraryBorrowerForm } from './library-borrower-form';
+import { LibraryStaffTabs } from './library-staff-tabs';
+import { LibraryCirculationPanel } from './library-circulation-panel';
+import { LibraryBorrowingHistory } from './library-borrowing-history';
 import {
   LIBRARY_BOOK_COLLECTIONS,
   LIBRARY_BOOK_COLLECTION_LABELS,
   type LibraryBookCollection,
+  type LibraryStaffView,
+  LIBRARY_STAFF_VIEWS,
 } from '@oasis/domain';
 import { LibraryBookEditor } from './library-book-editor';
 import { LibraryBarcodeScanner } from './library-barcode-scanner';
@@ -24,7 +30,6 @@ type UploadedCover = {
   storageBucket: string;
   storagePath: string;
 };
-type Availability = 'All' | 'Available' | 'OnLoan';
 
 function dateAfter(days: number): string {
   const date = new Date();
@@ -34,6 +39,7 @@ function dateAfter(days: number): string {
 
 export function LibraryWorkflowClient() {
   const { session } = useSession();
+  const [view, setView] = useState<LibraryStaffView>('Catalogue');
   const [editing, setEditing] = useState(false);
   const [barcode, setBarcode] = useState('');
   const [title, setTitle] = useState('');
@@ -44,7 +50,7 @@ export function LibraryWorkflowClient() {
   const [dueOn, setDueOn] = useState(dateAfter(14));
   const [collection, setCollection] = useState<LibraryBookCollection>('General');
   const [search, setSearch] = useState('');
-  const [availability, setAvailability] = useState<Availability>('All');
+  const [availability, setAvailability] = useState<LibraryAvailability>('All');
   const [page, setPage] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -58,17 +64,22 @@ export function LibraryWorkflowClient() {
     [session],
   );
   const utils = api.useUtils();
-  const catalogue = api.library.cataloguePage.useQuery({ availability, page, search, collection });
+  const catalogue = api.library.cataloguePage.useQuery(
+    { availability, page, search, collection },
+    { enabled: view === 'Catalogue' },
+  );
   const lookup = api.library.lookupBarcode.useQuery(
     { barcode },
     { enabled: /^\d{1,64}$/.test(barcode), retry: false },
   );
-  const borrowers = api.library.borrowers.useQuery(undefined);
+  const borrowers = api.library.borrowers.useQuery(undefined, { enabled: view === 'Catalogue' });
   const createBook = api.library.createBook.useMutation({
     onSuccess: async () => {
       await Promise.all([
         utils.library.cataloguePage.invalidate(),
         utils.library.lookupBarcode.invalidate(),
+        utils.library.circulationPage.invalidate(),
+        utils.library.borrowerHistoryPage.invalidate(),
       ]);
       setBarcode('');
       setTitle('');
@@ -83,6 +94,8 @@ export function LibraryWorkflowClient() {
       await Promise.all([
         utils.library.cataloguePage.invalidate(),
         utils.library.lookupBarcode.invalidate(),
+        utils.library.circulationPage.invalidate(),
+        utils.library.borrowerHistoryPage.invalidate(),
       ]);
       setStudentId('');
       setMessage(
@@ -92,21 +105,13 @@ export function LibraryWorkflowClient() {
       );
     },
   });
-  const checkin = api.library.checkin.useMutation({
-    onSuccess: async () => {
-      await Promise.all([
-        utils.library.cataloguePage.invalidate(),
-        utils.library.lookupBarcode.invalidate(),
-      ]);
-      setMessage('Book checked in.');
-    },
-  });
   const selectedBook = useMemo(
     () => catalogue.data?.items.find((book) => book.barcode === barcode) ?? lookup.data ?? null,
     [barcode, catalogue.data, lookup.data],
   );
 
   function selectBarcode(value: string, successMessage?: string) {
+    setView('Catalogue');
     setEditing(false);
     setBarcode(value.trim());
     setStudentId('');
@@ -192,6 +197,7 @@ export function LibraryWorkflowClient() {
           <button
             className="button button--primary button--md"
             onClick={() => {
+              setView('Catalogue');
               setScannerOpen(true);
             }}
             type="button"
@@ -231,335 +237,205 @@ export function LibraryWorkflowClient() {
           {message}
         </p>
       ) : null}
-      {createBook.error || checkout.error || checkin.error || lookup.error ? (
+      {createBook.error || checkout.error || lookup.error ? (
         <p className="status--error" role="alert">
-          {(createBook.error ?? checkout.error ?? checkin.error ?? lookup.error)?.message}
+          {(createBook.error ?? checkout.error ?? lookup.error)?.message}
         </p>
       ) : null}
-      <section className="library-circulation panel">
-        <div className="library-circulation__intro">
-          <BookOpen aria-hidden="true" size={21} />
-          <div>
-            <h2>Circulation desk</h2>
-            <p>Enter a barcode to check a copy in, lend it, or add it to the catalogue.</p>
-          </div>
-        </div>
-        <label className="field library-barcode-field">
-          <span className="field__label">Book barcode</span>
-          <input
-            inputMode="numeric"
-            onChange={(event) => {
-              selectBarcode(event.target.value);
-            }}
-            placeholder="Scan or enter barcode"
-            value={barcode}
-          />
-        </label>
-        {selectedBook ? (
-          <div className="library-action-card">
-            <strong>{selectedBook.title}</strong>
-            <button
-              className="button button--secondary button--sm"
-              onClick={() => {
-                setEditing(true);
-              }}
-              type="button"
-            >
-              Edit book
-            </button>
-            <p>
-              {selectedBook.availableCopies} of {selectedBook.quantity} copies available.
-            </p>
-            {selectedBook.openLoans.map((loan) => (
-              <div className="library-return-action" key={loan.id}>
-                <span>Checked out to {loan.studentName}.</span>
-                <button
-                  className="button button--secondary button--sm"
-                  disabled={checkin.isPending}
-                  onClick={() => {
-                    checkin.mutate({ barcode, loanId: loan.id });
-                  }}
-                  type="button"
-                >
-                  Check in {loan.studentName}’s copy
-                </button>
+      <LibraryStaffTabs value={view} onChange={setView} />
+      <div id="library-workspace-panel" role="tabpanel" aria-labelledby={`library-view-${view}`}>
+        {view === 'Catalogue' ? (
+          <>
+            <section className="library-circulation panel">
+              <div className="library-circulation__intro">
+                <BookOpen aria-hidden="true" size={21} />
+                <div>
+                  <h2>Circulation desk</h2>
+                  <p>Enter a barcode to check a copy in, lend it, or add it to the catalogue.</p>
+                </div>
               </div>
-            ))}
-            {selectedBook.availableCopies > 0 ? (
-              <BorrowerForm
-                borrowers={borrowers.data ?? []}
-                dueOn={dueOn}
-                onCheckout={() => {
-                  checkout.mutate({ barcode, studentId, dueOn });
-                }}
-                onDueOn={setDueOn}
-                onStudentId={setStudentId}
-                pending={checkout.isPending}
-                studentId={studentId}
-              />
-            ) : (
-              <p>All copies are on loan.</p>
-            )}
-          </div>
-        ) : null}
-        {editing && selectedBook ? (
-          <LibraryBookEditor
-            book={selectedBook}
-            key={selectedBook.id}
-            onCancel={() => {
-              setEditing(false);
-            }}
-            onSaved={async (savedBarcode) => {
-              selectBarcode(savedBarcode);
-              await Promise.all([
-                utils.library.cataloguePage.invalidate(),
-                utils.library.lookupBarcode.invalidate(),
-              ]);
-              setMessage('Book updated.');
-            }}
-          />
-        ) : null}
-        {barcode && !selectedBook ? (
-          <div className="library-add-book">
-            <h2>Add a new book</h2>
-            <label className="field">
-              <span className="field__label">Title</span>
-              <input
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                }}
-                value={title}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">Author</span>
-              <input
-                onChange={(event) => {
-                  setAuthor(event.target.value);
-                }}
-                value={author}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">Quantity</span>
-              <input
-                min={1}
-                onChange={(event) => {
-                  setQuantity(Math.max(1, event.currentTarget.valueAsNumber || 1));
-                }}
-                type="number"
-                value={quantity}
-              />
-            </label>
-            <label className="field">
-              <span className="field__label">Collection</span>
-              <select
-                value={collection}
-                onChange={(event) => {
-                  const value = LIBRARY_BOOK_COLLECTIONS.find(
-                    (item) => item === event.target.value,
-                  );
-                  if (value) {
-                    setCollection(value);
-                    setPage(1);
-                  }
-                }}
-              >
-                {LIBRARY_BOOK_COLLECTIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {LIBRARY_BOOK_COLLECTION_LABELS[value]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">Cover image</span>
-              <input
-                accept="image/jpeg,image/png,image/webp"
-                disabled={isCoverUploading}
-                onChange={(event) => void uploadCover(event)}
-                type="file"
-              />
-              {isCoverUploading ? <span className="muted">Uploading cover…</span> : null}
-            </label>
-            <button
-              className="button button--primary button--md"
-              disabled={createBook.isPending || !cover}
-              onClick={addBook}
-              type="button"
-            >
-              {createBook.isPending ? 'Adding…' : 'Add book'}
-            </button>
-          </div>
-        ) : null}
-      </section>
-      <LibraryCollectionTabs
-        value={collection}
-        onChange={(value) => {
-          setCollection(value);
-          setPage(1);
-        }}
-      />
-      <section
-        className="library-catalogue"
-        id="library-catalogue-panel"
-        role="tabpanel"
-        aria-labelledby={`library-collection-${collection}`}
-      >
-        <div className="library-catalogue__heading">
-          <div>
-            <p className="eyebrow">Catalogue</p>
-            <h2>Explore books</h2>
-          </div>
-          <label className="library-search">
-            <Search aria-hidden="true" size={17} />
-            <span className="sr-only">Search the catalogue</span>
-            <input
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Search title, author, or barcode"
-              value={search}
+              <label className="field library-barcode-field">
+                <span className="field__label">Book barcode</span>
+                <input
+                  inputMode="numeric"
+                  onChange={(event) => {
+                    selectBarcode(event.target.value);
+                  }}
+                  placeholder="Scan or enter barcode"
+                  value={barcode}
+                />
+              </label>
+              {selectedBook ? (
+                <div className="library-action-card">
+                  <strong>{selectedBook.title}</strong>
+                  <button
+                    className="button button--secondary button--sm"
+                    onClick={() => {
+                      setEditing(true);
+                    }}
+                    type="button"
+                  >
+                    Edit book
+                  </button>
+                  <p>
+                    {selectedBook.availableCopies} of {selectedBook.quantity} copies available.
+                  </p>
+                  {selectedBook.loanedCopies > 0 ? (
+                    <LibraryCirculationPanel
+                      key={selectedBook.id}
+                      status="Open"
+                      bookId={selectedBook.id}
+                    />
+                  ) : null}
+                  {selectedBook.availableCopies > 0 ? (
+                    <LibraryBorrowerForm
+                      borrowers={borrowers.data ?? []}
+                      dueOn={dueOn}
+                      onCheckout={() => {
+                        checkout.mutate({ barcode, studentId, dueOn });
+                      }}
+                      onDueOn={setDueOn}
+                      onDueInDays={(days) => {
+                        setDueOn(dateAfter(days));
+                      }}
+                      onStudentId={setStudentId}
+                      pending={checkout.isPending}
+                      studentId={studentId}
+                    />
+                  ) : (
+                    <p>All copies are on loan.</p>
+                  )}
+                </div>
+              ) : null}
+              {editing && selectedBook ? (
+                <LibraryBookEditor
+                  book={selectedBook}
+                  key={selectedBook.id}
+                  onCancel={() => {
+                    setEditing(false);
+                  }}
+                  onSaved={async (savedBarcode) => {
+                    selectBarcode(savedBarcode);
+                    await Promise.all([
+                      utils.library.cataloguePage.invalidate(),
+                      utils.library.lookupBarcode.invalidate(),
+                      utils.library.circulationPage.invalidate(),
+                      utils.library.borrowerHistoryPage.invalidate(),
+                    ]);
+                    setMessage('Book updated.');
+                  }}
+                />
+              ) : null}
+              {barcode && !selectedBook ? (
+                <div className="library-add-book">
+                  <h2>Add a new book</h2>
+                  <label className="field">
+                    <span className="field__label">Title</span>
+                    <input
+                      onChange={(event) => {
+                        setTitle(event.target.value);
+                      }}
+                      value={title}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Author</span>
+                    <input
+                      onChange={(event) => {
+                        setAuthor(event.target.value);
+                      }}
+                      value={author}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Quantity</span>
+                    <input
+                      min={1}
+                      onChange={(event) => {
+                        setQuantity(Math.max(1, event.currentTarget.valueAsNumber || 1));
+                      }}
+                      type="number"
+                      value={quantity}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Collection</span>
+                    <select
+                      value={collection}
+                      onChange={(event) => {
+                        const value = LIBRARY_BOOK_COLLECTIONS.find(
+                          (item) => item === event.target.value,
+                        );
+                        if (value) {
+                          setCollection(value);
+                          setPage(1);
+                        }
+                      }}
+                    >
+                      {LIBRARY_BOOK_COLLECTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {LIBRARY_BOOK_COLLECTION_LABELS[value]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Cover image</span>
+                    <input
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={isCoverUploading}
+                      onChange={(event) => void uploadCover(event)}
+                      type="file"
+                    />
+                    {isCoverUploading ? <span className="muted">Uploading cover…</span> : null}
+                  </label>
+                  <button
+                    className="button button--primary button--md"
+                    disabled={createBook.isPending || !cover}
+                    onClick={addBook}
+                    type="button"
+                  >
+                    {createBook.isPending ? 'Adding…' : 'Add book'}
+                  </button>
+                </div>
+              ) : null}
+            </section>
+            <LibraryCataloguePanel
+              collection={collection}
+              onCollection={setCollection}
+              search={search}
+              onSearch={setSearch}
+              availability={availability}
+              onAvailability={setAvailability}
+              page={page}
+              onPage={setPage}
+              data={catalogue.data}
+              loading={catalogue.isLoading}
+              failed={Boolean(catalogue.error)}
+              pending={catalogue.isFetching}
+              onSelect={selectBarcode}
             />
-          </label>
-        </div>
-        <div aria-label="Filter catalogue" className="library-filter" role="group">
-          {(
-            [
-              ['All', 'All books'],
-              ['Available', 'Available now'],
-              ['OnLoan', 'On loan'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              className={`button button--sm ${availability === value ? 'button--primary' : 'button--secondary'}`}
-              key={value}
-              onClick={() => {
-                setAvailability(value);
-                setPage(1);
-              }}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {catalogue.isLoading ? (
-          <p className="muted">Loading catalogue…</p>
-        ) : catalogue.error ? (
-          <p className="status--error">The catalogue is unavailable.</p>
-        ) : catalogue.data?.items.length ? (
-          <LibraryBookList
-            books={catalogue.data.items}
-            onSelect={(id) => {
-              const book = catalogue.data.items.find((item) => item.id === id);
-              if (book) selectBarcode(book.barcode);
-            }}
-          />
+          </>
         ) : (
-          <p className="library-empty">
-            {collection === 'RhinoReaders' && !search
-              ? 'No Rhino Readers books yet. Choose this collection when adding or editing a book.'
-              : 'No books match this search.'}
-          </p>
+          <section className="library-loan-section">
+            <div className="library-section-heading">
+              <h2>{LIBRARY_STAFF_VIEWS.find((item) => item.id === view)?.label}</h2>
+            </div>
+            <p className="muted">
+              {view === 'History'
+                ? 'Open a student record to see their current and previous loans.'
+                : view === 'Overdue'
+                  ? 'Open loans past their due date. Dates follow the school’s London calendar.'
+                  : 'See who has each copy and when it is due. Mark only the copy received as returned.'}
+            </p>
+            {view === 'History' ? (
+              <LibraryBorrowingHistory />
+            ) : (
+              <LibraryCirculationPanel key={view} status={view} />
+            )}
+          </section>
         )}
-        <div className="library-pagination">
-          <button
-            className="button button--secondary button--sm"
-            disabled={page === 1}
-            onClick={() => {
-              setPage((value) => value - 1);
-            }}
-            type="button"
-          >
-            Previous
-          </button>
-          <span>Page {page}</span>
-          <button
-            className="button button--secondary button--sm"
-            disabled={!catalogue.data?.nextPage}
-            onClick={() => {
-              setPage((value) => value + 1);
-            }}
-            type="button"
-          >
-            Next
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function BorrowerForm({
-  borrowers,
-  dueOn,
-  onCheckout,
-  onDueOn,
-  onStudentId,
-  pending,
-  studentId,
-}: {
-  borrowers: Array<{ id: string; name: string; yearGroup: string; hasReminderRecipient: boolean }>;
-  dueOn: string;
-  onCheckout: () => void;
-  onDueOn: (value: string) => void;
-  onStudentId: (value: string) => void;
-  pending: boolean;
-  studentId: string;
-}) {
-  return (
-    <div className="library-borrower-form">
-      <label className="field">
-        <span className="field__label">Student</span>
-        <select
-          onChange={(event) => {
-            onStudentId(event.target.value);
-          }}
-          value={studentId}
-        >
-          <option value="">Choose a student</option>
-          {borrowers.map((student) => (
-            <option key={student.id} value={student.id}>
-              {student.name} · {displaySchoolYearLabel(student.yearGroup)}
-              {student.hasReminderRecipient ? '' : ' · no guardian email'}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span className="field__label">Due date</span>
-        <input
-          onChange={(event) => {
-            onDueOn(event.target.value);
-          }}
-          type="date"
-          value={dueOn}
-        />
-      </label>
-      <div className="library-loan-periods">
-        {[7, 14, 21, 28].map((days) => (
-          <button
-            className="button button--secondary button--sm"
-            key={days}
-            onClick={() => {
-              onDueOn(dateAfter(days));
-            }}
-            type="button"
-          >
-            {days} days
-          </button>
-        ))}
       </div>
-      <button
-        className="button button--primary button--md"
-        disabled={!studentId || pending}
-        onClick={onCheckout}
-        type="button"
-      >
-        {pending ? 'Checking out…' : 'Check out'}
-      </button>
     </div>
   );
 }

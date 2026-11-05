@@ -176,7 +176,12 @@ export const REALTIME_MODEL_COVERAGE = {
   },
   // Includes collection and loanedCopies: transactionally maintained stock, visible without exposing borrower records.
   LibraryBook: { areas: ['library', 'staffHome'], audience: 'library' },
-  LibraryLoan: { areas: ['library', 'staffHome'], audience: 'library' },
+  LibraryLoan: {
+    areas: ['library', 'staffHome'],
+    audience: 'library',
+    clock:
+      'Staff circulationPage and borrowerHistoryPage reuse the library area. Reconcile open/overdue/history snapshots at London midnight, reconnect and foreground; no polling. Loan reads and student histories remain librarian-authorized and RLS-scoped.',
+  },
   PushDeviceToken: {
     areas: [],
     audience: 'excluded',

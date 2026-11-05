@@ -162,3 +162,7 @@ never point it at the ordinary app database or a production connection.
 ```sh
 OASIS_SCHOOL_YEAR_TEST_DATABASE_URL='<dedicated local test URL>' pnpm --filter @oasis/api exec vitest run src/__tests__/school-year-reconciliation.integration.test.ts
 ```
+
+## Library circulation read coverage
+
+`library.circulationPage` (including exact scanned-book and student filters) and `library.borrowerHistoryPage` reuse the existing `library` area, librarian authorization and database RLS. LibraryLoan commits invalidate loan pages, child-history counts and catalogue stock; Student changes invalidate displayed names/levels. Web and native clients reconcile through existing subscription, reconnect and foreground handling. The existing one-shot Europe/London midnight clock refreshes overdue status without state-discovery polling. Returned loans remain in child history; no separate Returned tab is shown. No new persistence or subscription transport is introduced.
