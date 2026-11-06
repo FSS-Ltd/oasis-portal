@@ -8,6 +8,8 @@ import {
   libraryBookCollectionSchema,
   type LibraryBookCollection,
   libraryCheckoutSchema,
+  libraryCirculationPageSchema,
+  libraryBorrowerHistoryPageSchema,
   libraryLondonDateKey,
   requireCanManageLibrary,
 } from '@oasis/domain';
@@ -21,6 +23,7 @@ import {
   type LibraryCoverUpload,
 } from '../services/library-cover-storage.js';
 import { authedProcedure, router } from '../trpc.js';
+import { readCirculationPage, readBorrowerHistoryPage } from '../services/library-circulation.js';
 
 const PAGE_SIZE = 100;
 const CATALOGUE_PAGE_SIZE = 24;
@@ -378,6 +381,14 @@ export const libraryRouter = router({
         },
       }));
     }),
+
+  circulationPage: librarianProcedure()
+    .input(libraryCirculationPageSchema)
+    .query(({ ctx, input }) => readCirculationPage(ctx, input)),
+
+  borrowerHistoryPage: librarianProcedure()
+    .input(libraryBorrowerHistoryPageSchema)
+    .query(({ ctx, input }) => readBorrowerHistoryPage(ctx, input)),
 
   prepareCoverUpload: librarianProcedure()
     .input(

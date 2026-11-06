@@ -17,3 +17,7 @@ Use authenticated subscriptions and committed-change events for application upda
 Every new persisted data source and query area must be classified in the realtime coverage manifest, including authorized audiences, dependent dashboards, and clock-driven refresh boundaries. Reconcile snapshots after subscription, reconnect, and foreground return. Batch notifications, tolerate duplicates, and clean up subscriptions on account changes and shutdown.
 
 `pnpm lint` checks polling constructs. Permitted clocks and usage heartbeats are narrowly identified in `scripts/event-architecture.mjs`; new exceptions require a documented purpose and request budget. Due-date jobs and bounded transport retries are not state-discovery polling. See `docs/event-driven-updates.md` for architecture, configuration, exceptions, and verification.
+
+# Project maps
+
+Read [FEATURE_TREE.md](FEATURE_TREE.md) and [Graphify coverage](graphify-out/GRAPH_REPORT.md) before coding. The feature tree is the canonical inventory; expand documented gaps alongside work.

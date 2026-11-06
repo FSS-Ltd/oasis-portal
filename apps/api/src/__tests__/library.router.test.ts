@@ -212,6 +212,27 @@ describe('library copy circulation', () => {
     expect(book.loanedCopies).toBe(2);
   });
 
+  it('rejects a repeated return without returning the other child’s open loan', async () => {
+    const { caller, checkout, loans, book } = fixture();
+    await checkout('cstudent000000000000000001');
+    await checkout('cstudent000000000000000002');
+    const input = { barcode: '123', loanId: 'cloan000000000000000000001' };
+    await caller.checkin(input);
+    await expect(caller.checkin(input)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(loans[0]?.returnedAt).toBeNull();
+    expect(book.loanedCopies).toBe(1);
+  });
+
+  it('rejects an unrelated loan ID without changing any child’s loan', async () => {
+    const { caller, checkout, loans, book } = fixture();
+    await checkout('cstudent000000000000000001');
+    await expect(
+      caller.checkin({ barcode: '123', loanId: 'cloan000000000000000000099' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(loans[0]?.returnedAt).toBeNull();
+    expect(book.loanedCopies).toBe(1);
+  });
+
   it('reports remaining copies even when the title has an open loan', async () => {
     const { caller, checkout } = fixture();
     await checkout('cstudent000000000000000001');

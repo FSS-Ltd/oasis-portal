@@ -1,0 +1,141 @@
+.library-workflow > [role='tabpanel'] {
+  display: grid;
+  min-width: 0;
+  gap: 22px;
+}
+.library-workspace-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--oasis-border);
+  padding-bottom: 6px;
+}
+.library-workspace-tabs [role='tab'] {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.library-workspace-tabs [aria-selected='true'] {
+  background: var(--oasis-navy);
+  color: white;
+}
+.library-workspace-tabs [role='tab']:focus-visible,
+.library-student-record summary:focus-visible,
+.library-table-scroll:focus-visible {
+  outline: 3px solid var(--oasis-blue);
+  outline-offset: 3px;
+}
+.library-records,
+.library-student-records {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+.library-record-search {
+  max-width: 420px;
+}
+.library-records input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--oasis-navy);
+  font: inherit;
+}
+.library-history-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.library-history-search .field {
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+.library-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--oasis-border);
+  border-radius: 12px;
+  background: white;
+}
+.library-loan-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.85rem;
+}
+.library-loan-table th,
+.library-loan-table td {
+  padding: 14px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--oasis-border);
+}
+.library-loan-table thead {
+  background: var(--oasis-bg);
+  color: var(--oasis-navy);
+}
+.library-loan-table tbody th {
+  width: 28%;
+  font-weight: 600;
+}
+.library-loan-table small {
+  display: block;
+  margin-top: 5px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+.library-loan-table .button {
+  display: block;
+  margin-top: 8px;
+}
+.library-student-record {
+  border: 1px solid var(--oasis-border);
+  border-radius: 12px;
+  background: white;
+}
+.library-student-record summary {
+  display: list-item;
+  padding: 16px;
+  cursor: pointer;
+  color: var(--oasis-navy);
+}
+.library-student-record summary > span {
+  display: inline-block;
+  margin-right: 16px;
+  vertical-align: middle;
+}
+.library-student-record summary small {
+  display: block;
+  margin-top: 4px;
+  color: var(--oasis-text-secondary);
+}
+.library-student-record > .library-records {
+  padding: 0 16px 16px;
+}
+@media (max-width: 600px) {
+  .library-workspace-tabs [role='tab'] {
+    flex: 1 1 auto;
+    padding-inline: 10px;
+    font-size: 0.85rem;
+  }
+  .library-student-record > .library-records {
+    padding: 0 10px 12px;
+  }
+}
+
+.library-workflow .library-loan-section {
+  min-width: 0;
+}
+.library-workflow .library-loan-section > .muted {
+  margin: 0;
+}

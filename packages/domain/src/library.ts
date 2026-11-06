@@ -71,3 +71,36 @@ export function libraryReminderStageFor(dueOn: Date, asOf: Date): LibraryReminde
   if (daysUntilDue === -1) return 'OverdueOneDay';
   return null;
 }
+
+export const libraryCirculationPageSchema = z.object({
+  status: z.enum(['Open', 'Overdue', 'Returned', 'All']).default('Open'),
+  page: z.number().int().min(1).max(100_000).default(1),
+  studentId: z.string().cuid().optional(),
+  bookId: z.string().cuid().optional(),
+  search: z.string().trim().max(200).default(''),
+});
+export type LibraryCirculationPageInput = z.infer<typeof libraryCirculationPageSchema>;
+
+export const libraryBorrowerHistoryPageSchema = z.object({
+  page: z.number().int().min(1).max(100_000).default(1),
+  search: z.string().trim().max(200).default(''),
+});
+export type LibraryBorrowerHistoryPageInput = z.infer<typeof libraryBorrowerHistoryPageSchema>;
+
+/** Due dates are calendar dates; a book is overdue from the following London day. */
+export function libraryLoanStatus(
+  dueOn: Date,
+  returnedAt: Date | null,
+  today: string,
+): 'Checked out' | 'Overdue' | 'Returned' {
+  if (returnedAt) return 'Returned';
+  return dueOn.toISOString().slice(0, 10) < today ? 'Overdue' : 'Checked out';
+}
+
+export const LIBRARY_STAFF_VIEWS = [
+  { id: 'Catalogue', label: 'Catalogue' },
+  { id: 'Open', label: 'Checked Out' },
+  { id: 'Overdue', label: 'Overdue' },
+  { id: 'History', label: 'Borrowing History' },
+] as const;
+export type LibraryStaffView = (typeof LIBRARY_STAFF_VIEWS)[number]['id'];
