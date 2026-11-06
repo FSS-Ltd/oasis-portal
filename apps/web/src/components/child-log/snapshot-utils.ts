@@ -60,6 +60,14 @@ export function scoreTone(score: number | null): 'amber' | 'blue' | 'green' | 'r
   return 'red';
 }
 
+// Colour bands for the PACE test score ring: 100 gold, 90-99 green, 80-89 yellow, below 80 red.
+export function ringTone(score: number): 'gold' | 'green' | 'red' | 'yellow' {
+  if (score >= 100) return 'gold';
+  if (score >= 90) return 'green';
+  if (score >= 80) return 'yellow';
+  return 'red';
+}
+
 export function scoreLabel(score: number): string {
   if (score >= 90) return 'Excellent';
   if (score >= 80) return 'Good';
