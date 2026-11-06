@@ -12930,8 +12930,16 @@ button.club-assignment-row {
   stroke-linecap: round;
 }
 
+.snapshot-score-donut.is-gold circle + circle {
+  stroke: #d4af37;
+}
+
 .snapshot-score-donut.is-green circle + circle {
   stroke: var(--oasis-success);
+}
+
+.snapshot-score-donut.is-yellow circle + circle {
+  stroke: #facc15;
 }
 
 .snapshot-score-donut.is-red circle + circle {
@@ -12946,8 +12954,16 @@ button.club-assignment-row {
   color: var(--oasis-warning);
 }
 
+.snapshot-score-donut.is-gold strong {
+  color: #a16207;
+}
+
 .snapshot-score-donut.is-green strong {
   color: var(--oasis-success);
+}
+
+.snapshot-score-donut.is-yellow strong {
+  color: #854d0e;
 }
 
 .snapshot-score-donut.is-red strong {

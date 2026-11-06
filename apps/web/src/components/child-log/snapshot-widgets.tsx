@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { formatShortDate, scoreTone } from './snapshot-utils';
+import { formatShortDate, ringTone } from './snapshot-utils';
 
 export function AttendanceRing({
   absent,
@@ -132,7 +132,7 @@ export function EmptyCard({ children }: { children: ReactNode }) {
 
 export function ScoreDonut({ score }: { score: number }) {
   return (
-    <div className={`snapshot-score-donut is-${scoreTone(score)}`}>
+    <div className={`snapshot-score-donut is-${ringTone(score)}`}>
       <svg viewBox="0 0 64 64">
         <circle cx="32" cy="32" r="26" />
         <circle
