@@ -1402,6 +1402,14 @@ describe('childLog.snapshot', () => {
     expect(dashboard.children[0]?.behaviour).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ note: 'Sensitive behaviour' })]),
     );
+    // Parents never see demerits the Head has not released.
+    expect(
+      (
+        db.behaviourEntry.findMany.mock.calls as Array<
+          [{ where?: { parentReleaseStatus?: string } }]
+        >
+      ).some(([args]) => args.where?.parentReleaseStatus === 'Released'),
+    ).toBe(true);
     expect(dashboard.children[0]?.notes).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ note: 'Parent-hidden note' })]),
     );
@@ -1644,6 +1652,10 @@ describe('childLog.snapshot', () => {
       studentId: 'student_1',
     });
     expect(parentView).toMatchObject({ student: { id: 'student_1', fullName: 'Jane Learner' } });
+    const parentBehaviourCall = (
+      db.behaviourEntry.findMany.mock.calls as Array<[{ where?: { parentReleaseStatus?: string } }]>
+    ).at(-1);
+    expect(parentBehaviourCall?.[0].where?.parentReleaseStatus).toBe('Released');
     expect(parentView.notes).toEqual([
       expect.objectContaining({ note: 'Parent-visible note', sensitive: false }),
     ]);

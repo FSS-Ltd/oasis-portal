@@ -282,6 +282,7 @@ export const meritLedgerRouter = router({
           studentId: student.id,
           createdAt: { gte: period.from, lt: period.to },
           deletedAt: null,
+          parentReleaseStatus: 'Released',
         },
         select: { type: true, meritDelta: true },
       }),

@@ -5,6 +5,7 @@ import type { RealtimeArea } from '@oasis/domain';
 export const REALTIME_ROUTE_AREAS = {
   attendance: ['attendance', 'student', 'admin', 'rota'],
   'sensitive-review': ['behaviour', 'childNotes', 'incident'],
+  'demerit-approvals': ['behaviour'],
   snapshot: ['childLog', 'childNotes', 'attendance', 'behaviour', 'pace', 'student'],
   tasks: ['personalTask'],
   messages: ['message'],

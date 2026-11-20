@@ -273,7 +273,7 @@ afterEach(() => {
 
 describe('tithe.getStatus', () => {
   it('calculates period earnings from merits and realized investment gains', async () => {
-    const { caller } = makeCaller(
+    const { caller, db } = makeCaller(
       studentUser,
       makeFakeDb({
         configs: [{ ...defaultConfig(), percentage: 12 }],
@@ -320,6 +320,14 @@ describe('tithe.getStatus', () => {
       paid: false,
       shopBlocked: true,
     });
+    // Held demerits do not reduce earnings until the Head releases them.
+    expect(
+      (
+        db.behaviourEntry.findMany.mock.calls as Array<
+          [{ where?: { parentReleaseStatus?: string } }]
+        >
+      ).some(([args]) => args.where?.parentReleaseStatus === 'Released'),
+    ).toBe(true);
   });
 });
 

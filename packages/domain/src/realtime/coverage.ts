@@ -459,6 +459,11 @@ export const REALTIME_MODEL_COVERAGE = {
     ],
     audience: 'behaviour',
   },
+  BehaviourNoteEdit: {
+    areas: [],
+    audience: 'excluded',
+    exclusion: 'Every note edit also updates its BehaviourEntry in the same transaction.',
+  },
   ChildNote: { areas: ['childNotes', 'childLog', 'staffHome', 'report'], audience: 'notes' },
   MeritLedger: {
     areas: [

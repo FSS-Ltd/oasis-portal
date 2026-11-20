@@ -448,6 +448,14 @@ describe('meritLedger.activity', () => {
         net: 107,
       },
     });
+    // Held (unreleased) demerits never reach the wallet activity summary.
+    expect(
+      (
+        db.behaviourEntry.findMany.mock.calls as Array<
+          [{ where?: { parentReleaseStatus?: string } }]
+        >
+      ).some(([args]) => args.where?.parentReleaseStatus === 'Released'),
+    ).toBe(true);
   });
 });
 

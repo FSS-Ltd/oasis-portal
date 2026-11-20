@@ -184,6 +184,8 @@ model User {
   deletedBehaviourEntries          BehaviourEntry[]                 @relation("DeletedBehaviour")
   deletedChildNotes                ChildNote[]                      @relation("DeletedChildNotes")
   seenBehaviourEntries             BehaviourEntry[]                 @relation("SeenBehaviour")
+  releasedBehaviourEntries         BehaviourEntry[]                 @relation("ReleasedBehaviour")
+  behaviourNoteEdits               BehaviourNoteEdit[]              @relation("BehaviourNoteEdits")
   seenChildNotes                   ChildNote[]                      @relation("SeenChildNotes")
   paceRecords                      PaceRecord[]                     @relation("RecordedPace")
   approvedPaceAdvancements         PaceAdvancementApproval[]        @relation("ApprovedPaceAdvancements")
@@ -1542,6 +1544,12 @@ enum BehaviourVisibility {
   Sensitive
 }
 
+// Demerits wait as Pending until the Head approves them for parents (docs/demerit-parent-release-design.md).
+enum BehaviourReleaseStatus {
+  Pending
+  Released
+}
+
 enum MessageThreadKind {
   ParentStaff
   SupervisorHead
@@ -1568,6 +1576,10 @@ model BehaviourEntry {
   seenAt         DateTime?
   seenById       String?
   headCommentEnc String?
+  // Pending demerits are hidden from parents/students and have no ledger rows until released.
+  parentReleaseStatus BehaviourReleaseStatus @default(Released)
+  releasedAt          DateTime?
+  releasedById        String?
   createdAt      DateTime            @default(now())
 
   club       Club?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
@@ -1575,6 +1587,8 @@ model BehaviourEntry {
   recordedBy User          @relation("RecordedBehaviour", fields: [recordedById], references: [id])
   deletedBy  User?         @relation("DeletedBehaviour", fields: [deletedById], references: [id], onDelete: SetNull)
   seenBy     User?         @relation("SeenBehaviour", fields: [seenById], references: [id], onDelete: SetNull)
+  releasedBy User?         @relation("ReleasedBehaviour", fields: [releasedById], references: [id], onDelete: SetNull)
+  noteEdits  BehaviourNoteEdit[]
   paceRecord PaceRecord?   @relation("PaceRecordAutomaticMerit", fields: [paceRecordId], references: [id], onDelete: SetNull)
   ledgerRows MeritLedger[]
   homeworkSubmission HomeworkSubmission? @relation("HomeworkSubmissionBehaviour")
@@ -1587,6 +1601,24 @@ model BehaviourEntry {
   @@index([deletedById])
   @@index([seenAt])
   @@index([seenById])
+  @@index([parentReleaseStatus])
+  @@index([releasedById])
+}
+
+// Staff-only history of note edits on behaviour entries. Notes are PII — encrypted at rest (ADR-005).
+model BehaviourNoteEdit {
+  id               String   @id @default(cuid())
+  behaviourEntryId String
+  previousNoteEnc  String?
+  nextNoteEnc      String?
+  editedById       String
+  createdAt        DateTime @default(now())
+
+  behaviourEntry BehaviourEntry @relation(fields: [behaviourEntryId], references: [id], onDelete: Cascade)
+  editedBy       User           @relation("BehaviourNoteEdits", fields: [editedById], references: [id])
+
+  @@index([behaviourEntryId, createdAt])
+  @@index([editedById])
 }
 
 model DemeritStageOverride {

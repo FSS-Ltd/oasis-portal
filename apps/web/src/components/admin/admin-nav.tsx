@@ -25,6 +25,7 @@ import {
   MonitorCheck,
   PackageCheck,
   ReceiptText,
+  Scale,
   ShoppingBag,
   Smartphone,
   Star,
@@ -124,6 +125,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/admin/reports', label: 'Reports', icon: FileText },
       { href: '/admin/audit', label: 'Audit', icon: ClipboardList },
+      { href: '/admin/demerit-approvals', label: 'Demerit Approvals', icon: Scale },
       { href: '/admin/sensitive-review', label: 'Sensitive Review', icon: ClipboardList },
     ],
   },
@@ -163,9 +165,11 @@ type AdminNavProps = {
   fullAdmin: boolean;
   canUseMessages: boolean;
   unreadMessageCount: number;
+  pendingDemeritCount: number;
 };
 
-type AdminNavAccess = Omit<AdminNavProps, 'unreadMessageCount'>;
+type NavBadgeCounts = Pick<AdminNavProps, 'unreadMessageCount' | 'pendingDemeritCount'>;
+type AdminNavAccess = Omit<AdminNavProps, keyof NavBadgeCounts>;
 
 function isActiveRoute(pathname: string, href: string, label: string): boolean {
   if (href === '/admin') {
@@ -185,9 +189,14 @@ function isPreferredMobileLabel(label: string): boolean {
   return preferredMobileLabels.includes(label as (typeof preferredMobileLabels)[number]);
 }
 
-function badgeForLabel(label: string, unreadMessageCount: number): string | null {
-  if (label === 'Messages') return countBadge(unreadMessageCount);
-  return null;
+function badgeCountForLabel(label: string, counts: NavBadgeCounts): number {
+  if (label === 'Messages') return counts.unreadMessageCount;
+  if (label === 'Demerit Approvals') return counts.pendingDemeritCount;
+  return 0;
+}
+
+function badgeForLabel(label: string, counts: NavBadgeCounts): string | null {
+  return countBadge(badgeCountForLabel(label, counts));
 }
 
 function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
@@ -213,7 +222,9 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
     return item.label !== 'Audit' || access.canViewAudit;
   }
   if (access.canUseAdminOperations) {
-    return !['Supervisor', 'Invoices', 'Sensitive Review', 'Audit'].includes(item.label);
+    return !['Supervisor', 'Invoices', 'Sensitive Review', 'Demerit Approvals', 'Audit'].includes(
+      item.label,
+    );
   }
   if (item.label === 'Attendance') return access.canExportAttendance;
   if (item.label === 'Students') return access.canViewStudents;
@@ -242,11 +253,9 @@ function allVisibleFlatItemsFor(access: AdminNavAccess): NavItem[] {
   ].filter((item) => visibleForUser(item, access));
 }
 
-function groupTotalBadge(group: NavGroup, unreadMessageCount: number): string | null {
+function groupTotalBadge(group: NavGroup, counts: NavBadgeCounts): string | null {
   let total = 0;
-  for (const item of group.items) {
-    if (item.label === 'Messages') total += unreadMessageCount;
-  }
+  for (const item of group.items) total += badgeCountForLabel(item.label, counts);
   return countBadge(total);
 }
 
@@ -278,7 +287,12 @@ function NavItemLink({ baseClassName, badge, item, pathname }: NavItemLinkProps)
   );
 }
 
-export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps) {
+export function AdminSidebarNav({
+  unreadMessageCount,
+  pendingDemeritCount,
+  ...access
+}: AdminNavProps) {
+  const counts = { unreadMessageCount, pendingDemeritCount };
   const pathname = usePathname() ?? '';
   const groups = visibleGroupsFor(access);
   const activeGroupLabel =
@@ -295,7 +309,7 @@ export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps
     <nav className="admin-shell__nav">
       {visibleStandaloneItemsFor(leadingStandaloneItems, access).map((item) => (
         <NavItemLink
-          badge={badgeForLabel(item.label, unreadMessageCount)}
+          badge={badgeForLabel(item.label, counts)}
           baseClassName="admin-shell__nav-item"
           item={item}
           key={item.label}
@@ -305,7 +319,7 @@ export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps
 
       {groups.map((group) => (
         <SidebarNavGroup
-          badge={groupTotalBadge(group, unreadMessageCount)}
+          badge={groupTotalBadge(group, counts)}
           icon={group.icon}
           key={group.label}
           label={group.label}
@@ -317,7 +331,7 @@ export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps
         >
           {group.items.map((item) => (
             <NavItemLink
-              badge={badgeForLabel(item.label, unreadMessageCount)}
+              badge={badgeForLabel(item.label, counts)}
               baseClassName="admin-shell__nav-item"
               item={item}
               key={item.label}
@@ -329,7 +343,7 @@ export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps
 
       {visibleStandaloneItemsFor(trailingStandaloneItems, access).map((item) => (
         <NavItemLink
-          badge={badgeForLabel(item.label, unreadMessageCount)}
+          badge={badgeForLabel(item.label, counts)}
           baseClassName="admin-shell__nav-item"
           item={item}
           key={item.label}
@@ -340,7 +354,12 @@ export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps
   );
 }
 
-export function AdminBottomNav({ unreadMessageCount, ...access }: AdminNavProps) {
+export function AdminBottomNav({
+  unreadMessageCount,
+  pendingDemeritCount,
+  ...access
+}: AdminNavProps) {
+  const counts = { unreadMessageCount, pendingDemeritCount };
   const pathname = usePathname() ?? '';
   const visibleNavItems = allVisibleFlatItemsFor(access);
   const mobileNavItems = [
@@ -354,7 +373,7 @@ export function AdminBottomNav({ unreadMessageCount, ...access }: AdminNavProps)
     <nav aria-label="Mobile admin sections" className="admin-shell__bottom-nav">
       {mobileNavItems.map((item) => (
         <NavItemLink
-          badge={badgeForLabel(item.label, unreadMessageCount)}
+          badge={badgeForLabel(item.label, counts)}
           baseClassName="admin-shell__bottom-item"
           item={item}
           key={item.label}

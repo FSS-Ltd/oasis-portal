@@ -335,7 +335,7 @@ async function loadInvestmentCandidates(ctx: AuthedContext): Promise<Leaderboard
 async function loadDemeritCandidates(ctx: AuthedContext): Promise<LeaderboardMetricCandidate[]> {
   const totals = await ctx.db.behaviourEntry.groupBy({
     by: ['studentId'],
-    where: { type: 'Demerit', deletedAt: null },
+    where: { type: 'Demerit', deletedAt: null, parentReleaseStatus: 'Released' },
     _sum: { meritDelta: true },
   });
   const students = await loadActiveStudentMap(

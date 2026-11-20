@@ -121,6 +121,18 @@ interface StoredBehaviour {
   recordedById: string;
   deletedAt: Date | null;
   deletedById: string | null;
+  parentReleaseStatus?: 'Pending' | 'Released';
+  releasedAt?: Date | null;
+  releasedById?: string | null;
+  createdAt: Date;
+}
+
+interface StoredNoteEdit {
+  id: string;
+  behaviourEntryId: string;
+  previousNoteEnc: string | null;
+  nextNoteEnc: string | null;
+  editedById: string;
   createdAt: Date;
 }
 
@@ -190,7 +202,10 @@ interface FakeDb {
     findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
   };
+  behaviourNoteEdit: { create: ReturnType<typeof vi.fn> };
   demeritStageOverride: {
     findMany: ReturnType<typeof vi.fn>;
     upsert: ReturnType<typeof vi.fn>;
@@ -302,6 +317,7 @@ function makeFakeDb(
   const clubSignups = [...(options.clubSignups ?? [])];
   const clubLeadAssignments = [...(options.clubLeadAssignments ?? [])];
   const behaviour: StoredBehaviour[] = [];
+  const noteEdits: StoredNoteEdit[] = [];
   const demeritStageOverrides: StoredDemeritStageOverride[] = [];
   const ledger: StoredLedgerRow[] = [];
 
@@ -462,6 +478,7 @@ function makeFakeDb(
             createdAt: new Date(`2026-04-29T10:${rowNumber}:00.000Z`),
             deletedAt: null,
             deletedById: null,
+            parentReleaseStatus: 'Released',
             ...data,
           };
           behaviour.push(row);
@@ -475,6 +492,7 @@ function makeFakeDb(
           return Promise.resolve({
             ...row,
             ledgerRows: ledger.filter((ledgerRow) => ledgerRow.relatedEntryId === row.id),
+            student: students.find((student) => student.id === row.studentId),
           });
         },
       ),
@@ -483,7 +501,7 @@ function makeFakeDb(
           include,
           where,
         }: {
-          include?: { student?: unknown; recordedBy?: unknown };
+          include?: { student?: unknown; recordedBy?: unknown; noteEdits?: unknown };
           where: {
             createdAt?: { gte: Date; lt: Date };
             OR?: Array<{
@@ -509,6 +527,7 @@ function makeFakeDb(
             clubId?: string | null;
             studentId?: string | { in: string[] };
             deletedAt?: null;
+            parentReleaseStatus?: 'Pending' | 'Released';
             type?: BehaviourType;
             visibility?: BehaviourVisibility;
           };
@@ -533,6 +552,11 @@ function makeFakeDb(
             .filter((row) => where.deletedAt === undefined || row.deletedAt === where.deletedAt)
             .filter((row) => where.type === undefined || row.type === where.type)
             .filter((row) => where.visibility === undefined || row.visibility === where.visibility)
+            .filter(
+              (row) =>
+                where.parentReleaseStatus === undefined ||
+                row.parentReleaseStatus === where.parentReleaseStatus,
+            )
             .filter(
               (row) =>
                 where.OR === undefined ||
@@ -583,6 +607,12 @@ function makeFakeDb(
               ...row,
               student: students.find((student) => student.id === row.studentId),
               recordedBy: users.find((user) => user.id === row.recordedById) ?? users[0],
+              noteEdits: noteEdits
+                .filter((edit) => edit.behaviourEntryId === row.id)
+                .map((edit) => ({
+                  ...edit,
+                  editedBy: users.find((user) => user.id === edit.editedById) ?? users[0],
+                })),
             })),
           );
         },
@@ -608,6 +638,57 @@ function makeFakeDb(
           );
         },
       ),
+      updateMany: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string; parentReleaseStatus?: 'Pending' | 'Released'; deletedAt?: null };
+          data: Partial<StoredBehaviour>;
+        }) => {
+          const rows = behaviour.filter(
+            (row) =>
+              row.id === where.id &&
+              (where.parentReleaseStatus === undefined ||
+                row.parentReleaseStatus === where.parentReleaseStatus) &&
+              (where.deletedAt === undefined || row.deletedAt === where.deletedAt),
+          );
+          for (const row of rows) Object.assign(row, data);
+          return Promise.resolve({ count: rows.length });
+        },
+      ),
+      deleteMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: { id: string; type?: BehaviourType; parentReleaseStatus?: 'Pending' | 'Released' };
+        }) => {
+          const before = behaviour.length;
+          for (let index = behaviour.length - 1; index >= 0; index -= 1) {
+            const row = behaviour[index];
+            if (
+              row?.id === where.id &&
+              (where.type === undefined || row.type === where.type) &&
+              (where.parentReleaseStatus === undefined ||
+                row.parentReleaseStatus === where.parentReleaseStatus)
+            ) {
+              behaviour.splice(index, 1);
+            }
+          }
+          return Promise.resolve({ count: before - behaviour.length });
+        },
+      ),
+    },
+    behaviourNoteEdit: {
+      create: vi.fn(({ data }: { data: Omit<StoredNoteEdit, 'id' | 'createdAt'> }) => {
+        const row: StoredNoteEdit = {
+          id: `cknoteedit00000000000${String(noteEdits.length + 1).padStart(2, '0')}`,
+          createdAt: new Date('2026-04-29T12:00:00.000Z'),
+          ...data,
+        };
+        noteEdits.push(row);
+        return Promise.resolve(row);
+      }),
     },
     demeritStageOverride: {
       findMany: vi.fn(
@@ -698,6 +779,7 @@ function makeFakeDb(
     behaviour,
     demeritStageOverrides,
     ledger,
+    noteEdits,
     guardians,
     users,
     clubSignups,
@@ -745,6 +827,13 @@ function makeCaller(
   return appRouter.createCaller(makeCtx(user, db));
 }
 
+/** Releases every pending demerit through the Head approval path, oldest first. */
+async function releasePendingDemerits(db: FakeDb, behaviour: StoredBehaviour[]): Promise<void> {
+  for (const row of behaviour.filter((entry) => entry.parentReleaseStatus === 'Pending')) {
+    await makeCaller(headUser, db).behaviour.releaseDemerit({ id: row.id });
+  }
+}
+
 describe('behaviour.log', () => {
   it('allows full-admin and Supervisor to create encrypted behaviour with linked Spend ledger rows', async () => {
     const { db, behaviour, ledger } = makeFakeDb();
@@ -783,6 +872,20 @@ describe('behaviour.log', () => {
       'enc:Helped a younger student',
       'enc:Repeated interruption',
     ]);
+    expect(behaviour.map((row) => row.parentReleaseStatus)).toEqual(['Released', 'Pending']);
+    // The demerit deduction is held until the Head releases it.
+    expect(ledger).toEqual([
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
+        delta: 4,
+        reason: 'Kindness',
+        relatedEntryId: 'ckbehaviour000000000001',
+      },
+    ]);
+
+    await makeCaller(headUser, db).behaviour.releaseDemerit({ id: demerit.id });
+
     expect(ledger).toEqual([
       {
         studentId: activeStudentId,
@@ -816,12 +919,15 @@ describe('behaviour.log', () => {
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: headUser.id,
-        action: 'Create',
-        entity: 'MeritLedger',
+        action: 'Update',
+        entity: 'BehaviourEntry',
+        entityId: 'ckbehaviour000000000002',
         meta: {
+          source: 'behaviour.parentRelease.release',
           studentId: activeStudentId,
-          behaviourEntryId: 'ckbehaviour000000000002',
-          rowCount: 1,
+          noteEdited: false,
+          meritDelta: -1,
+          ledgerRowCount: 1,
         },
       },
     });
@@ -853,6 +959,9 @@ describe('behaviour.log', () => {
       type: 'Demerit',
       meritDelta: -1,
     });
+    expect(ledger).toEqual([]);
+    await makeCaller(headUser, db).behaviour.releaseDemerit({ id: demerit.id });
+    await makeCaller(headUser, db).behaviour.releaseDemerit({ id: honesty.id });
     expect(ledger).toEqual([
       {
         studentId: activeStudentId,
@@ -968,13 +1077,17 @@ describe('behaviour.log', () => {
     const { db } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
     const email = makeFakeEmailClient();
 
-    await makeCaller(supervisorUser, db, email.client).behaviour.log({
+    const demerit = await makeCaller(supervisorUser, db, email.client).behaviour.log({
       studentId: activeStudentId,
       type: 'Demerit',
       category: 'Disruption',
       note: 'Interrupted group work',
       visibility: 'General',
     });
+
+    // Nothing reaches guardians until the Head releases the demerit.
+    expect(email.send).not.toHaveBeenCalled();
+    await makeCaller(headUser, db, email.client).behaviour.releaseDemerit({ id: demerit.id });
 
     expect(email.send).toHaveBeenCalledTimes(1);
     const sentEmail = email.send.mock.calls[0]?.[0];
@@ -1129,9 +1242,11 @@ describe('behaviour.log', () => {
         { type: 'Demerit', category: 'Conduct', meritDelta: -1 },
         { type: 'Demerit', category: 'Honesty', meritDelta: -2 },
       ],
-      ledgerRowCount: 3,
+      ledgerRowCount: 0,
     });
     expect(behaviour).toHaveLength(5);
+    expect(ledger).toHaveLength(2);
+    await releasePendingDemerits(db, behaviour);
     expect(ledger).toEqual([
       {
         studentId: activeStudentId,
@@ -1324,13 +1439,14 @@ describe('behaviour.log', () => {
     });
     expect(demerit).toMatchObject({
       entries: [{ meritDelta: -1 }, { meritDelta: -1 }],
-      ledgerRowCount: 2,
+      ledgerRowCount: 0,
     });
     expect(general).toMatchObject({
       entries: [{ meritDelta: 0 }, { meritDelta: 0 }],
       ledgerRowCount: 0,
     });
     expect(behaviour).toHaveLength(6);
+    await releasePendingDemerits(db, behaviour);
     expect(ledger).toEqual([
       expect.objectContaining({ studentId: activeStudentId, delta: 2, reason: 'Kindness' }),
       expect.objectContaining({ studentId: secondaryStudentId, delta: 2, reason: 'Kindness' }),
@@ -2023,7 +2139,7 @@ describe('behaviour corrections', () => {
     });
   });
 
-  it('lets full-admin change a Demerit category and writes the fixed ledger correction', async () => {
+  it('lets full-admin change a released Demerit category and writes the fixed ledger correction', async () => {
     const { db, ledger } = makeFakeDb();
     const caller = makeCaller(headUser, db);
     const created = await caller.behaviour.log({
@@ -2032,6 +2148,7 @@ describe('behaviour corrections', () => {
       category: 'Conduct',
       note: 'Original note',
     });
+    await caller.behaviour.releaseDemerit({ id: created.id });
 
     await expect(
       caller.behaviour.updateEntry({
@@ -2052,7 +2169,7 @@ describe('behaviour corrections', () => {
     ]);
   });
 
-  it('lets full-admin correct a Demerit amount', async () => {
+  it('lets full-admin correct a released Demerit amount', async () => {
     const { db, ledger } = makeFakeDb();
     const caller = makeCaller(headUser, db);
     const created = await caller.behaviour.log({
@@ -2061,6 +2178,7 @@ describe('behaviour corrections', () => {
       category: 'Conduct',
       note: 'Original note',
     });
+    await caller.behaviour.releaseDemerit({ id: created.id });
 
     await expect(
       caller.behaviour.updateEntry({
@@ -2100,7 +2218,7 @@ describe('behaviour corrections', () => {
     });
   });
 
-  it('soft-deletes a Demerit and writes inverse ledger correction rows', async () => {
+  it('soft-deletes a released Demerit and writes inverse ledger correction rows', async () => {
     const { db, behaviour, ledger } = makeFakeDb();
     const caller = makeCaller(headUser, db);
     const created = await caller.behaviour.log({
@@ -2109,6 +2227,7 @@ describe('behaviour corrections', () => {
       category: 'Conduct',
       note: 'Original note',
     });
+    await caller.behaviour.releaseDemerit({ id: created.id });
 
     await expect(caller.behaviour.deleteEntry({ id: created.id })).resolves.toMatchObject({
       id: created.id,
@@ -2822,5 +2941,247 @@ describe('behaviour.recentEntries', () => {
         }),
       ],
     });
+  });
+});
+
+describe('behaviour parent release', () => {
+  async function logPendingDemerit(db: FakeDb, note = 'Shouted in class') {
+    return makeCaller(supervisorUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      note,
+      visibility: 'General',
+    });
+  }
+
+  it('lists only pending demerits for the Head with decrypted names and notes', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(supervisorUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      amount: 2,
+    });
+    const pending = await logPendingDemerit(db);
+    const released = await logPendingDemerit(db, 'Second demerit');
+    await makeCaller(headUser, db).behaviour.releaseDemerit({ id: released.id });
+
+    const queue = await makeCaller(headUser, db).behaviour.parentReleaseQueue();
+
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({
+      id: pending.id,
+      student: { id: activeStudentId, fullName: 'Jane Learner' },
+      recordedBy: { fullName: 'Supervisor User' },
+      category: 'Conduct',
+      note: 'Shouted in class',
+      meritDelta: -1,
+      noteEdits: [],
+    });
+  });
+
+  it('denies the queue and decisions to non-full-admin staff', async () => {
+    const { db } = makeFakeDb();
+    const pending = await logPendingDemerit(db);
+    const caller = makeCaller(supervisorUser, db);
+
+    await expect(caller.behaviour.parentReleaseQueue()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.behaviour.releaseDemerit({ id: pending.id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.behaviour.rejectDemerit({ id: pending.id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('releases with an edited note: logs the edit, applies the deduction and emails the final note', async () => {
+    const { db, behaviour, ledger, noteEdits } = makeFakeDb({
+      guardians: [makeGuardian(parentUser.id)],
+    });
+    const email = makeFakeEmailClient();
+    const pending = await logPendingDemerit(db, 'Was rude and shouted');
+    expect(email.send).not.toHaveBeenCalled();
+
+    const result = await makeCaller(headUser, db, email.client).behaviour.releaseDemerit({
+      id: pending.id,
+      note: 'Spoke out of turn during reading',
+    });
+
+    expect(result).toMatchObject({ id: pending.id, noteEdited: true, guardiansEmailed: 1 });
+    expect(behaviour[0]).toMatchObject({
+      parentReleaseStatus: 'Released',
+      releasedById: headUser.id,
+      noteEnc: 'enc:Spoke out of turn during reading',
+    });
+    expect(noteEdits).toEqual([
+      expect.objectContaining({
+        behaviourEntryId: pending.id,
+        previousNoteEnc: 'enc:Was rude and shouted',
+        nextNoteEnc: 'enc:Spoke out of turn during reading',
+        editedById: headUser.id,
+      }),
+    ]);
+    expect(ledger).toEqual([
+      expect.objectContaining({ delta: -1, reason: 'Conduct', relatedEntryId: pending.id }),
+    ]);
+    expect(email.send).toHaveBeenCalledTimes(1);
+    const sentText = email.send.mock.calls[0]?.[0].text;
+    expect(sentText).toContain('Note: Spoke out of turn during reading');
+    expect(sentText).not.toContain('Was rude');
+    await expect(makeCaller(headUser, db).behaviour.parentReleaseQueue()).resolves.toEqual([]);
+  });
+
+  it('lets the Head clear the note so parents get no free-text note', async () => {
+    const { db, behaviour, noteEdits } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+    const pending = await logPendingDemerit(db, 'Too much detail for parents');
+
+    await expect(
+      makeCaller(headUser, db, email.client).behaviour.releaseDemerit({
+        id: pending.id,
+        note: '  ',
+      }),
+    ).resolves.toMatchObject({ noteEdited: true });
+
+    expect(behaviour[0]?.noteEnc).toBeNull();
+    expect(noteEdits[0]).toMatchObject({
+      previousNoteEnc: 'enc:Too much detail for parents',
+      nextNoteEnc: null,
+    });
+    expect(email.send.mock.calls[0]?.[0].text).not.toContain('Too much detail');
+  });
+
+  it('does not log an edit when the Head approves the note unchanged', async () => {
+    const { db, noteEdits } = makeFakeDb();
+    const pending = await logPendingDemerit(db);
+
+    await expect(
+      makeCaller(headUser, db).behaviour.releaseDemerit({
+        id: pending.id,
+        note: 'Shouted in class',
+      }),
+    ).resolves.toMatchObject({ noteEdited: false });
+    expect(noteEdits).toEqual([]);
+  });
+
+  it('does not email guardians when a Sensitive demerit is released', async () => {
+    const { db, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+    const pending = await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      note: 'Private matter',
+      visibility: 'Sensitive',
+    });
+
+    await expect(
+      makeCaller(headUser, db, email.client).behaviour.releaseDemerit({ id: pending.id }),
+    ).resolves.toMatchObject({ guardiansEmailed: 0 });
+
+    expect(ledger).toHaveLength(1);
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('cannot release or reject a demerit twice', async () => {
+    const { db, ledger } = makeFakeDb();
+    const pending = await logPendingDemerit(db);
+    const caller = makeCaller(headUser, db);
+    await caller.behaviour.releaseDemerit({ id: pending.id });
+
+    await expect(caller.behaviour.releaseDemerit({ id: pending.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(caller.behaviour.rejectDemerit({ id: pending.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(ledger).toHaveLength(1);
+  });
+
+  it('returns CONFLICT and writes no ledger rows when a concurrent decision wins the race', async () => {
+    const { db, ledger } = makeFakeDb();
+    const pending = await logPendingDemerit(db);
+    db.behaviourEntry.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      makeCaller(headUser, db).behaviour.releaseDemerit({ id: pending.id }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(ledger).toEqual([]);
+  });
+
+  it('rejects a pending demerit: deletes it from the record with no ledger rows or email', async () => {
+    const { db, behaviour, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+    const pending = await logPendingDemerit(db);
+
+    await expect(
+      makeCaller(headUser, db, email.client).behaviour.rejectDemerit({ id: pending.id }),
+    ).resolves.toEqual({ id: pending.id });
+
+    expect(behaviour).toEqual([]);
+    expect(ledger).toEqual([]);
+    expect(email.send).not.toHaveBeenCalled();
+    const rejectAudit = auditCreateArgs(db).find(
+      (args) => args.data.meta.source === 'behaviour.parentRelease.reject',
+    );
+    expect(rejectAudit?.data).toMatchObject({
+      action: 'Delete',
+      entity: 'BehaviourEntry',
+      entityId: pending.id,
+    });
+    await expect(makeCaller(headUser, db).behaviour.parentReleaseQueue()).resolves.toEqual([]);
+  });
+
+  it('only accepts pending demerits for a decision', async () => {
+    const { db } = makeFakeDb();
+    const merit = await makeCaller(supervisorUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      amount: 1,
+    });
+
+    await expect(
+      makeCaller(headUser, db).behaviour.releaseDemerit({ id: merit.id }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('corrects a pending demerit without ledger rows, then release applies the final value', async () => {
+    const { db, ledger, noteEdits } = makeFakeDb();
+    const pending = await logPendingDemerit(db);
+    const caller = makeCaller(headUser, db);
+
+    await caller.behaviour.updateEntry({ id: pending.id, amount: 3, note: 'Corrected note' });
+    expect(ledger).toEqual([]);
+    expect(noteEdits).toHaveLength(1);
+
+    await caller.behaviour.releaseDemerit({ id: pending.id });
+    expect(ledger).toEqual([expect.objectContaining({ delta: -3, relatedEntryId: pending.id })]);
+  });
+
+  it('deletes a pending demerit without writing correction rows', async () => {
+    const { db, ledger } = makeFakeDb();
+    const pending = await logPendingDemerit(db);
+
+    await expect(
+      makeCaller(headUser, db).behaviour.deleteEntry({ id: pending.id }),
+    ).resolves.toMatchObject({ ledgerCorrectionRows: 0 });
+    expect(ledger).toEqual([]);
+  });
+
+  it('marks pending demerits on staff lists', async () => {
+    const { db } = makeFakeDb();
+    const pending = await logPendingDemerit(db);
+
+    const result = await makeCaller(headUser, db).behaviour.listForStudent({
+      studentId: activeStudentId,
+    });
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({ id: pending.id, parentReleaseStatus: 'Pending' }),
+    ]);
   });
 });

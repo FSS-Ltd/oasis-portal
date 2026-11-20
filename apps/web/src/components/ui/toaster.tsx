@@ -7,9 +7,10 @@ export function Toaster() {
     <SonnerToaster
       closeButton
       duration={4000}
-      mobileOffset={16}
+      // Bottom-right keeps page headers and counts visible; on phones it clears the tab bar.
+      mobileOffset={{ bottom: 88, left: 16, right: 16 }}
       offset={24}
-      position="top-right"
+      position="bottom-right"
       richColors
       toastOptions={{
         classNames: {
