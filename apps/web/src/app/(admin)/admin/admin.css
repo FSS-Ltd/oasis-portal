@@ -1433,7 +1433,7 @@
 
 .admin-shell__profile span {
   margin-top: 2px;
-  color: rgba(255, 255, 255, 0.54);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.72rem;
 }
 
@@ -1462,7 +1462,13 @@
 .profile-badge__avatar {
   width: 32px;
   height: 32px;
-  background: rgba(91, 144, 197, 0.85);
+  background: #3d6ea5;
+  color: #ffffff;
+}
+
+/* Beats `.admin-shell__profile span`, which otherwise fades the initials below 4.5:1. */
+.admin-shell__profile .profile-badge__avatar {
+  color: #ffffff;
 }
 
 .profile-badge__text {
@@ -1881,7 +1887,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(255, 255, 255, 0.7);
   font-family: inherit;
   font-size: 0.66rem;
   font-weight: 750;
@@ -1899,7 +1905,7 @@
 
 .admin-shell__nav-group-summary:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .admin-shell__nav-group-label {
@@ -14595,15 +14601,9 @@ button.club-assignment-row {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    color: rgba(255, 255, 255, 0.62);
+    color: rgba(255, 255, 255, 0.82);
     font-size: 0.53rem;
     font-weight: 700;
-  }
-
-  .admin-shell__bottom-item:first-child,
-  .admin-shell__bottom-item:nth-child(2),
-  .admin-shell__bottom-item:nth-child(3) {
-    color: #ffffff;
   }
 
   .admin-shell__bottom-item.is-active {
@@ -18527,4 +18527,587 @@ button.pace-chart__cell {
 .pace-chart-controls .button { min-height: 36px; }
 @media (max-width: 480px) {
   .pace-chart-controls .button { flex: 1 1 100%; min-height: 44px; }
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--oasis-navy);
+  color: #ffffff;
+  font-weight: 800;
+  transform: translateY(-160%);
+  transition: transform 160ms ease;
+}
+
+.skip-link:focus-visible {
+  outline: 3px solid var(--oasis-blue);
+  outline-offset: 2px;
+  transform: none;
+}
+
+.admin-shell__main:focus {
+  outline: none;
+}
+
+/* Demerit approvals: the Head decides before any demerit reaches a family. */
+.demerit-approvals-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.demerit-approvals-page__header h1 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1.9rem;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.demerit-approvals-page__header p {
+  max-width: 62ch;
+  margin: 6px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.98rem;
+  text-wrap: pretty;
+}
+
+.demerit-approvals-page__count {
+  display: grid;
+  justify-items: end;
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.demerit-approvals-page__count-figure {
+  color: var(--oasis-navy);
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.demerit-approvals-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demerit-approvals-list > li {
+  overflow: hidden;
+}
+
+.demerit-approval {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  border: 1px solid var(--oasis-border);
+  border-radius: 14px;
+  background: var(--oasis-surface);
+  box-shadow: 0 1px 2px rgb(27 43 94 / 6%);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+/* A clear ring on the card being worked on, including after focus moves to it. */
+.demerit-approval:focus-within {
+  border-color: var(--oasis-navy);
+  outline: 2px solid var(--oasis-navy);
+  outline-offset: 3px;
+}
+
+.demerit-approval[data-busy] {
+  opacity: 0.72;
+}
+
+.demerit-approval__value {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 2px;
+  padding: 22px 8px;
+  border-right: 1px solid var(--oasis-crimson-light);
+  border-radius: 14px 0 0 14px;
+  background: linear-gradient(180deg, var(--oasis-crimson-light), rgb(252 232 234 / 35%));
+  color: var(--oasis-crimson);
+}
+
+.demerit-approval__value[data-severity='mid'] {
+  background: linear-gradient(180deg, #f6cfd5, rgb(246 207 213 / 45%));
+}
+
+.demerit-approval__value[data-severity='high'] {
+  border-right-color: var(--oasis-crimson);
+  background: linear-gradient(180deg, var(--oasis-crimson), #5f1522);
+  color: #ffffff;
+}
+
+.demerit-approval__figure {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.demerit-approval__unit {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.demerit-approval__body {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 22px;
+}
+
+.demerit-approval__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.demerit-approval__header h2 {
+  scroll-margin-top: 96px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.demerit-approval__year {
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.demerit-approval__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.86rem;
+}
+
+.demerit-approval__meta strong {
+  color: var(--oasis-crimson);
+}
+
+.demerit-approval__flag {
+  display: inline-block;
+  margin-top: 8px;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.demerit-approval__note {
+  display: grid;
+  gap: 8px;
+}
+
+/* Keep the note and decisions at a readable measure on wide screens. */
+.demerit-approval__note,
+.demerit-approval__history,
+.demerit-approval__actions,
+.demerit-approval__confirm {
+  max-width: 72ch;
+}
+
+.demerit-approval__note-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.demerit-approval__note-label label {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.demerit-approval__edited {
+  color: var(--oasis-navy-light);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.demerit-approval__reset {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  justify-self: start;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.demerit-approval__reset:hover,
+.demerit-approval__reset:focus-visible {
+  color: var(--oasis-navy);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.demerit-approval__history {
+  border-top: 1px dashed var(--oasis-border);
+  padding-top: 4px;
+  font-size: 0.86rem;
+}
+
+.demerit-approval__history summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 6px;
+  color: var(--oasis-text-secondary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.demerit-approval__history ol {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demerit-approval__history li {
+  display: grid;
+  gap: 4px;
+  padding-left: 12px;
+  border-left: 2px solid var(--oasis-blue-light);
+}
+
+.demerit-approval__history p {
+  margin: 0;
+}
+
+.demerit-approval__history-meta {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.demerit-approval__history del {
+  color: var(--oasis-text-secondary);
+}
+
+.demerit-approval__history ins {
+  color: var(--oasis-navy);
+  text-decoration: none;
+}
+
+.demerit-approval__header h2:focus-visible {
+  outline: 2px solid var(--oasis-blue);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.demerit-approval__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Hover answers with a lift and a fill, not a colour shift alone. */
+.demerit-approval__actions .button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.demerit-approval__actions .button svg {
+  transition: transform 160ms ease;
+}
+
+.demerit-approval__actions .button--primary {
+  box-shadow: 0 1px 0 rgb(125 28 44 / 20%);
+}
+
+.demerit-approval__actions .button--primary::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, #9b2235, #b0283f);
+  content: '';
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.demerit-approval__actions .button--secondary::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--oasis-navy);
+  content: '';
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.demerit-approval__actions .button--secondary {
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.demerit-approval__remove.button--secondary {
+  border-color: var(--oasis-danger);
+  color: var(--oasis-danger);
+}
+
+.demerit-approval__remove.button--secondary::before {
+  background: var(--oasis-danger);
+}
+
+@media (hover: hover) {
+  .demerit-approval__actions .button:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+
+  .demerit-approval__actions .button--primary:not(:disabled):hover {
+    box-shadow: 0 6px 16px -6px rgb(125 28 44 / 55%);
+  }
+
+  .demerit-approval__actions .button--primary:not(:disabled):hover::before,
+  .demerit-approval__actions .button--secondary:not(:disabled):hover::before {
+    transform: none;
+  }
+
+  .demerit-approval__actions .button--secondary:not(:disabled):hover {
+    border-color: var(--oasis-navy);
+    color: #ffffff;
+  }
+
+  .demerit-approval__remove.button--secondary:not(:disabled):hover {
+    border-color: var(--oasis-danger);
+  }
+
+  .demerit-approval__actions .button--primary:not(:disabled):hover svg {
+    transform: translateX(2px);
+  }
+}
+
+.demerit-approval__actions .button:active {
+  transform: translateY(0);
+}
+
+.demerit-approval__add-note {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  justify-self: start;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px dashed var(--oasis-border);
+  border-radius: 8px;
+  background: none;
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
+}
+
+.demerit-approval__add-note:hover,
+.demerit-approval__add-note:focus-visible {
+  border-color: var(--oasis-navy);
+  border-style: solid;
+  background: var(--oasis-surface);
+  color: var(--oasis-navy);
+}
+
+.demerit-approval__confirm {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgb(153 27 27 / 22%);
+  border-radius: 10px;
+  background: var(--oasis-danger-bg);
+}
+
+.demerit-approval__keep.button--secondary {
+  min-height: 40px;
+  background: var(--oasis-surface);
+}
+
+.demerit-approval__warning {
+  display: block;
+  margin-top: 4px;
+  font-weight: 800;
+}
+
+.demerit-approval__confirm p {
+  margin: 0;
+  color: var(--oasis-danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-wrap: pretty;
+}
+
+.demerit-approvals-page__empty {
+  padding: 48px 24px;
+}
+
+.demerit-approvals-skeleton {
+  display: grid;
+  gap: 14px;
+}
+
+.demerit-approvals-skeleton span {
+  height: 180px;
+  border-radius: 14px;
+  background: linear-gradient(
+    90deg,
+    var(--oasis-surface),
+    var(--oasis-border-light),
+    var(--oasis-surface)
+  );
+  background-size: 200% 100%;
+  animation: demerit-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes demerit-skeleton {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demerit-approvals-skeleton span {
+    animation: none;
+  }
+
+  .demerit-approval__actions .button,
+  .demerit-approval__actions .button svg,
+  .demerit-approval__actions .button::before {
+    transition: none;
+  }
+
+  .demerit-approval__actions .button:not(:disabled):hover,
+  .demerit-approval__actions .button--primary:not(:disabled):hover svg {
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Count sits on the title row so the first decision is higher on screen. */
+  .demerit-approvals-page__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px 16px;
+  }
+
+  .demerit-approvals-page__header > div {
+    display: contents;
+  }
+
+  .demerit-approvals-page__header h1 {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 1.7rem;
+  }
+
+  .demerit-approvals-page__header p:not(.demerit-approvals-page__count) {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 0.92rem;
+  }
+
+  .demerit-approvals-page__count {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 0.68rem;
+  }
+
+  .demerit-approvals-page__count-figure {
+    font-size: 2rem;
+  }
+
+  .demerit-approval__meta strong {
+    flex-basis: 100%;
+  }
+
+  .demerit-approval {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .demerit-approval__value {
+    grid-auto-flow: column;
+    justify-content: start;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 18px;
+    border-right: 0;
+    border-bottom: 1px solid var(--oasis-crimson-light);
+    border-radius: 14px 14px 0 0;
+  }
+
+  .demerit-approval__figure {
+    font-size: 1.35rem;
+  }
+
+  .demerit-approval__value[data-severity='high'] {
+    border-bottom-color: var(--oasis-crimson);
+  }
+
+  .demerit-approval__body {
+    padding: 16px 18px 18px;
+  }
+
+  .demerit-approval__header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .demerit-approval__actions > .button {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
 }

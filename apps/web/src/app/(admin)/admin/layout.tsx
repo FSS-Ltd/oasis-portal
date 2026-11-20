@@ -26,6 +26,7 @@ import {
   canViewAuditLog,
   isFullAdmin,
 } from '@oasis/domain';
+import { applyRlsTx } from '@oasis/api/context';
 import { prisma } from '@oasis/db';
 import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
 import { getAdminShellUser, linkedChildCount } from '@/components/admin/require-full-admin';
@@ -63,25 +64,34 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canUseShop = canManageShop(user) || canSellInShop(user);
   const canUseLibrary = canManageLibrary(user);
   const canUseMessages = canRespondToParentMessages(user) || canUseStaffMessaging(user);
-  const [linkedChildren, assignedClubLeadCount, unreadMessageCount] = await Promise.all([
-    linkedChildCount(user.id),
-    CLUBS_VISIBLE && canUseClubLeadAccess(user)
-      ? prisma.clubLeadAssignment.count({
-          where: { userId: user.id, club: { active: true } },
-        })
-      : Promise.resolve(0),
-    canUseMessages
-      ? prisma.message.count({
-          where: {
-            senderId: { not: user.id },
-            thread: { participants: { some: { userId: user.id } } },
-            reads: {
-              none: { userId: user.id },
+  const [linkedChildren, assignedClubLeadCount, unreadMessageCount, pendingDemeritCount] =
+    await Promise.all([
+      linkedChildCount(user.id),
+      CLUBS_VISIBLE && canUseClubLeadAccess(user)
+        ? prisma.clubLeadAssignment.count({
+            where: { userId: user.id, club: { active: true } },
+          })
+        : Promise.resolve(0),
+      canUseMessages
+        ? prisma.message.count({
+            where: {
+              senderId: { not: user.id },
+              thread: { participants: { some: { userId: user.id } } },
+              reads: {
+                none: { userId: user.id },
+              },
             },
-          },
-        })
-      : Promise.resolve(0),
-  ]);
+          })
+        : Promise.resolve(0),
+      // Demerits waiting for the Head before parents are told (docs/demerit-parent-release-design.md).
+      fullAdmin
+        ? applyRlsTx(prisma, user, (tx) =>
+            tx.behaviourEntry.count({
+              where: { type: 'Demerit', parentReleaseStatus: 'Pending', deletedAt: null },
+            }),
+          )
+        : Promise.resolve(0),
+    ]);
   const hasLinkedChildren = linkedChildren > 0;
   const hasAssignedClub = CLUBS_VISIBLE && assignedClubLeadCount > 0;
   const staffView = staffPortalViewForUser(user);
@@ -137,10 +147,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     clubsOnly: user.role === 'ClubsAdmin',
     fullAdmin,
     unreadMessageCount,
+    pendingDemeritCount,
   };
 
   return (
     <div className="admin-shell">
+      <a className="skip-link" href="#admin-main">
+        Skip to main content
+      </a>
       <aside className="admin-shell__sidebar" aria-label="Supervisor portal navigation">
         <div className="admin-shell__profile">
           <div className="admin-shell__logo-frame">
@@ -214,7 +228,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             <LogoutButton className="logout-button logout-button--mobile" />
           </div>
         </header>
-        <main className="admin-shell__main">{children}</main>
+        <main className="admin-shell__main" id="admin-main" tabIndex={-1}>
+          {children}
+        </main>
         <AdminBottomNav {...adminNavProps} />
       </div>
     </div>

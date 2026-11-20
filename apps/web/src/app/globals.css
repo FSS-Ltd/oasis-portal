@@ -87,3 +87,26 @@ button:disabled {
   background: #ffffff !important;
   color: #5a6a8a !important;
 }
+
+/* Close on the right with a real hit area, and a left rule in the toast's tone. */
+.oasis-toast {
+  padding-right: 48px !important;
+  border-left: 4px solid #1b2b5e !important;
+}
+
+.oasis-toast[data-type='success'] {
+  border-left-color: #166534 !important;
+}
+
+.oasis-toast[data-type='error'] {
+  border-left-color: #7d1c2c !important;
+}
+
+[data-sonner-toast] .oasis-toast__close {
+  top: 50% !important;
+  right: 10px !important;
+  left: auto !important;
+  width: 28px !important;
+  height: 28px !important;
+  transform: translateY(-50%) !important;
+}
