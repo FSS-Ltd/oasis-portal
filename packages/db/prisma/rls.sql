@@ -317,6 +317,7 @@ DROP POLICY IF EXISTS behaviour_student_self ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_write ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_clubs_lead_assigned_insert ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_full_admin_update ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_full_admin_delete_pending ON "BehaviourEntry";
 
 -- Full admins see everything.
 CREATE POLICY behaviour_full_admin_select ON "BehaviourEntry"
@@ -342,7 +343,7 @@ CREATE POLICY behaviour_supervisor_general ON "BehaviourEntry"
     )
   );
 
--- Guardian-linked users see General entries only for their own children.
+-- Guardian-linked users see released General entries only for their own children.
 CREATE POLICY behaviour_guardian_own_child ON "BehaviourEntry"
   FOR SELECT
   USING (
@@ -358,6 +359,7 @@ CREATE POLICY behaviour_guardian_own_child ON "BehaviourEntry"
     )
     AND "deletedAt" IS NULL
     AND "visibility" = 'General'
+    AND "parentReleaseStatus" = 'Released'
     AND EXISTS (
       SELECT 1 FROM "Guardian" g
       WHERE g."studentId" = "BehaviourEntry"."studentId"
@@ -386,13 +388,14 @@ CREATE POLICY behaviour_clubs_lead_assigned_select ON "BehaviourEntry"
     )
   );
 
--- Students see General entries only about themselves.
+-- Students see released General entries only about themselves.
 CREATE POLICY behaviour_student_self ON "BehaviourEntry"
   FOR SELECT
   USING (
     current_setting('app.user_role', true) = 'Student'
     AND "deletedAt" IS NULL
     AND "visibility" = 'General'
+    AND "parentReleaseStatus" = 'Released'
     AND EXISTS (
       SELECT 1 FROM "Student" s
       WHERE s."id" = "BehaviourEntry"."studentId"
@@ -451,6 +454,16 @@ CREATE POLICY behaviour_full_admin_update ON "BehaviourEntry"
   )
   WITH CHECK (
     current_setting('app.full_admin', true) = 'true'
+  );
+
+-- The Head rejecting a demerit before parents see it removes it outright. Only pending
+-- demerits can be deleted: they have no ledger rows and were never shown to a family.
+CREATE POLICY behaviour_full_admin_delete_pending ON "BehaviourEntry"
+  FOR DELETE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    AND "type" = 'Demerit'
+    AND "parentReleaseStatus" = 'Pending'
   );
 
 ALTER TABLE "DemeritStageOverride" ENABLE ROW LEVEL SECURITY;

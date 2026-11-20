@@ -125,8 +125,23 @@ Client consumers: [clubs-lead-portal-client.tsx](../../apps/web/src/components/c
 
 Tests: [behaviour.router.test.ts](../../apps/api/src/__tests__/behaviour.router.test.ts)
 
-| Stable subfeature ID | Canonical symbol and entry | Status |
-| -------------------- | -------------------------- | ------ |
+| Stable subfeature ID          | Canonical symbol and entry                                                                                                                                                                                           | Status      |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `API-behaviour.parentRelease` | `parentReleaseQueue`, `releaseDemerit`, `rejectDemerit`, `releaseStatusForNewEntry`, `recordNoteEdit` in [behaviour.ts](../../apps/api/src/routers/behaviour.ts); design [note](../demerit-parent-release-design.md) | implemented |
+
+### API-behaviour.parentRelease
+
+Purpose: every new demerit is created `Pending` (`BehaviourEntry.parentReleaseStatus`) with no `MeritLedger` rows and no guardian email. A full admin (Head, Principal, Pastor, HeadOfDiscipline) approves it, optionally editing the note, or rejects it (hard delete, allowed only for `Pending` demerits by RLS `behaviour_full_admin_delete_pending`). Approval writes `rowsForDemerit` and calls `notifyBehaviourGuardians`. Note edits are logged to `BehaviourNoteEdit` (staff only, encrypted); `updateEntry` also logs edits and skips ledger corrections while pending.
+
+uses / depends_on: `INF-auth` (`fullAdminProcedure`), `INF-db` (`BehaviourEntry`, `BehaviourNoteEdit`, `MeritLedger`, RLS `behaviour_guardian_own_child` and `behaviour_student_self` limited to `Released` in [rls.sql](../../packages/db/prisma/rls.sql)), `@oasis/domain` `rowsForDemerit`, email `buildBehaviourNotificationEmail`.
+
+used_by: web [demerit-approvals-client.tsx](../../apps/web/src/components/behaviour/demerit-approvals-client.tsx) at `/admin/demerit-approvals`, nav badge in [admin layout](<../../apps/web/src/app/(admin)/admin/layout.tsx>) and [admin-nav.tsx](../../apps/web/src/components/admin/admin-nav.tsx). Mobile: not built; queued in the mobile redesign hand-off.
+
+Released-only readers (parents, students, merit totals): `childLog.parentDashboard`, `childLog` `visibleBehaviourWhere` for Parent/Student, `report` behaviour sections, `meritLedger.activity`, `leaderboard` demerit totals, `tithe-run` earnings.
+
+Tests: `behaviour parent release` in [behaviour.router.test.ts](../../apps/api/src/__tests__/behaviour.router.test.ts); release filters asserted in childNotes, report, meritLedger, leaderboard and tithe router tests; migration ownership in [new-table-ownership-migration.test.ts](../../packages/db/src/__tests__/new-table-ownership-migration.test.ts).
+
+Debugging start: `loadPendingDemerit` and the conditional `updateMany` in `releaseDemerit`.
 
 ## API-childLog
 

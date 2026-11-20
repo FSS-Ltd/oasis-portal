@@ -405,6 +405,7 @@ async function compileReportSnapshot(
             createdAt: range,
             deletedAt: null,
             visibility: 'General',
+            parentReleaseStatus: 'Released',
           },
           orderBy: { createdAt: 'desc' },
           select: {

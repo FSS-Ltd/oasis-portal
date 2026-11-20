@@ -976,7 +976,8 @@ describe('leaderboard.get', () => {
     const groupByArgs = db.behaviourEntry.groupBy.mock.calls[0]?.[0];
     expect(groupByArgs).toMatchObject({
       by: ['studentId'],
-      where: { type: 'Demerit', deletedAt: null },
+      // Demerits the Head has not released yet do not count towards ranks.
+      where: { type: 'Demerit', deletedAt: null, parentReleaseStatus: 'Released' },
       _sum: { meritDelta: true },
     });
     expect(JSON.stringify(groupByArgs)).not.toContain('noteEnc');

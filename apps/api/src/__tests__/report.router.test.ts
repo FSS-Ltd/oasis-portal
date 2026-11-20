@@ -651,6 +651,14 @@ describe('report.draft', () => {
     const { caller, db } = makeCaller(headUser);
 
     const draft = await caller.report.draft(defaultDraftInput());
+    // Reports go to parents, so held demerits stay out until the Head releases them.
+    expect(
+      (
+        db.behaviourEntry.findMany.mock.calls as Array<
+          [{ where?: { parentReleaseStatus?: string } }]
+        >
+      ).some(([args]) => args.where?.parentReleaseStatus === 'Released'),
+    ).toBe(true);
 
     expect(draft).toMatchObject({
       id: reportId,

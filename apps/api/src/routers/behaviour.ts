@@ -43,12 +43,18 @@ import {
 } from '../services/parent-email-notifications.js';
 import { createStudentNotifications } from '../services/student-notifications.js';
 import { NEW_UPDATE_PUSH, sendPushToStudents } from '../services/push-notifications.js';
-import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
 type BehaviourType = 'Merit' | 'Demerit' | 'General';
 type BehaviourVisibility = 'General' | 'Sensitive';
+type BehaviourReleaseStatus = 'Pending' | 'Released';
+
+/** Demerits wait for the Head before parents see them (docs/demerit-parent-release-design.md). */
+function releaseStatusForNewEntry(type: BehaviourType): BehaviourReleaseStatus {
+  return type === 'Demerit' ? 'Pending' : 'Released';
+}
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
 
 interface ProposedDemeritEntry {
@@ -80,6 +86,7 @@ interface BehaviourNotificationEntry {
   note: string | null;
   recordedById: string;
   visibility: BehaviourVisibility;
+  parentReleaseStatus: BehaviourReleaseStatus;
 }
 
 interface ActiveStudent {
@@ -646,8 +653,8 @@ async function notifyBehaviourGuardians({
   ctx: AuthedContext;
   entry: BehaviourNotificationEntry;
   getEmailClient: () => EmailClient;
-}): Promise<void> {
-  if (entry.visibility !== 'General') return;
+}): Promise<number> {
+  if (entry.visibility !== 'General' || entry.parentReleaseStatus !== 'Released') return 0;
 
   let guardians: BehaviourNotificationGuardian[];
   let childName: string;
@@ -695,8 +702,10 @@ async function notifyBehaviourGuardians({
       userId: ctx.user.id,
     });
     await auditNotificationFailure(ctx, entry, { reason: 'recipient-resolution' });
-    return;
+    return 0;
   }
+
+  let sentCount = 0;
 
   for (const guardian of guardians) {
     if (!shouldSendParentEmailNotification(guardian.user, 'Behaviour')) continue;
@@ -722,6 +731,7 @@ async function notifyBehaviourGuardians({
         recordedByName,
       });
       const result = await getEmailClient().send(email);
+      sentCount += 1;
 
       await ctx.db.auditLog.create({
         data: {
@@ -759,6 +769,50 @@ async function notifyBehaviourGuardians({
         toRole: guardian.user.role,
       });
     }
+  }
+  return sentCount;
+}
+
+type BehaviourTx = Parameters<Parameters<AuthedContext['withRls']>[0]>[0];
+
+/** Staff-only edit history for behaviour notes; parents only ever see the final note. */
+async function recordNoteEdit(
+  ctx: AuthedContext,
+  tx: BehaviourTx,
+  input: { behaviourEntryId: string; previousNoteEnc: string | null; nextNote: string | null },
+): Promise<boolean> {
+  const previousNote = decryptOptional(ctx.db.$enc.decrypt, input.previousNoteEnc);
+  if ((previousNote ?? null) === input.nextNote) return false;
+  await tx.behaviourNoteEdit.create({
+    data: {
+      behaviourEntryId: input.behaviourEntryId,
+      previousNoteEnc: input.previousNoteEnc,
+      nextNoteEnc: input.nextNote ? ctx.db.$enc.encrypt(input.nextNote) : null,
+      editedById: ctx.user.id,
+    },
+  });
+  return true;
+}
+
+async function loadPendingDemerit(tx: BehaviourTx, id: string) {
+  const existing = await tx.behaviourEntry.findUnique({
+    where: { id },
+    include: { student: { select: { fullNameEnc: true } } },
+  });
+  if (
+    !existing ||
+    existing.deletedAt !== null ||
+    existing.type !== 'Demerit' ||
+    existing.parentReleaseStatus !== 'Pending'
+  ) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'pending demerit not found' });
+  }
+  return existing;
+}
+
+function conflictIfAlreadyDecided(count: number): void {
+  if (count === 0) {
+    throw new TRPCError({ code: 'CONFLICT', message: 'demerit has already been decided' });
   }
 }
 
@@ -851,6 +905,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               'user PII',
             ),
             recordedByRole: row.recordedBy.role,
+            parentReleaseStatus: row.parentReleaseStatus,
             createdAt: row.createdAt,
           })),
         };
@@ -995,6 +1050,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               'user PII',
             ),
             recordedByRole: row.recordedBy.role,
+            parentReleaseStatus: row.parentReleaseStatus,
             createdAt: row.createdAt,
           })),
         };
@@ -1316,6 +1372,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               'user PII',
             ),
             recordedByRole: row.recordedBy.role,
+            parentReleaseStatus: row.parentReleaseStatus,
             createdAt: row.createdAt,
           })),
         };
@@ -1376,6 +1433,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               visibility: true,
               meritDelta: true,
               recordedById: true,
+              parentReleaseStatus: true,
               createdAt: true,
             },
             orderBy: { createdAt: 'desc' },
@@ -1391,6 +1449,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           visibility: entry.visibility,
           meritDelta: entry.meritDelta,
           recordedById: entry.recordedById,
+          parentReleaseStatus: entry.parentReleaseStatus,
           createdAt: entry.createdAt,
         }));
 
@@ -1501,8 +1560,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               visibility,
               meritDelta,
               recordedById: ctx.user.id,
+              parentReleaseStatus: releaseStatusForNewEntry(input.type),
             },
           });
+          // Demerit deductions are held until the Head releases the demerit to parents.
           const ledgerRows =
             input.type === 'Merit'
               ? rowsForMerit({
@@ -1511,14 +1572,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                   reason: category,
                   behaviourEntryId: behaviour.id,
                 })
-              : input.type === 'Demerit'
-                ? rowsForDemerit({
-                    studentId: input.studentId,
-                    amount: Math.abs(meritDelta),
-                    reason: category,
-                    behaviourEntryId: behaviour.id,
-                  })
-                : [];
+              : [];
 
           if (ledgerRows.length > 0) {
             await tx.meritLedger.createMany({ data: ledgerRows });
@@ -1577,6 +1631,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             note: input.note ?? null,
             recordedById: result.behaviour.recordedById,
             visibility: result.behaviour.visibility,
+            parentReleaseStatus: releaseStatusForNewEntry(result.behaviour.type),
           },
         });
 
@@ -1656,8 +1711,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 visibility,
                 meritDelta,
                 recordedById: ctx.user.id,
+                parentReleaseStatus: releaseStatusForNewEntry(input.type),
               },
             });
+            // Demerit deductions are held until the Head releases the demerit to parents.
             const ledgerRows =
               input.type === 'Merit'
                 ? rowsForMerit({
@@ -1666,14 +1723,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                     reason: category,
                     behaviourEntryId: behaviour.id,
                   })
-                : input.type === 'Demerit'
-                  ? rowsForDemerit({
-                      studentId,
-                      amount: Math.abs(meritDelta),
-                      reason: category,
-                      behaviourEntryId: behaviour.id,
-                    })
-                  : [];
+                : [];
 
             if (ledgerRows.length > 0) {
               await tx.meritLedger.createMany({ data: ledgerRows });
@@ -1747,6 +1797,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 note: input.note ?? null,
                 recordedById: entry.recordedById,
                 visibility: entry.visibility,
+                parentReleaseStatus: releaseStatusForNewEntry(entry.type),
               },
             });
           }),
@@ -1822,7 +1873,16 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                   ? existing.meritDelta
                   : -(input.amount ?? Math.abs(demeritMeritDeltaForCategory(nextCategory)))
                 : existing.meritDelta;
-          const ledgerDelta = nextMeritDelta - existing.meritDelta;
+          // A pending demerit has no ledger rows yet; release writes them from the final value.
+          const ledgerDelta =
+            existing.parentReleaseStatus === 'Pending' ? 0 : nextMeritDelta - existing.meritDelta;
+          if (nextNote !== undefined) {
+            await recordNoteEdit(ctx, tx, {
+              behaviourEntryId: existing.id,
+              previousNoteEnc: existing.noteEnc,
+              nextNote: nextNote || null,
+            });
+          }
 
           const row = await tx.behaviourEntry.update({
             where: { id: existing.id },
@@ -1960,6 +2020,172 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         };
       }),
 
+    parentReleaseQueue: fullAdminProcedure.query(async ({ ctx }) => {
+      const rows = await ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: { type: 'Demerit', parentReleaseStatus: 'Pending', deletedAt: null },
+          include: {
+            student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+            noteEdits: {
+              include: { editedBy: { select: { fullNameEnc: true } } },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+      );
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'BehaviourEntry',
+          meta: { source: 'behaviour.parentReleaseQueue', count: rows.length },
+        },
+      });
+
+      return rows.map((row) => ({
+        id: row.id,
+        student: {
+          id: row.student.id,
+          fullName: decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student PII'),
+          yearGroup: row.student.yearGroup,
+        },
+        recordedBy: {
+          id: row.recordedBy.id,
+          fullName: decryptRequired(ctx.db.$enc.decrypt, row.recordedBy.fullNameEnc, 'user PII'),
+          role: row.recordedBy.role,
+        },
+        category: row.category,
+        note: decryptOptional(ctx.db.$enc.decrypt, row.noteEnc),
+        visibility: row.visibility,
+        meritDelta: row.meritDelta,
+        createdAt: row.createdAt,
+        noteEdits: row.noteEdits.map((edit) => ({
+          id: edit.id,
+          previousNote: decryptOptional(ctx.db.$enc.decrypt, edit.previousNoteEnc),
+          nextNote: decryptOptional(ctx.db.$enc.decrypt, edit.nextNoteEnc),
+          editedByName: decryptRequired(ctx.db.$enc.decrypt, edit.editedBy.fullNameEnc, 'user PII'),
+          createdAt: edit.createdAt,
+        })),
+      }));
+    }),
+
+    releaseDemerit: fullAdminProcedure
+      // An empty note clears it: the Head may decide parents get no free-text note.
+      .input(z.object({ id: z.string().min(1), note: z.string().trim().max(2000).optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const nextNote = input.note === undefined ? undefined : input.note || null;
+        const result = await ctx.withRls(async (tx) => {
+          const existing = await loadPendingDemerit(tx, input.id);
+          const noteEdited =
+            nextNote === undefined
+              ? false
+              : await recordNoteEdit(ctx, tx, {
+                  behaviourEntryId: existing.id,
+                  previousNoteEnc: existing.noteEnc,
+                  nextNote,
+                });
+          const releasedAt = new Date();
+          // Conditional on Pending so a double submit cannot release (and deduct) twice.
+          const flipped = await tx.behaviourEntry.updateMany({
+            where: { id: existing.id, parentReleaseStatus: 'Pending', deletedAt: null },
+            data: {
+              parentReleaseStatus: 'Released',
+              releasedAt,
+              releasedById: ctx.user.id,
+              ...(noteEdited && nextNote !== undefined
+                ? { noteEnc: nextNote ? ctx.db.$enc.encrypt(nextNote) : null }
+                : {}),
+            },
+          });
+          conflictIfAlreadyDecided(flipped.count);
+
+          const ledgerRows = rowsForDemerit({
+            studentId: existing.studentId,
+            amount: Math.abs(existing.meritDelta),
+            reason: existing.category,
+            behaviourEntryId: existing.id,
+          });
+          if (ledgerRows.length > 0) {
+            await tx.meritLedger.createMany({ data: ledgerRows });
+          }
+          return { existing, noteEdited, releasedAt, ledgerRowCount: ledgerRows.length };
+        });
+        const { existing, noteEdited, releasedAt, ledgerRowCount } = result;
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'BehaviourEntry',
+            entityId: existing.id,
+            meta: {
+              source: 'behaviour.parentRelease.release',
+              studentId: existing.studentId,
+              noteEdited,
+              meritDelta: existing.meritDelta,
+              ledgerRowCount,
+            },
+          },
+        });
+
+        const guardiansEmailed = await notifyBehaviourGuardians({
+          ctx,
+          getEmailClient,
+          entry: {
+            id: existing.id,
+            studentId: existing.studentId,
+            studentNameEnc: existing.student.fullNameEnc,
+            type: existing.type,
+            category: existing.category,
+            note: noteEdited
+              ? (nextNote ?? null)
+              : decryptOptional(ctx.db.$enc.decrypt, existing.noteEnc),
+            recordedById: existing.recordedById,
+            visibility: existing.visibility,
+            parentReleaseStatus: 'Released',
+          },
+        });
+
+        return { id: existing.id, releasedAt, noteEdited, guardiansEmailed };
+      }),
+
+    rejectDemerit: fullAdminProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const existing = await ctx.withRls(async (tx) => {
+          const existing = await loadPendingDemerit(tx, input.id);
+          // Rejection deletes the demerit outright (RLS behaviour_full_admin_delete_pending).
+          // Pending demerits have no ledger rows; their note edits cascade. The audit row
+          // below keeps who rejected what.
+          const removed = await tx.behaviourEntry.deleteMany({
+            where: { id: existing.id, type: 'Demerit', parentReleaseStatus: 'Pending' },
+          });
+          conflictIfAlreadyDecided(removed.count);
+          return existing;
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'BehaviourEntry',
+            entityId: existing.id,
+            meta: {
+              source: 'behaviour.parentRelease.reject',
+              studentId: existing.studentId,
+              type: existing.type,
+              category: existing.category,
+              meritDelta: existing.meritDelta,
+            },
+          },
+        });
+
+        return { id: existing.id };
+      }),
+
     logMany: authedProcedure
       .input(
         z.object({
@@ -2024,8 +2250,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 visibility: 'General',
                 meritDelta: entry.meritDelta,
                 recordedById: ctx.user.id,
+                parentReleaseStatus: releaseStatusForNewEntry(input.type),
               },
             });
+            // Demerit deductions are held until the Head releases the demerit to parents.
             const ledgerRows =
               input.type === 'Merit'
                 ? rowsForMerit({
@@ -2034,13 +2262,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                     reason: entry.category,
                     behaviourEntryId: behaviour.id,
                   })
-                : rowsForDemerit({
-                    studentId: input.studentId,
-                    amount: Math.abs(entry.meritDelta),
-                    reason: entry.category,
-                    behaviourEntryId: behaviour.id,
-                  });
-            await tx.meritLedger.createMany({ data: ledgerRows });
+                : [];
+            if (ledgerRows.length > 0) {
+              await tx.meritLedger.createMany({ data: ledgerRows });
+            }
             ledgerRowCount += ledgerRows.length;
             behaviourEntries.push(behaviour);
           }
@@ -2098,6 +2323,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 note: preparedEntries[index]?.note ?? null,
                 recordedById: entry.recordedById,
                 visibility: entry.visibility,
+                parentReleaseStatus: releaseStatusForNewEntry(entry.type),
               },
             }),
           ),
@@ -2175,8 +2401,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                   visibility: 'General',
                   meritDelta: entry.meritDelta,
                   recordedById: ctx.user.id,
+                  parentReleaseStatus: releaseStatusForNewEntry(input.type),
                 },
               });
+              // Demerit deductions are held until the Head releases the demerit to parents.
               const ledgerRows =
                 input.type === 'Merit'
                   ? rowsForMerit({
@@ -2185,13 +2413,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                       reason: entry.category,
                       behaviourEntryId: behaviour.id,
                     })
-                  : rowsForDemerit({
-                      studentId,
-                      amount: Math.abs(entry.meritDelta),
-                      reason: entry.category,
-                      behaviourEntryId: behaviour.id,
-                    });
-              await tx.meritLedger.createMany({ data: ledgerRows });
+                  : [];
+              if (ledgerRows.length > 0) {
+                await tx.meritLedger.createMany({ data: ledgerRows });
+              }
               ledgerRowCount += ledgerRows.length;
               behaviourEntries.push({ ...behaviour, note: entry.note });
             }
@@ -2269,6 +2494,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 note: entry.note,
                 recordedById: entry.recordedById,
                 visibility: entry.visibility,
+                parentReleaseStatus: releaseStatusForNewEntry(entry.type),
               },
             });
           }),

@@ -362,6 +362,10 @@ function visibleBehaviourWhere(user: SessionUser): Prisma.BehaviourEntryWhereInp
       ],
     };
   }
+  // Parents and students never see demerits the Head has not released yet.
+  if (user.role === 'Parent' || user.role === 'Student') {
+    return { deletedAt: null, visibility: 'General' as const, parentReleaseStatus: 'Released' };
+  }
   return { deletedAt: null, visibility: 'General' as const };
 }
 
@@ -836,6 +840,7 @@ export const childLogRouter = router({
               createdAt: { gte: from, lt: to },
               deletedAt: null,
               visibility: 'General',
+              parentReleaseStatus: 'Released',
             },
             select: {
               id: true,

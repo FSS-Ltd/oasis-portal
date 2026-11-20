@@ -126,6 +126,7 @@ async function loadTitheEntries(
         studentId: input.studentId,
         createdAt: { gte: input.period.start, lt: input.period.end },
         deletedAt: null,
+        parentReleaseStatus: 'Released',
       },
       select: { type: true, meritDelta: true },
     }),
